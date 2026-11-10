@@ -1,0 +1,16 @@
+{
+  "name": "glamgo-premium-beauty-marketplace",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "optimize:assets": "node scripts/optimize-assets.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5",
+    "vite": "^7.1.12"
+  }
+}

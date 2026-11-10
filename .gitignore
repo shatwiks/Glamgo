@@ -1,0 +1,18 @@
+node_modules/
+dist/
+.DS_Store
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Graphify internal cache
+graphify-out/cache/
+graphify-out/.graphify_*
+!graphify-out/.graphify_root
+!graphify-out/.graphify_python
