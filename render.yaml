@@ -1,20 +1,11 @@
 # ==============================================================================
 # GlamGo Luxury Beauty Marketplace — Render Blueprint Specification (render.yaml)
-# Backend Architecture: Managed Postgres 16 (Free Tier) + Docker FastAPI (Free Tier)
-# Note: Frontend is deployed separately on Vercel
+# Production Architecture: Docker FastAPI Backend connected to Cloud PostgreSQL (Neon)
+# Frontend deployed on Vercel
 # ==============================================================================
 
-databases:
-  # 1. Managed PostgreSQL 16 (Render Free Tier — 1GB Storage, No Card Required)
-  - name: glamgo-postgres
-    databaseName: glamgo_db
-    user: glamgo
-    plan: free
-    region: oregon
-    postgresMajorVersion: 16
-
 services:
-  # 2. FastAPI Backend Application (Docker Runtime on Free Tier — No Card Required)
+  # FastAPI Backend Application (Docker Runtime on Free Tier — Zero Render DB Limits)
   - type: web
     name: glamgo-backend
     runtime: docker
@@ -27,9 +18,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        fromDatabase:
-          name: glamgo-postgres
-          property: connectionString
+        sync: false # Enter your Neon PostgreSQL connection string
       - key: REDIS_URL
         value: "" # Built-in graceful in-memory fallback
       - key: SECRET_KEY
