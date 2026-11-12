@@ -8,6 +8,7 @@ databases:
     databaseName: glamgo_db
     user: glamgo
     plan: starter
+    region: oregon
     postgresMajorVersion: 16
 
 services:
@@ -15,6 +16,7 @@ services:
   - type: keyvalue
     name: glamgo-redis
     plan: starter
+    region: oregon
     maxmemoryPolicy: allkeys-lru
     ipAllowList: [] # internal connections only
 
@@ -54,13 +56,12 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
 
-  # 3. Vite SPA Frontend (Static Site with Global CDN)
+  # 3. Vite SPA Frontend (Static Site with Global CDN — no region allowed)
   - type: web
     name: glamgo-frontend
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: ./dist
-    region: oregon
     headers:
       - path: /*
         name: X-Frame-Options
