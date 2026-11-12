@@ -1,32 +1,26 @@
 # ==============================================================================
 # GlamGo Luxury Beauty Marketplace — Render Blueprint Specification (render.yaml)
-# Deploy full-stack architecture: Managed Postgres 16 + Redis KeyValue + Docker FastAPI + Static Frontend
+# 100% Free Tier Deployment: Managed Postgres 16 (Free) + Docker FastAPI (Free) + Static Frontend (Free)
+# Zero Credit Card Required
 # ==============================================================================
 
 databases:
+  # 1. Managed PostgreSQL 16 (Render Free Tier — 1GB Storage, No Card Required)
   - name: glamgo-postgres
     databaseName: glamgo_db
     user: glamgo
-    plan: starter
+    plan: free
     region: oregon
     postgresMajorVersion: 16
 
 services:
-  # 1. Managed Redis Cache & Lock Store
-  - type: keyvalue
-    name: glamgo-redis
-    plan: starter
-    region: oregon
-    maxmemoryPolicy: allkeys-lru
-    ipAllowList: [] # internal connections only
-
-  # 2. FastAPI Backend Application (Docker Runtime)
+  # 2. FastAPI Backend Application (Docker Runtime on Free Tier — No Card Required)
   - type: web
     name: glamgo-backend
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: free
     region: oregon
     healthCheckPath: /health/live
     envVars:
@@ -37,10 +31,7 @@ services:
           name: glamgo-postgres
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: glamgo-redis
-          property: connectionString
+        value: "" # Graceful in-memory fallback (or paste free Upstash Redis URL)
       - key: SECRET_KEY
         generateValue: true
       - key: AUTO_MIGRATE
@@ -56,7 +47,7 @@ services:
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
 
-  # 3. Vite SPA Frontend (Static Site with Global CDN — no region allowed)
+  # 3. Vite SPA Frontend (Static Site on Global Edge CDN — Free Tier)
   - type: web
     name: glamgo-frontend
     runtime: static
@@ -75,4 +66,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE_URL
-        sync: false # Set to https://<your-backend-slug>.onrender.com/api/v1
+        sync: false # Set to https://glamgo-backend.onrender.com/api/v1
