@@ -459,6 +459,8 @@ def get_admin_bookings(
         {
             "id": b.id,
             "customer_id": b.customer_id,
+            "customer_name": b.customer.full_name if b.customer else f"User #{b.customer_id}",
+            "customer_email": b.customer.email if b.customer else "",
             "title": b.title,
             "type": b.type,
             "professional": b.professional,
@@ -483,12 +485,25 @@ def get_admin_orders(
         {
             "id": o.id,
             "customer_id": o.customer_id,
+            "user_id": o.customer_id,
+            "customer_name": o.customer.full_name if o.customer else f"User #{o.customer_id}",
+            "customer_email": o.customer.email if o.customer else "",
             "total": o.total,
             "subtotal": o.subtotal,
             "discount": o.discount,
             "status": o.status.value,
             "payment_method": o.payment_method,
             "payment_status": o.payment_status,
+            "address_label": o.address_label,
+            "address_text": o.address_text,
+            "items": [
+                {
+                    "name": item.name,
+                    "qty": item.qty,
+                    "price": item.price
+                }
+                for item in o.items
+            ],
             "items_count": len(o.items),
             "date": o.date,
             "created_at": o.created_at

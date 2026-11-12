@@ -1093,7 +1093,7 @@ function adminPage(){
         '<span class="admin-status-pulse"><i></i> '+bList.length+' Bookings</span>' +
       '</div>' +
       (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Service / Title</th><th>Customer</th><th>Type</th><th>Date & Time</th><th>Location</th><th>Price</th><th>Status</th></tr></thead><tbody>' +
-        bList.map(b => '<tr><td>#'+b.id+'</td><td><strong>'+esc(b.title)+'</strong></td><td>User #'+b.customer_id+'</td><td><span class="badge badge-info">'+esc(b.type)+'</span></td><td>'+formatDate(b.date)+' · '+esc(b.time)+'</td><td><small>'+esc(b.location)+'</small></td><td><strong>'+money(b.price)+'</strong></td><td><span class="badge badge-approved">'+esc(b.status||'Confirmed')+'</span></td></tr>').join('') +
+        bList.map(b => '<tr><td>#'+b.id+'</td><td><strong>'+esc(b.title)+'</strong></td><td>'+(b.customer_name ? '<strong>'+esc(b.customer_name)+'</strong><br><small style="color:var(--muted)">'+esc(b.customer_email || ('User #'+b.customer_id))+'</small>' : 'User #'+(b.customer_id||'-'))+'</td><td><span class="badge badge-info">'+esc(b.type)+'</span></td><td>'+formatDate(b.date)+' · '+esc(b.time)+'</td><td><small>'+esc(b.location)+'</small></td><td><strong>'+money(b.price)+'</strong></td><td><span class="badge badge-approved">'+esc(b.status||'Confirmed')+'</span></td></tr>').join('') +
       '</tbody></table></div>' : '<p style="color:var(--muted);padding:20px">No bookings recorded in database.</p>') +
     '</div>';
   } else if(tab === 'orders'){
@@ -1104,7 +1104,15 @@ function adminPage(){
         '<span class="admin-status-pulse"><i></i> '+oList.length+' Orders</span>' +
       '</div>' +
       (oList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total Amount</th><th>Payment</th><th>Address</th><th>Status</th></tr></thead><tbody>' +
-        oList.map(o => '<tr><td><strong>'+esc(o.id)+'</strong></td><td>User #'+o.user_id+'</td><td>'+(o.items||[]).map(i=>esc(i.name)+' × '+i.qty).join(', ')+'</td><td><strong>'+money(o.total)+'</strong></td><td>'+esc(o.payment_method||'UPI')+'</td><td><small>'+esc(o.address_label||'')+' — '+esc(o.address_text||'')+'</small></td><td><span class="badge badge-approved">'+esc(o.status||'Placed')+'</span></td></tr>').join('') +
+        oList.map(o => {
+          const custHtml = o.customer_name
+            ? '<strong>'+esc(o.customer_name)+'</strong><br><small style="color:var(--muted)">'+esc(o.customer_email || ('User #'+(o.customer_id || o.user_id || '')))+'</small>'
+            : 'User #'+(o.customer_id || o.user_id || '-');
+          const itemsHtml = (o.items && o.items.length)
+            ? o.items.map(i=>esc(i.name)+' × '+i.qty).join(', ')
+            : (o.items_count ? o.items_count + ' items' : '-');
+          return '<tr><td><strong>'+esc(o.id)+'</strong></td><td>'+custHtml+'</td><td>'+itemsHtml+'</td><td><strong>'+money(o.total)+'</strong></td><td>'+esc(o.payment_method||'UPI')+'</td><td><small>'+esc(o.address_label||'')+(o.address_text ? ' — '+esc(o.address_text) : '')+'</small></td><td><span class="badge badge-approved">'+esc(o.status||'Placed')+'</span></td></tr>';
+        }).join('') +
       '</tbody></table></div>' : '<p style="color:var(--muted);padding:20px">No orders recorded in database.</p>') +
     '</div>';
   } else if(tab === 'services'){
