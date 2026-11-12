@@ -8,6 +8,12 @@ from backend.app.models.booking import Booking
 from backend.app.models.order import Order, OrderItem, Coupon
 from backend.app.models.payment import PaymentTransaction
 from backend.app.models.review import Review
+from backend.app.models.admin import AdminAuditLog
+from backend.app.models.commerce import (
+    ReservationStatus, SubOrderStatus, ShipmentStatus, ReturnStatus, StockAction, EscrowStatus,
+    SellerListing, InventoryReservation, SubOrder, Shipment, ReturnRequest, InventoryAuditLog,
+    SellerEscrowRecord
+)
 
 __all__ = [
     "Base",
@@ -18,6 +24,12 @@ __all__ = [
     "BookingStatus",
     "OrderStatus",
     "PaymentStatus",
+    "ReservationStatus",
+    "SubOrderStatus",
+    "ShipmentStatus",
+    "ReturnStatus",
+    "StockAction",
+    "EscrowStatus",
     "Service",
     "ProfessionalProfile",
     "Salon",
@@ -33,4 +45,12 @@ __all__ = [
     "Coupon",
     "PaymentTransaction",
     "Review",
+    "AdminAuditLog",
+    "SellerListing",
+    "InventoryReservation",
+    "SubOrder",
+    "Shipment",
+    "ReturnRequest",
+    "InventoryAuditLog",
+    "SellerEscrowRecord",
 ]

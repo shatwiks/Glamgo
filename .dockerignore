@@ -1,0 +1,54 @@
+# ==============================================================================
+# GlamGo Docker Build Ignore File
+# ==============================================================================
+
+# Version control
+.git
+.gitignore
+
+# Python virtual environments & bytecode
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node dependencies and build artifacts
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database dumps and local backups
+backups/
+*.dump
+*.sql
+
+# Internal planning and agent memory
+.planning/
+.gemini/
+graphify-out/
+
+# Local environment files (prevent accidental secret leaks into images)
+.env
+.env.*
+!.env.production.example
+!.env.staging.example
+
+# Documentation & Reports (keep image size minimal)
+docs/
+*.log
+
+# IDE & Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

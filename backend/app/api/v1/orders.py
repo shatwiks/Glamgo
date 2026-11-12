@@ -13,11 +13,49 @@ from backend.app.schemas.order import (
     OrderCreate, OrderResponse, OrderItemResponse,
     CouponValidateRequest, CouponValidateResponse
 )
+from backend.app.schemas.commerce import (
+    ReservationCreate, ReservationResponse, MultiVendorCheckoutRequest,
+    MultiVendorCheckoutResponse, ReturnRequestCreate, ReturnRequestResponse
+)
+from backend.app.services.commerce_service import CommerceService
 
 router = APIRouter()
 
 
 def format_order(order: Order) -> dict:
+    suborders_list = []
+    if hasattr(order, "suborders") and order.suborders:
+        for s in order.suborders:
+            suborders_list.append({
+                "suborder_id": s.id,
+                "seller_id": s.seller_id,
+                "seller_name": s.seller.full_name if s.seller else f"Seller #{s.seller_id}",
+                "status": s.status.value,
+                "subtotal": s.subtotal,
+                "shipping_fee": s.shipping_fee,
+                "discount": s.discount,
+                "total": s.total,
+                "shipment": {
+                    "carrier_name": s.shipment.carrier_name,
+                    "tracking_number": s.shipment.tracking_number,
+                    "tracking_url": s.shipment.tracking_url,
+                    "status": s.shipment.status.value,
+                    "shipped_at": s.shipment.shipped_at,
+                    "delivered_at": s.shipment.delivered_at
+                } if s.shipment else None,
+                "items": [
+                    {
+                        "order_item_id": oi.id,
+                        "product_id": oi.product_id,
+                        "name": oi.name,
+                        "qty": oi.qty,
+                        "price": oi.price,
+                        "return_eligible": (s.status.value == "delivered")
+                    }
+                    for oi in s.items
+                ]
+            })
+
     return {
         "id": order.id,
         "date": order.date,
@@ -40,7 +78,8 @@ def format_order(order: Order) -> dict:
             "label": order.address_label,
             "text": order.address_text
         },
-        "created_at": order.created_at
+        "created_at": order.created_at,
+        "suborders": suborders_list
     }
 
 
@@ -63,6 +102,34 @@ def validate_coupon(req: CouponValidateRequest, db: Session = Depends(get_db)):
         discount=float(discount),
         message=f"{coupon.code} applied — you save ₹{int(discount)}"
     )
+
+
+@router.post("/reserve", response_model=ReservationResponse, status_code=status.HTTP_201_CREATED)
+def reserve_inventory_endpoint(
+    req: ReservationCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return CommerceService.reserve_inventory(db, user.id, req.items)
+
+
+@router.post("/checkout", response_model=MultiVendorCheckoutResponse, status_code=status.HTTP_201_CREATED)
+def checkout_multi_vendor_endpoint(
+    req: MultiVendorCheckoutRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return CommerceService.checkout_multi_vendor(db, user.id, req)
+
+
+@router.post("/suborders/{suborder_id}/return", response_model=ReturnRequestResponse, status_code=status.HTTP_201_CREATED)
+def request_return_endpoint(
+    suborder_id: str,
+    req: ReturnRequestCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    return CommerceService.request_return(db, user.id, suborder_id, req)
 
 
 @router.post("/", response_model=OrderResponse)

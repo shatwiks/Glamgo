@@ -4,6 +4,9 @@ from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.models.catalog import Product, ProductVariant
 from backend.app.schemas.catalog import ProductResponse, ProductCreate
+from backend.app.schemas.commerce import ProductOffersResponse
+from backend.app.services.commerce_service import CommerceService
+from backend.app.services.cache_service import cache_service
 from backend.app.api.deps import require_seller
 
 router = APIRouter()
@@ -35,6 +38,11 @@ def get_products(
     query: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
+    cache_key = f"glamgo:catalog:products:{category}:{sort}:{tag}:{query}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
     q = db.query(Product).filter(Product.is_active == True)
     if category and category.lower() != "all":
         q = q.filter(Product.category.ilike(category))
@@ -50,7 +58,9 @@ def get_products(
         q = q.order_by(Product.rating.desc())
 
     products = q.all()
-    return [format_product(p) for p in products]
+    result = [format_product(p) for p in products]
+    cache_service.set(cache_key, result, ttl=300)
+    return result
 
 
 @router.get("/categories", response_model=List[str])
@@ -99,4 +109,11 @@ def create_product(
     db.commit()
     db.refresh(product)
 
+    cache_service.invalidate_catalog()
+
     return format_product(product)
+
+
+@router.get("/{product_id}/offers", response_model=ProductOffersResponse)
+def get_product_offers_endpoint(product_id: str, db: Session = Depends(get_db)):
+    return CommerceService.get_product_offers(db, product_id)

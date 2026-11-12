@@ -1,0 +1,88 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: glamgo_staging_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: glamgo_staging
+      POSTGRES_PASSWORD: glamgo_staging_password
+      POSTGRES_DB: glamgo_staging_db
+    ports:
+      - "5438:5432"
+    volumes:
+      - glamgo_staging_pgdata:/var/lib/postgresql/data
+    networks:
+      - glamgo_staging_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glamgo_staging -d glamgo_staging_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: glamgo_staging_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6383:6379"
+    volumes:
+      - glamgo_staging_redisdata:/data
+    networks:
+      - glamgo_staging_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: glamgo_staging_backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: staging
+      DATABASE_URL: "postgresql+psycopg://glamgo_staging:glamgo_staging_password@db:5432/glamgo_staging_db"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: "glamgo-staging-jwt-secret-key-cormorant-minimum-32-chars-2026"
+      ENABLE_DOCS: "true"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+      AUTO_MIGRATE: "true"
+    ports:
+      - "8001:8000"
+    networks:
+      - glamgo_staging_net
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glamgo_staging_frontend
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    networks:
+      - glamgo_staging_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+networks:
+  glamgo_staging_net:
+    driver: bridge
+
+volumes:
+  glamgo_staging_pgdata:
+  glamgo_staging_redisdata:

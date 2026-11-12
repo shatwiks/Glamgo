@@ -24,6 +24,7 @@ class Token(BaseModel):
     user_id: int
     name: str
     email: str
+    phone: Optional[str] = None
 
 
 class RefreshTokenRequest(BaseModel):

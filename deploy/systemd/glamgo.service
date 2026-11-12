@@ -1,0 +1,18 @@
+[Unit]
+Description=GlamGo Luxury Beauty Marketplace
+Requires=docker.service
+After=docker.service network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/glamgo
+ExecStart=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env.production up -d --remove-orphans
+ExecStop=/usr/bin/docker compose -f docker-compose.prod.yml down
+ExecReload=/usr/bin/docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=multi-user.target

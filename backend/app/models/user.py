@@ -57,7 +57,10 @@ class User(Base):
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     professional_profile = relationship("ProfessionalProfile", back_populates="user", uselist=False)
     salons = relationship("Salon", back_populates="owner")
-    drafts = relationship("PartnerDraft", back_populates="user")
+    drafts = relationship("PartnerDraft", back_populates="user", foreign_keys="[PartnerDraft.user_id]")
+    seller_listings = relationship("SellerListing", back_populates="seller")
+    seller_suborders = relationship("SubOrder", back_populates="seller")
+    seller_escrow_records = relationship("SellerEscrowRecord", back_populates="seller")
 
 
 class Address(Base):

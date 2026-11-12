@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from backend.app.core.security import hash_password
 from backend.app.models.user import User, UserRole, Address, Notification
 from backend.app.models.catalog import (
@@ -262,6 +263,15 @@ def seed_database(db: Session):
             exists = db.query(Availability).filter(Availability.user_id == pro_user.id, Availability.day == day).first()
             if not exists:
                 db.add(Availability(user_id=pro_user.id, day=day, is_available=True))
+        db.commit()
+
+    # 8. Reset PostgreSQL sequences for tables seeded with explicit IDs
+    if db.bind and db.bind.dialect.name == "postgresql":
+        for table in ["users", "professional_profiles", "salon_staff", "product_variants", "availabilities"]:
+            try:
+                db.execute(text(f"SELECT setval('{table}_id_seq', (SELECT COALESCE(MAX(id), 1) FROM {table}));"))
+            except Exception:
+                pass
         db.commit()
 
 

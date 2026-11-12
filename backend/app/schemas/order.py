@@ -36,6 +36,7 @@ class OrderResponse(BaseModel):
     payment_status: str
     address: Dict[str, Any]
     created_at: datetime
+    suborders: Optional[List[Dict[str, Any]]] = None
 
 
 class CouponValidateRequest(BaseModel):

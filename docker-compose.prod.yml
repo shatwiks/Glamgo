@@ -1,0 +1,122 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: glamgo_prod_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-glamgo_prod_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Production database password must be set in environment}
+      POSTGRES_DB: ${POSTGRES_DB:-glamgo_prod_db}
+    # No exposed host ports in production: database is isolated inside internal bridge network
+    expose:
+      - "5432"
+    volumes:
+      - glamgo_prod_pgdata:/var/lib/postgresql/data
+    networks:
+      - glamgo_prod_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-glamgo_prod_admin} -d ${POSTGRES_DB:-glamgo_prod_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          memory: 512M
+
+  redis:
+    image: redis:7-alpine
+    container_name: glamgo_prod_redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    # No exposed host ports in production: redis is isolated inside internal bridge network
+    expose:
+      - "6379"
+    volumes:
+      - glamgo_prod_redisdata:/data
+    networks:
+      - glamgo_prod_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: glamgo_prod_backend
+    restart: always
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: "postgresql+psycopg://${POSTGRES_USER:-glamgo_prod_admin}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-glamgo_prod_db}"
+      REDIS_URL: "redis://redis:6379/0"
+      SECRET_KEY: ${SECRET_KEY:?Production SECRET_KEY must be set in environment}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      ENABLE_DOCS: "false"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "30"
+      AUTO_MIGRATE: "true"
+    expose:
+      - "8000"
+    networks:
+      - glamgo_prod_net
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          memory: 512M
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: glamgo_prod_frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - glamgo_prod_net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+
+networks:
+  glamgo_prod_net:
+    driver: bridge
+
+volumes:
+  glamgo_prod_pgdata:
+  glamgo_prod_redisdata:

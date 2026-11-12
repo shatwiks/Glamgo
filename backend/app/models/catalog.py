@@ -110,6 +110,7 @@ class Product(Base):
 
     variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")
     order_items = relationship("OrderItem", back_populates="product")
+    seller_listings = relationship("SellerListing", back_populates="product", cascade="all, delete-orphan")
 
 
 class ProductVariant(Base):
@@ -141,6 +142,11 @@ class PartnerDraft(Base):
     name = Column(String(255), nullable=False)
     price = Column(Float, nullable=False)
     description = Column(Text, nullable=False)
+    status = Column(String(50), default="PENDING", nullable=False, index=True)  # PENDING, APPROVED, REJECTED
+    reviewed_by = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    rejection_reason = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
-    user = relationship("User", back_populates="drafts")
+    user = relationship("User", back_populates="drafts", foreign_keys=[user_id])
+    reviewer = relationship("User", foreign_keys=[reviewed_by])

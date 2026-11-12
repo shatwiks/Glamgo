@@ -1,4 +1,4 @@
-const API_BASE = window.GLAMGO_API_URL || '/api/v1';
+const API_BASE = window.GLAMGO_API_URL || (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL) || '/api/v1';
 
 export const tokenStorage = {
   get: () => localStorage.getItem('glamgo_token'),
@@ -170,6 +170,13 @@ export async function apiGetMyBookings() {
   return await apiRequest('/bookings/my');
 }
 
+export async function apiUpdateBookingStatus(bookingId, status) {
+  return await apiRequest(`/bookings/${bookingId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
 // Orders & Checkout
 export async function apiValidateCoupon(code, subtotal) {
   return await apiRequest('/orders/coupon/validate', {
@@ -215,13 +222,152 @@ export async function apiToggleAvailability(day) {
   });
 }
 
+export async function apiApplyForPartner(payload) {
+  return await apiRequest('/partners/apply', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetProfessionalProfile() {
+  return await apiRequest('/partners/professional/profile');
+}
+
+export async function apiUpdateProfessionalProfile(payload) {
+  return await apiRequest('/partners/professional/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetProfessionalServices() {
+  return await apiRequest('/partners/professional/services');
+}
+
+export async function apiAssignProfessionalService(serviceId) {
+  return await apiRequest('/partners/professional/services', {
+    method: 'POST',
+    body: JSON.stringify({ service_id: serviceId }),
+  });
+}
+
+export async function apiUnlinkProfessionalService(serviceId) {
+  return await apiRequest(`/partners/professional/services/${encodeURIComponent(serviceId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function apiGetProfessionalBookings() {
+  return await apiRequest('/partners/professional/bookings');
+}
+
+export async function apiUpdateProfessionalBookingStatus(bookingId, status) {
+  return await apiRequest(`/partners/professional/bookings/${encodeURIComponent(bookingId)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function apiGetSalonProfile() {
+  return await apiRequest('/partners/salon/profile');
+}
+
+export async function apiUpdateSalonProfile(payload) {
+  return await apiRequest('/partners/salon/profile', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetSalonStaff() {
+  return await apiRequest('/partners/salon/staff');
+}
+
+export async function apiAddSalonStaff(payload) {
+  return await apiRequest('/partners/salon/staff', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteSalonStaff(staffId) {
+  return await apiRequest(`/partners/salon/staff/${encodeURIComponent(staffId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function apiGetSalonBookings() {
+  return await apiRequest('/partners/salon/bookings');
+}
+
+export async function apiUpdateSalonBookingStatus(bookingId, status) {
+  return await apiRequest(`/partners/salon/bookings/${encodeURIComponent(bookingId)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function apiGetSellerProducts() {
+  return await apiRequest('/partners/seller/products');
+}
+
+export async function apiCreateSellerProduct(payload) {
+  return await apiRequest('/partners/seller/products', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateSellerProduct(productId, payload) {
+  return await apiRequest(`/partners/seller/products/${encodeURIComponent(productId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateSellerStock(productId, stock) {
+  return await apiRequest(`/partners/seller/products/${encodeURIComponent(productId)}/stock`, {
+    method: 'PATCH',
+    body: JSON.stringify({ stock: Number(stock) }),
+  });
+}
+
+export async function apiAddSellerVariant(productId, payload) {
+  return await apiRequest(`/partners/seller/products/${encodeURIComponent(productId)}/variants`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetSellerOrders() {
+  return await apiRequest('/partners/seller/orders');
+}
+
+export async function apiUpdateSellerOrderStatus(orderId, status) {
+  return await apiRequest(`/partners/seller/orders/${encodeURIComponent(orderId)}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function apiGetPartnerFinancials(startDate = null, endDate = null) {
+  const params = new URLSearchParams();
+  if (startDate) params.append('start_date', startDate);
+  if (endDate) params.append('end_date', endDate);
+  const q = params.toString() ? `?${params.toString()}` : '';
+  return await apiRequest(`/partners/financials${q}`);
+}
+
 // Admin
 export async function apiGetAdminStats() {
   return await apiRequest('/admin/stats');
 }
 
-export async function apiGetAdminUsers(role = null) {
-  const q = role ? `?role=${encodeURIComponent(role)}` : '';
+export async function apiGetAdminUsers(role = null, search = null) {
+  const params = new URLSearchParams();
+  if (role) params.append('role', role);
+  if (search) params.append('search', search);
+  const q = params.toString() ? `?${params.toString()}` : '';
   return await apiRequest(`/admin/users${q}`);
 }
 
@@ -229,6 +375,39 @@ export async function apiToggleUserStatus(userId) {
   return await apiRequest(`/admin/users/${userId}/toggle-status`, {
     method: 'PATCH',
   });
+}
+
+export async function apiUpdateUserRole(userId, role) {
+  return await apiRequest(`/admin/users/${userId}/role`, {
+    method: 'PATCH',
+    body: JSON.stringify({ role }),
+  });
+}
+
+export async function apiGetAdminDrafts(status = null) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return await apiRequest(`/admin/partners/drafts${q}`);
+}
+
+export async function apiApprovePartnerDraft(draftId) {
+  return await apiRequest(`/admin/partners/drafts/${draftId}/approve`, {
+    method: 'PATCH',
+  });
+}
+
+export async function apiRejectPartnerDraft(draftId, rejectionReason) {
+  return await apiRequest(`/admin/partners/drafts/${draftId}/reject`, {
+    method: 'PATCH',
+    body: JSON.stringify({ rejection_reason: rejectionReason }),
+  });
+}
+
+export async function apiGetAuditLogs(action = null, limit = 50, offset = 0) {
+  const params = new URLSearchParams();
+  if (action) params.append('action', action);
+  params.append('limit', limit);
+  params.append('offset', offset);
+  return await apiRequest(`/admin/audit-logs?${params.toString()}`);
 }
 
 export async function apiGetAdminBookings() {
@@ -272,4 +451,108 @@ export async function apiGetReviews(itemId = null, itemType = null) {
 
 export async function apiGetMyReviews() {
   return await apiRequest('/reviews/my');
+}
+
+// ===========================================================================
+// Phase 5: Multi-Vendor Commerce & Fulfillment Engine Client APIs
+// ===========================================================================
+
+export async function apiGetProductOffers(productId) {
+  return await apiRequest(`/catalog/products/${productId}/offers`);
+}
+
+export async function apiReserveInventory(items) {
+  return await apiRequest('/orders/reserve', {
+    method: 'POST',
+    body: JSON.stringify({ items }),
+  });
+}
+
+export async function apiMultiVendorCheckout(payload) {
+  return await apiRequest('/orders/checkout', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetSellerListings() {
+  return await apiRequest('/partners/seller/listings');
+}
+
+export async function apiCreateSellerListing(payload) {
+  return await apiRequest('/partners/seller/listings', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateSellerListing(listingId, payload) {
+  return await apiRequest(`/partners/seller/listings/${listingId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetSellerSuborders(status = null) {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  return await apiRequest(`/partners/seller/suborders${q}`);
+}
+
+export async function apiGetSellerSuborderDetail(suborderId) {
+  return await apiRequest(`/partners/seller/suborders/${suborderId}`);
+}
+
+export async function apiPackSellerSuborder(suborderId) {
+  return await apiRequest(`/partners/seller/suborders/${suborderId}/pack`, {
+    method: 'POST',
+  });
+}
+
+export async function apiShipSellerSuborder(suborderId, carrierName, trackingNumber, trackingUrl = null, notes = null) {
+  return await apiRequest(`/partners/seller/suborders/${suborderId}/ship`, {
+    method: 'POST',
+    body: JSON.stringify({
+      carrier_name: carrierName,
+      tracking_number: trackingNumber,
+      tracking_url: trackingUrl,
+      notes,
+    }),
+  });
+}
+
+export async function apiDeliverSellerSuborder(suborderId) {
+  return await apiRequest(`/partners/seller/suborders/${suborderId}/deliver`, {
+    method: 'POST',
+  });
+}
+
+export async function apiSubmitReturnRequest(suborderId, orderItemId, reason, detailedExplanation = '', evidenceImageUrl = '') {
+  return await apiRequest(`/orders/suborders/${suborderId}/return`, {
+    method: 'POST',
+    body: JSON.stringify({
+      order_item_id: orderItemId,
+      reason,
+      detailed_explanation: detailedExplanation,
+      evidence_image_url: evidenceImageUrl,
+    }),
+  });
+}
+
+export async function apiGetSellerReturns() {
+  return await apiRequest('/partners/seller/returns');
+}
+
+export async function apiDecideSellerReturn(returnId, action, restockInventory = true, rejectionReason = '') {
+  return await apiRequest(`/partners/seller/returns/${returnId}/decide`, {
+    method: 'POST',
+    body: JSON.stringify({
+      action,
+      restock_inventory: restockInventory,
+      rejection_reason: rejectionReason,
+    }),
+  });
+}
+
+export async function apiGetSellerMultiVendorFinancials() {
+  return await apiRequest('/partners/seller/financials');
 }

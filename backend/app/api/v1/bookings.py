@@ -9,6 +9,7 @@ from backend.app.api.deps import get_current_user
 from backend.app.models.user import User, UserRole, Notification
 from backend.app.models.catalog import Service, Salon, ProfessionalProfile
 from backend.app.models.booking import Booking, BookingStatus
+from backend.app.models.payment import PaymentTransaction
 from backend.app.schemas.booking import BookingCreate, BookingResponse, BookingStatusUpdate
 
 router = APIRouter()
@@ -170,6 +171,21 @@ def update_booking_status(
 
     try:
         booking.status = new_status
+        if new_status == BookingStatus.CANCELLED:
+            txn = db.query(PaymentTransaction).filter(
+                PaymentTransaction.booking_id == booking.id,
+                PaymentTransaction.status == "captured"
+            ).first()
+            if txn:
+                txn.status = "refund_pending"
+
+            notif = Notification(
+                user_id=booking.customer_id,
+                type="booking",
+                text=f"Your {booking.title} appointment on {booking.date} at {booking.time} has been cancelled."
+            )
+            db.add(notif)
+
         db.commit()
         db.refresh(booking)
     except Exception:

@@ -10,11 +10,13 @@ from backend.app.models.user import User, UserRole, Address
 from backend.app.schemas.auth import UserRegister, UserLogin, Token, RefreshTokenRequest
 from backend.app.schemas.user import UserResponse
 from backend.app.api.deps import get_current_user
+from backend.app.core.rate_limit import RateLimiter
 
 router = APIRouter()
+auth_limiter = RateLimiter(requests=15, window_seconds=60, prefix="auth")
 
 
-@router.post("/register", response_model=Token)
+@router.post("/register", response_model=Token, dependencies=[Depends(auth_limiter)])
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing:
@@ -55,11 +57,12 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
         role=user.role.value,
         user_id=user.id,
         name=user.full_name,
-        email=user.email
+        email=user.email,
+        phone=user.phone
     )
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, dependencies=[Depends(auth_limiter)])
 def login(login_data: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user or not verify_password(login_data.password, user.hashed_password):
@@ -82,7 +85,8 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
         role=user.role.value,
         user_id=user.id,
         name=user.full_name,
-        email=user.email
+        email=user.email,
+        phone=user.phone
     )
 
 

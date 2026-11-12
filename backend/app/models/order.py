@@ -36,6 +36,7 @@ class Order(Base):
 
     customer = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    suborders = relationship("SubOrder", back_populates="parent_order", cascade="all, delete-orphan")
 
 
 class OrderItem(Base):
@@ -43,10 +44,15 @@ class OrderItem(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(String(50), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
+    suborder_id = Column(String(60), ForeignKey("suborders.id", ondelete="CASCADE"), nullable=True)
     product_id = Column(String(50), ForeignKey("products.id", ondelete="SET NULL"), nullable=True)
+    seller_listing_id = Column(Integer, ForeignKey("seller_listings.id", ondelete="SET NULL"), nullable=True)
+    seller_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(255), nullable=False)
     qty = Column(Integer, nullable=False, default=1)
     price = Column(Float, nullable=False)
 
     order = relationship("Order", back_populates="items")
+    suborder = relationship("SubOrder", back_populates="items")
     product = relationship("Product", back_populates="order_items")
+    seller_listing = relationship("SellerListing", back_populates="order_items")

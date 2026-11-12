@@ -1,0 +1,77 @@
+# ==============================================================================
+# GlamGo Luxury Beauty Marketplace — Render Blueprint Specification (render.yaml)
+# Deploy full-stack architecture: Managed Postgres 16 + Redis KeyValue + Docker FastAPI + Static Frontend
+# ==============================================================================
+
+databases:
+  - name: glamgo-postgres
+    databaseName: glamgo_db
+    user: glamgo
+    plan: starter
+    postgresMajorVersion: 16
+
+services:
+  # 1. Managed Redis Cache & Lock Store
+  - type: keyvalue
+    name: glamgo-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: [] # internal connections only
+
+  # 2. FastAPI Backend Application (Docker Runtime)
+  - type: web
+    name: glamgo-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: oregon
+    healthCheckPath: /health/live
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: glamgo-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: glamgo-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: AUTO_MIGRATE
+        value: "true"
+      - key: ENABLE_DOCS
+        value: "false"
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "30"
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+  # 3. Vite SPA Frontend (Static Site with Global CDN)
+  - type: web
+    name: glamgo-frontend
+    runtime: static
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    region: oregon
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false # Set to https://<your-backend-slug>.onrender.com/api/v1
