@@ -1321,6 +1321,63 @@ async function action(el){
         payment_method: state.checkoutPayment,
         coupon: state.coupon || null
       });
+
+      // If online payment (UPI or Card) and Razorpay checkout script is loaded, trigger payment modal
+      if (state.checkoutPayment !== 'Cash on delivery' && typeof window.Razorpay === 'function') {
+        try {
+          const payOrder = await apiCreatePaymentOrder(order.total, order.id);
+          const rzp = new window.Razorpay({
+            key: payOrder.key_id,
+            amount: Math.round(payOrder.amount * 100),
+            currency: payOrder.currency || 'INR',
+            name: 'GlamGo Luxury Beauty',
+            description: `Order #${order.id}`,
+            order_id: payOrder.razorpay_order_id,
+            prefill: {
+              name: state.user?.name || '',
+              email: state.user?.email || '',
+              contact: state.user?.phone || ''
+            },
+            theme: { color: '#0F0F11' },
+            handler: async function (response) {
+              try {
+                await apiVerifyPayment({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                });
+                state.orders.unshift(order);
+                state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed & paid.` });
+                state.cart = {};
+                state.coupon = '';
+                persist();
+                navigate('order-success');
+                toast('Payment captured successfully!');
+              } catch (verifyErr) {
+                toast('Payment verification notice: ' + (verifyErr.message || 'Processing'));
+                state.orders.unshift(order);
+                state.cart = {};
+                persist();
+                navigate('order-success');
+              }
+            },
+            modal: {
+              ondismiss: function() {
+                toast('Payment window closed. Order created as pending.');
+                state.orders.unshift(order);
+                state.cart = {};
+                persist();
+                navigate('account');
+              }
+            }
+          });
+          rzp.open();
+          return;
+        } catch (payErr) {
+          console.warn('Razorpay checkout error, proceeding with standard placement:', payErr);
+        }
+      }
+
       state.orders.unshift(order);
       state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed.` });
       state.cart = {};
@@ -1680,6 +1737,61 @@ async function action(el){
     };
     try {
       const booked = await apiCreateBooking(payload);
+
+      // If Razorpay SDK is available, trigger payment modal
+      if (typeof window.Razorpay === 'function' && booked.price > 0) {
+        try {
+          const payOrder = await apiCreatePaymentOrder(booked.price, null, booked.id);
+          const rzp = new window.Razorpay({
+            key: payOrder.key_id,
+            amount: Math.round(payOrder.amount * 100),
+            currency: payOrder.currency || 'INR',
+            name: 'GlamGo Luxury Beauty',
+            description: `Appointment #${booked.id} (${s?.name || 'Service'})`,
+            order_id: payOrder.razorpay_order_id,
+            prefill: {
+              name: state.user?.name || '',
+              email: state.user?.email || '',
+              contact: state.user?.phone || ''
+            },
+            theme: { color: '#0F0F11' },
+            handler: async function (response) {
+              try {
+                await apiVerifyPayment({
+                  razorpay_order_id: response.razorpay_order_id,
+                  razorpay_payment_id: response.razorpay_payment_id,
+                  razorpay_signature: response.razorpay_signature
+                });
+                booked.payment_status = 'completed';
+                state.bookings.unshift(booked);
+                state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} appointment #${booked.id} is confirmed & paid.` });
+                state.modal = null;
+                persist();
+                navigate('booking-success');
+                toast('Booking paid & confirmed!');
+              } catch (verifyErr) {
+                state.bookings.unshift(booked);
+                state.modal = null;
+                persist();
+                navigate('booking-success');
+              }
+            },
+            modal: {
+              ondismiss: function() {
+                state.bookings.unshift(booked);
+                state.modal = null;
+                persist();
+                navigate('booking-success');
+              }
+            }
+          });
+          rzp.open();
+          return;
+        } catch (payErr) {
+          console.warn('Razorpay checkout initialization failed for booking:', payErr);
+        }
+      }
+
       state.bookings.unshift(booked);
       state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} booking is confirmed for ${formatDate(b.date)}.` });
       state.modal = null;
