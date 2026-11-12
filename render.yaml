@@ -1,7 +1,7 @@
 # ==============================================================================
 # GlamGo Luxury Beauty Marketplace — Render Blueprint Specification (render.yaml)
-# 100% Free Tier Deployment: Managed Postgres 16 (Free) + Docker FastAPI (Free) + Static Frontend (Free)
-# Zero Credit Card Required
+# Backend Architecture: Managed Postgres 16 (Free Tier) + Docker FastAPI (Free Tier)
+# Note: Frontend is deployed separately on Vercel
 # ==============================================================================
 
 databases:
@@ -31,7 +31,7 @@ services:
           name: glamgo-postgres
           property: connectionString
       - key: REDIS_URL
-        value: "" # Graceful in-memory fallback (or paste free Upstash Redis URL)
+        value: "" # Built-in graceful in-memory fallback
       - key: SECRET_KEY
         generateValue: true
       - key: AUTO_MIGRATE
@@ -46,24 +46,3 @@ services:
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
         sync: false
-
-  # 3. Vite SPA Frontend (Static Site on Global Edge CDN — Free Tier)
-  - type: web
-    name: glamgo-frontend
-    runtime: static
-    buildCommand: npm install && npm run build
-    staticPublishPath: ./dist
-    headers:
-      - path: /*
-        name: X-Frame-Options
-        value: SAMEORIGIN
-      - path: /*
-        name: X-Content-Type-Options
-        value: nosniff
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_BASE_URL
-        sync: false # Set to https://glamgo-backend.onrender.com/api/v1
