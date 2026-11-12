@@ -18,7 +18,7 @@ services:
       - key: ENVIRONMENT
         value: production
       - key: DATABASE_URL
-        sync: false # Enter your Neon PostgreSQL connection string
+        value: postgresql+psycopg://neondb_owner:npg_Q8tBn9UkTbOZ@ep-fragrant-grass-a11m3suu-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
       - key: REDIS_URL
         value: "" # Built-in graceful in-memory fallback
       - key: SECRET_KEY
@@ -29,9 +29,11 @@ services:
         value: "false"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "30"
+      - key: WEB_CONCURRENCY
+        value: "1"
       - key: RAZORPAY_KEY_ID
-        sync: false
+        value: rzp_test_Tz5iDHtaEmqTCd
       - key: RAZORPAY_KEY_SECRET
         sync: false
       - key: RAZORPAY_WEBHOOK_SECRET
-        sync: false
+        value: glamgo_prod_secret_2026
