@@ -1,126 +1,160 @@
-# GlamGo — Master Roadmap
+# Roadmap: GlamGo Luxury Beauty Marketplace
 
-**Project:** GlamGo Luxury Beauty Marketplace  
-**Active Phase:** Final Production Launch (`FINAL-LAUNCH` — Completed & Verified)  
-**Completed Phases:**
-- Phase 1: Audit & MVP Readiness
-- Phase 2: Admin Command Centre
-- Phase 2.1: Security & Reliability Audit
-- Phase 3: Customer Experience & Core Booking Engine
-- Phase 4: Partner Ecosystem & Business Operations
-- Phase 5: Multi-Vendor Commerce & Fulfillment Engine
-- Phase 6: Production Infrastructure & Launch Readiness
-- Final Production Launch: Independent Platform Validation, Operational Runbooks & Production Go/No-Go Sign-Off
+## Milestones
 
----
+- ✅ **v1.0 Production Launch Readiness** - Phases 1-7 (shipped 2026-11-12)
+- 🚧 **v2.0 End-to-End System Integration & Live Operations** - Phases 8-12 (in progress)
 
-## Final Launch Milestone Stories (`LAUNCH-001` to `LAUNCH-019` — COMPLETED)
+## Phases
 
-### Section A: Infrastructure Verification
-- [x] `LAUNCH-001` (P0): Container Topology & Non-Root Execution Audit
-- [x] `LAUNCH-002` (P0): Nginx Gateway & Edge Proxy Audit
-- [x] `LAUNCH-003` (P0): FastAPI Lifespan & Connection Pool Audit
+<details>
+<summary>✅ v1.0 Production Launch Readiness (Phases 1-7) - SHIPPED 2026-11-12</summary>
 
-### Section B: Security and Configuration Verification
-- [x] `LAUNCH-004` (P0): Production Secrets & Logging Sanitization Audit
-- [x] `LAUNCH-005` (P0): Edge Defense HTTP Security Headers Audit
-- [x] `LAUNCH-006` (P0): RBAC Isolation & Privilege Escalation Audit
+### Phase 1: Codebase Audit & Baseline Quality
+**Goal**: Audit architecture, normalize database schema, and establish baseline test harness.
+**Plans**: 1 plan
 
-### Section C: Database Backup and Recovery
-- [x] `LAUNCH-007` (P0): Point-in-Time Database Backup Verification
-- [x] `LAUNCH-008` (P0): Cold Standby Restoration Drill into Isolated Container
+Plans:
+- [x] 01-01: Architecture audit, SQLAlchemy models normalization, baseline test suite
 
-### Section D: Payment and Webhook Reliability
-- [x] `LAUNCH-009` (P0): Razorpay Webhook HMAC-SHA256 Verification
-- [x] `LAUNCH-010` (P0): Idempotency & Reconciliation Engine
+### Phase 2: Administrator Command Centre & Platform Governance
+**Goal**: Build platform administrator governance centre with live GMV metrics, partner moderation, and audit logs.
+**Plans**: 1 plan
 
-### Section E: Performance and Concurrency
-- [x] `LAUNCH-011` (P0): Redis Read-Through Caching & Invalidation
-- [x] `LAUNCH-012` (P0): Multi-Worker Concurrency Load Testing
+Plans:
+- [x] 02-01: Admin dashboard layout, metrics endpoints, partner approval workflow
 
-### Section F: Monitoring and Alerting
-- [x] `LAUNCH-013` (P0): Prometheus Telemetry & Cardinality Validation
-- [x] `LAUNCH-014` (P0): Declarative Grafana Dashboard & Health Probes
+### Phase 2.1: Independent Security, Reliability & Financial Hardening
+**Goal**: Audit trail immutability, role-based access control, and transaction locking.
+**Plans**: 1 plan
 
-### Section G: Browser End-to-End Validation
-- [x] `LAUNCH-015` (P0): Production Bundle Build & Asset Verification
-- [x] `LAUNCH-016` (P0): Full Journey Cross-Vertical Browser Validation
+Plans:
+- [x] 02.1-01: Immutable audit logs, RBAC enforcement, financial transaction safety
 
-### Section H: Production Deployment Preparation
-- [x] `LAUNCH-017` (P0): Production Deployment Runbook (`PRODUCTION_DEPLOYMENT_RUNBOOK.md`)
-- [x] `LAUNCH-018` (P0): Disaster Recovery & Rollback Runbook (`DISASTER_RECOVERY_RUNBOOK.md`)
+### Phase 3: Customer Experience & Core Booking Engine
+**Goal**: Customer booking journey, service catalog exploration, appointment slot reservations.
+**Plans**: 1 plan
 
-### Section I: Go/No-Go Sign-Off
-- [x] `LAUNCH-019` (P0): Final Go/No-Go Executive Report (`FINAL_PRODUCTION_GO_NO_GO.md`)
+Plans:
+- [x] 03-01: Customer discovery, booking calendar, appointment concurrency locking
 
----
+### Phase 4: Partner Ecosystem & Multi-Persona Portals
+**Goal**: Bespoke portals for independent professionals, salon owners, and retail sellers.
+**Plans**: 1 plan
 
-## Phase 6 Stories (`INFRA-001` to `INFRA-016` — Completed)
+Plans:
+- [x] 04-01: Professional, salon, and seller portals with RBAC isolation
 
-### Milestone A: Infrastructure Audit & Containerization
-- [x] `INFRA-001` (P0): Multi-Stage Production Containerization (`backend/Dockerfile` non-root appuser, Gunicorn multi-worker)
-- [x] `INFRA-002` (P0): Environment-Specific Docker Compose (`docker-compose.prod.yml` & `docker-compose.staging.yml`)
+### Phase 5: Multi-Vendor Catalog & Inventory Fulfillment
+**Goal**: Multi-vendor commerce, split orders, stock reservation with 15-minute TTL, return gateway.
+**Plans**: 1 plan
 
-### Milestone B: Reverse Proxy & Edge Hardening
-- [x] `INFRA-003` (P0): Hardened Nginx Gateway (`nginx.conf` with Gzip, 1-year immutable asset cache, rate limiting zone)
-- [x] `INFRA-004` (P0): Comprehensive Security Headers (`HSTS`, `CSP`, `X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`)
+Plans:
+- [x] 05-01: Master catalog, split cart checkout, atomic stock reservation, escrow ledger
 
-### Milestone C: Database Reliability & DR Verification
-- [x] `INFRA-005` (P0): Production Connection Pooling (`pool_size=20`, `max_overflow=40`, `pool_recycle=1800`, `pool_pre_ping=True`)
-- [x] `INFRA-006` (P0): Verified Database Backup & Restoration Drill (158KB dump restored to isolated verification container; 10 tables, 0 orphaned FKs verified)
-- [x] `INFRA-007` (P0): Production Index Migration (`0395cd015fed_add_production_performance_indexes.py` covering orders, bookings, addresses, notifications, reviews, variants, salon staff)
+### Phase 6: Production Infrastructure & Launch Readiness
+**Goal**: Docker multi-stage build, Nginx reverse proxy, PostgreSQL backup drill, Redis caching.
+**Plans**: 1 plan
 
-### Milestone D: Payment Gateway & Webhook Verification
-- [x] `INFRA-008` (P0): Webhook HMAC-SHA256 Signature Verification (`/api/v1/payments/razorpay/webhook`)
-- [x] `INFRA-009` (P0): Webhook Idempotency Engine & Life-cycle State Transition Reconciler
+Plans:
+- [x] 06-01: Non-root containerization, Nginx edge proxy, disaster recovery verification, Redis rate limiter
 
-### Milestone E: Caching & Rate Limiting
-- [x] `INFRA-010` (P0): Redis Read-Through Caching (`backend/app/services/cache_service.py` with seamless DB fallback and invalidation)
-- [x] `INFRA-011` (P0): Redis Sliding-Window Rate Limiter (`backend/app/core/rate_limit.py` with RFC 429 Retry-After headers)
+### Phase 7: Final Production Launch Validation & Operational Runbooks
+**Goal**: Production sign-off, multi-cloud blueprints (Vercel, Render, Railway, Fly.io, Netlify), and zero-defect audit.
+**Plans**: 1 plan
 
-### Milestone F: Observability & Health Probes
-- [x] `INFRA-012` (P0): Prometheus Exposition Endpoint (`/metrics` with request counts, histograms, cache counters)
-- [x] `INFRA-013` (P0): Kubernetes/Container Dual Probes (`/health/live`, `/health/ready`, `/health`)
-- [x] `INFRA-014` (P0): Distributed Correlation ID Propagation (`CorrelationIdMiddleware` with `X-Request-ID`)
+Plans:
+- [x] 07-01: Multi-cloud configuration, disaster recovery runbooks, CodeRabbit clean audit
 
-### Milestone G: Performance & Concurrency Benchmarking
-- [x] `INFRA-015` (P0): Concurrency Load Benchmark (70-100 req/s, P50 < 300ms, 0 errors across 20 workers)
+</details>
 
-### Milestone H: Launch Validation & Documentation
-- [x] `INFRA-016` (P0): End-to-End Regression Harness (59/59 passing tests, Vite frontend build verification in 692ms)
+### 🚧 v2.0 End-to-End System Integration & Live Operations (In Progress)
 
----
+**Milestone Goal:** Operationalize real-time multi-persona workflows across at-home doorstep services, salon chair management, split e-commerce fulfillment, and automated escrow payouts.
 
-## Phase 5 Stories (`MV-001` to `MV-016` — Completed)
+#### Phase 8: Real-Time Event Bus & WebSocket Dispatch Gateway
+**Goal**: Deliver asynchronous Redis-backed event pub/sub and WebSocket streaming so all 5 roles receive instant, sub-second operational notifications without client polling.
+**Depends on**: Phase 7
+**Requirements**: DISP-01, DISP-02, DISP-03
+**Success Criteria** (what must be TRUE):
+  1. FastAPI WebSocket connection (`/api/v1/ws/notifications`) establishes with JWT authentication and receives live messages from Redis channel `user:{user_id}:notifications`.
+  2. Booking creation triggers a real-time dispatch ping to verified professionals within 10km with a 60-second acceptance countdown timer.
+  3. If a professional rejects or timer expires, the backend automatically cascades the dispatch ping to the next available provider.
+**Plans**: 1 plan
 
-### Milestone A: Multi-Vendor Catalog
-- [x] `MV-001` (P0): Master Product & Seller Offer Listings
-- [x] `MV-002` (P1): Catalog Moderation & Duplicate Prevention
+Plans:
+- [ ] 08-01: Redis Pub/Sub event bus and FastAPI WebSocket/SSE notification gateway
 
-### Milestone B: Multi-Seller Cart & Split Checkout
-- [x] `MV-003` (P0): Multi-Seller Unified Cart Grouping & Shipping Fee Engine
-- [x] `MV-004` (P0): Split Checkout & Parent/Suborder Hierarchy Generation
-- [x] `MV-005` (P1): Seller-Aware Coupon Apportionment & Itemized Discounts
+#### Phase 9: Doorstep Service Operational Workflow & Live Tracking
+**Goal**: Provide full end-to-end transparency for at-home beauty appointments from provider acceptance to doorstep departure.
+**Depends on**: Phase 8
+**Requirements**: DOOR-01, DOOR-02, DOOR-03, DOOR-04
+**Success Criteria** (what must be TRUE):
+  1. Provider can progress status from `ACCEPTED` → `EN_ROUTE` → `ARRIVED` → `IN_PROGRESS` → `COMPLETED` through their portal.
+  2. Customer sees real-time status transitions and simulated live GPS route movement on their appointment tracking screen.
+  3. Service transition to `IN_PROGRESS` strictly requires entering the customer's secret 4-digit OTP generated upon booking.
+  4. Marking job `COMPLETED` prompts customer for digital sign-off and instant rating/review submission.
+**Plans**: 1 plan
 
-### Milestone C: Inventory Reservation & Concurrency
-- [x] `MV-006` (P0): Atomic Stock Reservation Engine & 15-Minute TTL Expiry
-- [x] `MV-007` (P0): Row-Locking Concurrency & Append-Only Stock Audit Trail
+Plans:
+- [ ] 09-01: Technician state machine, simulated GPS tracking, and start-of-service PIN verification
 
-### Milestone D: Order Fulfillment Orchestration
-- [x] `MV-008` (P0): Parent Order Status Aggregation & State Machine Rollup
-- [x] `MV-009` (P0): Independent Seller Suborder Fulfillment & RBAC Isolation
+#### Phase 10: Salon Multi-Stylist Scheduling & Chair Capacity Engine
+**Goal**: Prevent appointment collisions and optimize in-parlour capacity across stylists and physical treatment stations.
+**Depends on**: Phase 8
+**Requirements**: SALN-01, SALN-02, SALN-03, SALN-04
+**Success Criteria** (what must be TRUE):
+  1. Salon owners can define stylist working hours, lunch breaks, days off, and assigned treatments.
+  2. Booking engine validates both stylist availability AND chair capacity for the requested duration before confirming a slot.
+  3. Front-desk receptionist can add walk-in clients, immediately reserving a chair and updating live salon occupancy.
+  4. Completed in-salon treatments update customer booking status to `COMPLETED` and record in-parlour billing details.
+**Plans**: 1 plan
 
-### Milestone E: Logistics, Carrier Tracking & Delivery
-- [x] `MV-010` (P1): Shipment Tracking & Courier Metadata Integration
-- [x] `MV-011` (P1): Delivery Confirmation & Timeline Enforcement
+Plans:
+- [ ] 10-01: Stylist roster management, chair capacity concurrency limiter, and walk-in queue
 
-### Milestone F: Reverse Logistics & Returns
-- [x] `MV-012` (P0): Customer Return Request Gateway (7-Day Post-Delivery)
-- [x] `MV-013` (P0): Partial Return Restocking & Payment Refund Reconciler
+#### Phase 11: Multi-Vendor Split Fulfillment & Return Logistics Pipeline
+**Goal**: Connect sellers to logistics fulfillment and customer post-purchase lifecycle with automated reverse logistics.
+**Depends on**: Phase 8
+**Requirements**: COMM-01, COMM-02, COMM-03, COMM-04
+**Success Criteria** (what must be TRUE):
+  1. Sellers can view pending suborders, print packing slips, and generate courier waybills with assigned tracking numbers.
+  2. Customer order details page displays live shipment milestone timeline (`PACKED`, `SHIPPED`, `OUT_FOR_DELIVERY`, `DELIVERED`).
+  3. Customer can initiate return requests within 7 days of delivery with reason selection.
+  4. Seller return approval triggers automatic warehouse stock re-increment and releases customer refund.
+**Plans**: 1 plan
 
-### Milestone G: Multi-Vendor Financial Settlement & Escrow
-- [x] `MV-014` (P0): Suborder Financial Ledger & 15% Platform Commission
-- [x] `MV-015` (P1): Escrow Maturity Engine ($T+3$ Days Post-Delivery)
+Plans:
+- [ ] 11-01: Suborder fulfillment packaging slip, waybill assignment, customer shipment timeline, and return restocking
 
-### Milestone H: Integration, Concurrency & Regression Verification
-- [x] `MV-016` (P0): End-to-End Multi-Vendor Regression Harness & Production Verification
+#### Phase 12: Automated Financial Escrow, Payout Release & Platform Settlement
+**Goal**: Complete the financial lifecycle by releasing escrow funds securely to partners and tracking platform revenues.
+**Depends on**: Phase 11
+**Requirements**: FIN-01, FIN-02, FIN-03, FIN-04
+**Success Criteria** (what must be TRUE):
+  1. Escrow release worker transitions suborder funds to `SETTLED` exactly when the 7-day return window closes without dispute.
+  2. Verified partners can view available balance and submit withdrawal requests to their registered bank account.
+  3. Platform automatically deducts 15% commission fee and generates downloadable monthly GST tax summary invoices.
+  4. Platform Admin Command Centre displays live escrow balances, settled partner payouts, and platform gross profit.
+**Plans**: 1 plan
+
+Plans:
+- [ ] 12-01: Scheduled escrow release background task, partner payout portal, and financial reconciliation reporting
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 1. Codebase Audit | v1.0 | 1/1 | Complete | 2026-11-10 |
+| 2. Admin Command Centre | v1.0 | 1/1 | Complete | 2026-11-10 |
+| 2.1. Security & Financial Hardening | v1.0 | 1/1 | Complete | 2026-11-10 |
+| 3. Customer Booking Engine | v1.0 | 1/1 | Complete | 2026-11-10 |
+| 4. Partner Portals | v1.0 | 1/1 | Complete | 2026-11-11 |
+| 5. Multi-Vendor Commerce | v1.0 | 1/1 | Complete | 2026-11-11 |
+| 6. Production Infrastructure | v1.0 | 1/1 | Complete | 2026-11-11 |
+| 7. Final Production Launch | v1.0 | 1/1 | Complete | 2026-11-12 |
+| 8. Real-Time Event Bus | v2.0 | 0/1 | Not started | - |
+| 9. Doorstep Service Workflow | v2.0 | 0/1 | Not started | - |
+| 10. Salon Chair Capacity | v2.0 | 0/1 | Not started | - |
+| 11. Multi-Vendor Fulfillment | v2.0 | 0/1 | Not started | - |
+| 12. Automated Financial Escrow | v2.0 | 0/1 | Not started | - |
