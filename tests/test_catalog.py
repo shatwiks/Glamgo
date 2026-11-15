@@ -75,3 +75,23 @@ def test_products_catalog(client):
     assert skincare_resp.status_code == 200
     for p in skincare_resp.json():
         assert p["category"] == "Skincare"
+
+    # Inventory stock & variant_stocks exposure
+    assert isinstance(serum["stock"], int)
+    assert isinstance(serum["variant_stocks"], dict)
+
+    # Search matches ingredients and category
+    ing_resp = client.get("/api/v1/products/?query=Niacinamide")
+    assert ing_resp.status_code == 200
+    assert any(p["id"] == serum["id"] for p in ing_resp.json())
+
+    # Sort descending by price and by review count
+    desc_resp = client.get("/api/v1/products/?sort=price_desc")
+    assert desc_resp.status_code == 200
+    desc_prices = [p["price"] for p in desc_resp.json()]
+    assert desc_prices == sorted(desc_prices, reverse=True)
+
+    rev_resp = client.get("/api/v1/products/?sort=reviews")
+    assert rev_resp.status_code == 200
+    rev_counts = [p["reviews"] for p in rev_resp.json()]
+    assert rev_counts == sorted(rev_counts, reverse=True)

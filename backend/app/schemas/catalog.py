@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, ConfigDict
 
 
@@ -102,6 +102,8 @@ class ProductResponse(BaseModel):
     description: str
     ingredients: Optional[str] = None
     variants: List[str] = []
+    stock: int = 100
+    variant_stocks: Dict[str, int] = {}
 
     model_config = ConfigDict(from_attributes=True)
 

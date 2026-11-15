@@ -213,6 +213,8 @@ const state = {
   salonCategory: 'All',
   salonDate: null,
   shopCategory: 'All',
+  shopCollection: 'All',
+  shopBrand: 'All',
   sort: 'featured',
   activeNav: null,
   addedCartIds: {},
@@ -220,6 +222,8 @@ const state = {
   selectedSalon: null,
   selectedProduct: null,
   productVariant: null,
+  pdpTab: 'details',
+  productReviews: {},
   accountTab: 'Overview',
   partnerRole: 'Professional',
   partnerTab: 'Overview',
@@ -262,8 +266,96 @@ const toast = message => {
   setTimeout(() => el.remove(), 3300);
 };
 
+const getDiscountPct = p => (p && Number(p.old) > Number(p.price) && Number(p.price) > 0) ? Math.round(((Number(p.old) - Number(p.price)) / Number(p.old)) * 100) : 0;
+const getProductStock = (p, variant) => {
+  if (!p) return 0;
+  const vs = p.variant_stocks && typeof p.variant_stocks === 'object' ? p.variant_stocks : null;
+  if (variant && vs && Object.prototype.hasOwnProperty.call(vs, variant)) return Number(vs[variant]);
+  if (p.stock !== undefined && p.stock !== null) return Number(p.stock);
+  return 100;
+};
+const getStockInfo = (p, variant) => {
+  const qty = getProductStock(p, variant);
+  if (qty <= 0) return { qty: 0, soldOut: true, low: false, label: 'Sold out' };
+  if (qty <= 5) return { qty, soldOut: false, low: true, label: 'Low stock · ' + qty + ' left' };
+  return { qty, soldOut: false, low: false, label: 'In stock' };
+};
+const getVariantHeading = (p, variants) => {
+  if (!variants || !variants.length) return 'OPTION';
+  const joined = variants.join(' ');
+  if (/\d+\s?(ml|g|mg|oz|l)\b/i.test(joined)) return variants.length > 1 ? 'SELECT SIZE' : 'PACK SIZE';
+  if (p && p.category === 'Makeup') return variants.length > 1 ? 'SELECT SHADE' : 'SHADE';
+  return variants.length > 1 ? 'SELECT OPTION' : 'OPTION';
+};
+const shopCollections = [
+  { id: 'All', label: 'All products' },
+  { id: 'BESTSELLER', label: 'Best sellers' },
+  { id: 'NEW', label: 'New arrivals' },
+  { id: 'TRENDING', label: 'Trending' },
+  { id: 'OFFERS', label: 'Offers' }
+];
+const matchesShopCollection = (p, col) => {
+  if (!col || col === 'All') return true;
+  if (col === 'OFFERS') return Number(p && p.old) > Number(p && p.price);
+  const norm = String((p && p.tag) || '').toUpperCase().replace(/[\s_-]+/g, '');
+  if (!norm) return false;
+  if (col === 'BESTSELLER') return norm.includes('BEST');
+  if (col === 'NEW') return norm.startsWith('NEW');
+  if (col === 'TRENDING') return norm.includes('TREND');
+  return norm === col.toUpperCase();
+};
+const getFilteredShopProducts = (items = products) => {
+  const filtered = (items || []).filter(p => {
+    if (state.shopCategory !== 'All' && p.category !== state.shopCategory) return false;
+    if (state.shopBrand !== 'All' && p.brand !== state.shopBrand) return false;
+    if (!matchesShopCollection(p, state.shopCollection)) return false;
+    return true;
+  });
+  const sorted = [...filtered];
+  if (state.sort === 'price' || state.sort === 'price-asc') sorted.sort((a, b) => Number(a.price) - Number(b.price));
+  else if (state.sort === 'price-desc') sorted.sort((a, b) => Number(b.price) - Number(a.price));
+  else if (state.sort === 'rating') sorted.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+  else if (state.sort === 'reviews') sorted.sort((a, b) => Number(b.reviews || 0) - Number(a.reviews || 0));
+  return sorted;
+};
+const getRelatedProducts = (p, limit = 3) => {
+  if (!p) return [];
+  const others = products.filter(item => item.id !== p.id);
+  const sameCategory = others.filter(item => item.category === p.category);
+  const rest = others.filter(item => item.category !== p.category).sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
+  return [...sameCategory, ...rest].slice(0, limit);
+};
+const parseIngredientsList = raw => String(raw || '').split(/[,;•\n]+/).map(s => s.trim()).filter(Boolean);
+const ensureProductExtras = id => {
+  if (!id) return;
+  if (!state.productOffers) state.productOffers = {};
+  if (!Object.prototype.hasOwnProperty.call(state.productOffers, id)) {
+    state.productOffers[id] = { offers: [] };
+    apiGetProductOffers(id).then(res => {
+      state.productOffers[id] = res || { offers: [] };
+      if (state.view === 'product-detail' && state.selectedProduct === id) render();
+    }).catch(e => console.warn('[ProductOffers]', e));
+  }
+  if (!state.productReviews) state.productReviews = {};
+  if (!Object.prototype.hasOwnProperty.call(state.productReviews, id)) {
+    state.productReviews[id] = { loading: true, items: [] };
+    apiGetReviews(id, 'product').then(res => {
+      state.productReviews[id] = { loading: false, items: Array.isArray(res) ? res : (res?.reviews || []) };
+      if (state.view === 'product-detail' && state.selectedProduct === id) render();
+    }).catch(() => {
+      state.productReviews[id] = { loading: false, items: [] };
+      if (state.view === 'product-detail' && state.selectedProduct === id) render();
+    });
+  }
+};
 const getActiveSubnavKey = () => {
-  if (state.view === 'landing') return state.activeNav || 'landing';
+  if (state.view === 'landing') {
+    if (state.experience === 'shop') {
+      if (state.shopCollection === 'BESTSELLER') return 'bestsellers';
+      if (state.shopCollection === 'NEW') return 'new-arrivals';
+    }
+    return state.activeNav || 'landing';
+  }
   if (state.view === 'account' && state.experience === 'salon' && state.accountTab === 'My bookings') return 'account-bookings';
   return '';
 };
@@ -301,6 +393,16 @@ function applyRouteFromLocation() {
   }
   if (hash === '#onboarding' || path === '/onboarding') {
     state.view = 'onboarding';
+    return true;
+  }
+  const prodMatch = (hash || '').match(/^#product\/([^/?#]+)$/) || (path || '').match(/^\/product\/([^/?#]+)$/);
+  if (prodMatch) {
+    state.experience = 'shop';
+    state.selectedProduct = decodeURIComponent(prodMatch[1]);
+    state.productVariant = null;
+    state.pdpTab = 'details';
+    state.view = 'product-detail';
+    ensureProductExtras(state.selectedProduct);
     return true;
   }
   return false;
@@ -385,7 +487,7 @@ function header(){
     : '<button class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',15)+'</button>';
   const activeKey = getActiveSubnavKey();
   const navBtn = (act, label, key, extraAttrs='') => '<button data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
-  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="#" data-action="landing">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">✦ Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">✦ Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="Open menu">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('landing','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('scroll','Best sellers','bestsellers','data-target="bestsellers"')+navBtn('scroll','New arrivals','new-arrivals','data-target="new-arrivals"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">✦ Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="#" data-action="landing">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">✦ Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">✦ Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="Open menu">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('shop-all','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('shop-collection','Best sellers','bestsellers','data-collection="BESTSELLER" data-target="bestsellers"')+navBtn('shop-collection','New arrivals','new-arrivals','data-collection="NEW" data-target="bestsellers"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">✦ Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -447,29 +549,51 @@ function salonDetail(){
 }
 
 function productCard(p){
-  const isSoldOut = p.stock === 0 || p.in_stock === false || p.soldOut === true;
+  const defaultVariant = (Array.isArray(p.variants) && p.variants.length) ? p.variants[0] : '';
+  const stockInfo = getStockInfo(p, defaultVariant);
+  const isSoldOut = stockInfo.soldOut || p.in_stock === false || p.soldOut === true;
   const isLoading = state.addingCartId === p.id;
   const isAdded = Boolean(state.addedCartIds?.[p.id]);
-  const defaultVariant = (Array.isArray(p.variants) && p.variants.length) ? p.variants[0] : '';
   const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
+  const discountPct = getDiscountPct(p);
   const tagClass = p.tag ? 'tag-' + String(p.tag).toLowerCase().replace(/[^a-z0-9]+/g,'-') : '';
   const btnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added '+icon('check',15) : 'Add to Bag';
-  return '<article class="product-card"><div class="product-image" data-action="product-detail" data-id="'+p.id+'">'+image(p.img,p.name)+(p.tag?'<span class="product-tag '+tagClass+'">'+p.tag+'</span>':'')+'<button class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button></div><div class="product-body"><span class="product-brand">'+esc(p.brand)+'</span><button class="product-name" data-action="product-detail" data-id="'+p.id+'">'+esc(p.name)+'</button><div class="product-rating">'+rating(p.rating,p.reviews)+'</div><div class="product-bottom"><div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>':'')+'</div><button class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+p.id+'"'+(defaultVariant?' data-variant="'+esc(defaultVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button></div></div></article>';
+  const sizeHint = p.variants && p.variants.length ? (p.variants.length > 1 ? defaultVariant + ' · ' + p.variants.length + ' options' : defaultVariant) : '';
+  return '<article class="product-card"><div class="product-image" data-action="product-detail" data-id="'+p.id+'">'+image(p.img,p.name)+(p.tag?'<span class="product-tag '+tagClass+'">'+esc(p.tag)+'</span>':'')+'<button class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button></div><div class="product-body"><span class="product-brand">'+esc(p.brand)+'</span><button class="product-name" data-action="product-detail" data-id="'+p.id+'">'+esc(p.name)+'</button><div class="product-rating">'+rating(p.rating,p.reviews)+'</div>'+(sizeHint||stockInfo.low?'<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>':'')+'<div class="product-bottom"><div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div><button class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+p.id+'"'+(defaultVariant?' data-variant="'+esc(defaultVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button></div></div></article>';
 }
 
 function shopPage(){
-  let list = products.filter(p => state.shopCategory === 'All' || p.category === state.shopCategory);
+  const list = getFilteredShopProducts(products);
   const catalogDown = !products.length && state.catalogErrors.products;
   const catalogBusy = !products.length && state.catalogLoading;
+  const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
+  const visibleCollections = shopCollections.filter(col => col.id === 'All' || products.some(p => matchesShopCollection(p, col.id)));
+  const activeFilters = [];
+  if (state.shopCollection !== 'All') {
+    const colObj = shopCollections.find(c => c.id === state.shopCollection);
+    activeFilters.push({ key: 'collection', label: (colObj ? colObj.label : state.shopCollection), action: 'shop-collection', id: 'All' });
+  }
+  if (state.shopCategory !== 'All') {
+    activeFilters.push({ key: 'category', label: shopCategoryLabel(state.shopCategory), action: 'shop-category', id: 'All' });
+  }
+  if (state.shopBrand !== 'All') {
+    activeFilters.push({ key: 'brand', label: state.shopBrand, action: 'shop-brand', id: 'All' });
+  }
+  if (state.sort !== 'featured') {
+    activeFilters.push({ key: 'sort', label: ({ price: 'Price: low to high', 'price-asc': 'Price: low to high', 'price-desc': 'Price: high to low', rating: 'Top rated', reviews: 'Most reviewed' }[state.sort] || 'Sorted'), action: 'shop-sort-reset', id: 'featured' });
+  }
+  const hasFilters = activeFilters.length > 0;
   const shelfContent = catalogBusy
     ? catalogLoadingState('beauty store')
     : catalogDown
       ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
-      : '<div class="product-grid">'+(state.sort==='price'?[...list].sort((a,b)=>a.price-b.price):state.sort==='rating'?[...list].sort((a,b)=>Number(b.rating)-Number(a.rating)):list).map(productCard).join('')+'</div>'+(list.length?'':empty('bag','A new edit is coming','Explore another category while we curate more favourites.'));
-  const secondaryProductSections = products.length
-    ? '<section class="section" id="trending">'+sectionHead('IN THE MOMENT','Trending now.','Beauty favourites earning their place on your shelf.')+'<div class="product-grid">'+products.filter(p=>p.tag==='TRENDING'||p.tag==='BESTSELLER').map(productCard).join('')+'</div></section><section class="section" id="new-arrivals">'+sectionHead('JUST ARRIVED','New on the shelf.','Fresh discoveries to make room for.')+'<div class="product-grid">'+products.filter(p=>p.tag==='NEW'||p.tag==='TRENDING').map(productCard).join('')+'</div></section>'
-    : '';
-  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Thoughtful delivery</span><span>'+icon('shield',18)+' Authentic products</span></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>'<button class="shop-category-card" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+icon('arrow',16)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen products for your everyday.')+'<div class="listing-tools"><div class="filter-row">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option></select></label></div>'+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore the pieces that make every day feel a little more yours.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section>'+secondaryProductSections+'<section class="brand-section"><p class="eyebrow">THE BRANDS WE LOVE</p><div><span>LUMIÈRE</span><span>THE BOTANIST</span><span>VELVET FORM</span><span>MAISON CALME</span></div></section></main>';
+      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search','No products match these filters','Try clearing one of your active filters or explore the full edit.')+'<div class="empty-actions">'+button('Reset all filters '+icon('arrow',16),'shop-reset','btn-outline')+'</div></div>');
+  const brandButtons = (shopBrands.length > 1 ? shopBrands.slice(1) : ['LUMIÈRE','THE BOTANIST','VELVET FORM','MAISON CALME']).map(b => '<button class="brand-pill'+(state.shopBrand===b?' active':'')+'" data-action="shop-brand" data-id="'+esc(b)+'">'+esc(b)+'</button>').join('');
+
+  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Complimentary delivery</span><span>'+icon('shield',18)+' Authentic products</span></div><div class="shop-mobile-search"><button class="mobile-search-trigger" data-action="search-open" aria-label="Search beauty store products, ingredients or brands">'+icon('search',18)+'<span>Search products, brands or ingredients</span></button></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
+    const count = products.filter(p => p.category === c).length;
+    return '<button class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
+  }).join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen formulas filtered by category, edit, brand and price.')+'<div class="collection-pills" role="group" aria-label="Filter by collection">'+visibleCollections.map(col => '<button class="collection-pill'+(state.shopCollection===col.id?' active':'')+'" data-action="shop-collection" data-collection="'+col.id+'">'+col.label+'</button>').join('')+'</div><div class="listing-tools"><div class="filter-row" role="group" aria-label="Filter by category">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><div class="shop-controls-right">'+(shopBrands.length>2?'<label class="sort-label">Brand <select id="shop-brand-select" aria-label="Filter by brand">'+shopBrands.map(b=>'<option value="'+esc(b)+'" '+(state.shopBrand===b?'selected':'')+'>'+esc(b==='All'?'All brands':b)+'</option>').join('')+'</select></label>':'')+'<label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price-asc" '+(state.sort==='price-asc'||state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="price-desc" '+(state.sort==='price-desc'?'selected':'')+'>Price: high to low</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="reviews" '+(state.sort==='reviews'?'selected':'')+'>Most reviewed</option></select></label></div></div>'+(products.length?'<div class="shop-shelf-meta"><span class="shelf-count">Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products')+'</span>'+(hasFilters?'<div class="active-filters">'+activeFilters.map(f=>'<button class="active-filter-chip" data-action="'+f.action+'" data-id="'+esc(f.id)+'" data-collection="All" aria-label="Remove '+esc(f.label)+' filter">'+esc(f.label)+' '+icon('close',13)+'</button>').join('')+'<button class="reset-filters-link" data-action="shop-reset">Reset all</button></div>':'')+'</div>':'')+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore the pieces that make every day feel a little more yours.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section><section class="brand-section"><p class="eyebrow">THE BRANDS WE LOVE</p><div>'+brandButtons+'</div></section></main>';
 }
 
 function productDetail(){
@@ -477,17 +601,54 @@ function productDetail(){
   if (!p) {
     return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to shop</button>'+(state.catalogLoading?catalogLoadingState('product details'):catalogUnavailableState('Product details'))+'</main>';
   }
-  const variant = state.productVariant || (p.variants && p.variants[0]) || '';
-  const isSoldOut = p.stock === 0 || p.in_stock === false || p.soldOut === true;
+  const variants = Array.isArray(p.variants) && p.variants.length ? p.variants : [];
+  const variant = state.productVariant || variants[0] || '';
+  const stockInfo = getStockInfo(p, variant);
+  const isSoldOut = stockInfo.soldOut || p.in_stock === false || p.soldOut === true;
   const isLoading = state.addingCartId === p.id;
   const isAdded = Boolean(state.addedCartIds?.[p.id]);
   const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
+  const discountPct = getDiscountPct(p);
+  const couponSave = Math.min(300, Math.round(Number(p.price) * 0.1));
+  const couponPrice = Math.max(1, Number(p.price) - couponSave);
+  const couponApplied = state.coupon === 'GLAM10';
   const detailBtnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added to Bag '+icon('check',17) : 'Add to Bag '+icon('bag',18);
   const offersData = state.productOffers ? state.productOffers[p.id] : null;
   const offers = (offersData && offersData.offers) || [];
-  const offersHtml = offers.length ? '<div class="product-offers" style="margin-top:20px;padding:16px;background:var(--ivory);border:1px solid var(--champagne);border-radius:4px;"><p class="eyebrow" style="margin-bottom:6px;">MARKETPLACE MERCHANTS ('+offers.length+')</p><p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Multiple certified sellers offer this luxury beauty essential with verified stock and fast dispatch.</p>'+offers.map(off=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--border)"><div><strong>'+esc(off.seller_name||'Certified Merchant')+'</strong><br><small style="color:var(--muted)">SKU: '+esc(off.sku)+' · '+off.stock+' units in stock · Verified Seller</small></div><div style="display:flex;gap:10px;align-items:center;"><strong style="font-size:15px;">'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+'>Select Offer</button></div></div>').join('')+'</div>' : '';
+  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Verified partners fulfilling this product with real-time stock.</p>'+offers.map(off=>'<div class="offer-row"><div><strong>'+esc(off.seller_name||'Certified Merchant')+'</strong><small>SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+'>Select Offer</button></div></div>').join('')+'</div>' : '';
 
-  return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to beauty store</button><div class="product-detail"><div class="product-detail-image">'+image(p.img,p.name)+'</div><div class="product-detail-info"><p class="eyebrow">'+p.brand+'</p><h1>'+p.name+'</h1>'+rating(p.rating,p.reviews)+'<div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+'</span>':'')+'</div><p class="product-desc">'+p.description+'</p><div class="variant-select"><span>SELECT VARIANT</span><div>'+p.variants.map(v=>'<button class="'+(v===variant?'active':'')+'" data-action="variant" data-id="'+esc(v)+'">'+v+'</button>').join('')+'</div></div><div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>'+offersHtml+'<div class="product-facts"><div>'+icon('truck',20)+' Delivery across India</div><div>'+icon('shield',20)+' Authentic products, thoughtfully sourced</div></div><details><summary>Details & ingredients '+icon('plus',16)+'</summary><p>'+p.description+' Key ingredients: '+p.ingredients+'.</p></details><details><summary>Reviews '+icon('plus',16)+'</summary><p>Rated '+p.rating+' by '+p.reviews+' customers. Verified purchase reviews appear after an order is delivered.</p></details></div></div></main>';
+  const ingredientItems = parseIngredientsList(p.ingredients);
+  const reviewState = state.productReviews?.[p.id];
+  const liveReviews = Array.isArray(reviewState?.items) ? reviewState.items : [];
+  const activeTab = ['details','ingredients','delivery','reviews'].includes(state.pdpTab) ? state.pdpTab : 'details';
+
+  let tabPanelHtml = '';
+  if (activeTab === 'details') {
+    tabPanelHtml = '<p class="pdp-tab-copy">'+esc(p.description)+'</p><dl class="pdp-specs"><div><dt>Brand</dt><dd>'+esc(p.brand)+'</dd></div><div><dt>Category</dt><dd>'+esc(shopCategoryLabel(p.category))+'</dd></div>'+(variants.length?'<div><dt>Available options</dt><dd>'+esc(variants.join(', '))+'</dd></div>':'')+'<div><dt>Availability</dt><dd>'+esc(stockInfo.label)+'</dd></div>'+(p.tag?'<div><dt>Edit</dt><dd>'+esc(p.tag)+'</dd></div>':'')+'</dl>';
+  } else if (activeTab === 'ingredients') {
+    tabPanelHtml = ingredientItems.length
+      ? '<p class="pdp-tab-sub">Key botanicals and formulation ingredients listed for this product:</p><div class="ingredient-chips">'+ingredientItems.map(ing=>'<span class="ingredient-chip">'+esc(ing)+'</span>').join('')+'</div><p class="pdp-tab-note">Full ingredient breakdown: '+esc(p.ingredients)+'</p>'
+      : '<p class="pdp-tab-copy">See outer product packaging for complete batch ingredients.</p>';
+  } else if (activeTab === 'delivery') {
+    tabPanelHtml = '<div class="pdp-policy-list"><div><strong>Shipping</strong><p>Complimentary delivery across India calculated transparently at checkout.</p></div><div><strong>Authenticity</strong><p>100% authentic curated inventory fulfilled from verified stock ('+esc(stockInfo.label)+').</p></div><div><strong>Returns &amp; Support</strong><p>Delivered orders can request returns directly from <em>My orders</em> or via <code>care@glamgo.example</code>.</p></div></div>';
+  } else {
+    const reviewsBody = reviewState?.loading
+      ? '<p class="pdp-tab-sub">Loading customer reviews…</p>'
+      : liveReviews.length
+        ? '<div class="pdp-review-list">'+liveReviews.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name||'Verified buyer')+'</strong><span class="rating">'+icon('star',14)+' '+Number(r.rating||0)+'</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>'
+        : '<p class="pdp-tab-sub">Rated '+p.rating+' across '+p.reviews+' ratings. Detailed written feedback appears here once delivered buyers submit a review from My orders.</p>';
+    tabPanelHtml = '<div class="pdp-review-summary"><div><strong>'+Number(p.rating||0).toFixed(1)+'</strong><span class="rating">'+icon('star',15)+' · '+p.reviews+' ratings</span></div></div>'+reviewsBody;
+  }
+
+  const related = getRelatedProducts(p, 3);
+  const relatedHtml = related.length
+    ? '<section class="pdp-related" aria-label="Pairs well with"><div class="pdp-related-head"><div><p class="eyebrow">COMPLETE THE ROUTINE</p><h2>More from the beauty shelf</h2></div>'+button('Browse full edit '+icon('arrow',16),'shop-all','btn-outline')+'</div><div class="product-grid pdp-related-grid">'+related.map(productCard).join('')+'</div></section>'
+    : '';
+
+  return '<main class="detail-page"><nav class="pdp-breadcrumb" aria-label="Breadcrumb"><button data-action="shop-all">Beauty Store</button><span>/</span><button data-action="shop-category" data-id="'+esc(p.category)+'">'+esc(shopCategoryLabel(p.category))+'</button><span>/</span><span aria-current="page">'+esc(p.name)+'</span></nav><div class="product-detail"><div class="product-detail-image">'+image(p.img,p.name)+(p.tag?'<span class="product-tag">'+esc(p.tag)+'</span>':'')+(discountPct>0?'<span class="pdp-discount-badge">'+discountPct+'% OFF</span>':'')+'</div><div class="product-detail-info"><div class="pdp-brand-row"><button class="eyebrow pdp-brand-link" data-action="shop-brand" data-id="'+esc(p.brand)+'">'+esc(p.brand)+'</button>'+(p.tag?'<span class="pdp-edit-pill">'+esc(p.tag)+'</span>':'')+'</div><h1>'+esc(p.name)+'</h1><div class="pdp-rating-row"><button class="pdp-rating-jump" data-action="pdp-reviews-jump" aria-label="Jump to product reviews">'+rating(p.rating,p.reviews)+'</button><span class="stock-pill '+(stockInfo.soldOut?'out':stockInfo.low?'low':'in')+'">'+esc(stockInfo.label)+'</span></div><div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+' ('+discountPct+'% off)</span>':'')+'</div><p class="pdp-tax-note">Inclusive of all taxes · Complimentary delivery across India</p>'+(couponSave>0?'<div class="pdp-coupon-banner"><div><strong>Save with code GLAM10</strong><span>Get 10% off up to ₹300 · Est. '+money(couponPrice)+'</span></div><button class="btn-link-accent" data-action="apply-pdp-coupon" data-code="GLAM10">'+(couponApplied?'Code applied '+icon('check',14):'Apply code')+'</button></div>':'')+'<p class="product-desc">'+esc(p.description)+'</p>'+(variants.length?'<div class="variant-select"><span>'+getVariantHeading(p,variants)+'</span><div>'+variants.map(v=>{
+    const vStock = getStockInfo(p, v);
+    return '<button class="'+(v===variant?'active':'')+(vStock.soldOut?' sold-out-var':'')+'" data-action="variant" data-id="'+esc(v)+'">'+esc(v)+'</button>';
+  }).join('')+'</div></div>':'')+'<div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>'+offersHtml+'<div class="product-facts"><div>'+icon('truck',20)+' Delivery across India</div><div>'+icon('shield',20)+' 100% authentic curated products</div></div><div class="pdp-tabs" role="tablist" aria-label="Product information">'+[['details','Details'],['ingredients','Ingredients'],['delivery','Delivery & Returns'],['reviews','Reviews ('+p.reviews+')']].map(([tid,tlabel])=>'<button role="tab" aria-selected="'+(activeTab===tid?'true':'false')+'" class="pdp-tab '+(activeTab===tid?'active':'')+'" data-action="pdp-tab" data-id="'+tid+'">'+tlabel+'</button>').join('')+'</div><div class="pdp-tab-panel" id="pdp-tab-panel" role="tabpanel">'+tabPanelHtml+'</div></div></div>'+relatedHtml+'</main>';
 }
 
 function account(){
@@ -1317,8 +1478,19 @@ function modal(){
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
-    const results = [...services.map(x=>({...x,type:'Service'})),...salons.map(x=>({...x,type:'Salon'})),...products.map(x=>({...x,type:'Product'}))].filter(x=>!q||((x.name+' '+(x.category||'')+' '+(x.area||'')+' '+(x.brand||'')).toLowerCase().includes(q))).slice(0,8);
-    inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Try facial, salon or serum" autocomplete="off" autofocus></div><div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+x.name+'</strong><small>'+x.type+(x.area?' · '+x.area:'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):empty('search','No matches yet','Try another service, salon or product name.'))+'</div>';
+    const searchable = [
+      ...products.map(x=>({...x,type:'Product'})),
+      ...services.map(x=>({...x,type:'Service'})),
+      ...salons.map(x=>({...x,type:'Salon'}))
+    ];
+    const results = searchable.filter(x=>{
+      if(!q) return true;
+      const hay = [x.name,x.category,x.area,x.brand,x.ingredients,x.tag,x.description].filter(Boolean).join(' ').toLowerCase();
+      return hay.includes(q);
+    }).slice(0,9);
+    const popularTerms = ['Serum','Lipstick','Niacinamide','Haircare','Fragrance','Facial'];
+    const suggestionsHtml = '<div class="search-chips-wrap"><span class="search-chips-label">'+(q?'TRY SEARCHING':'POPULAR SEARCHES')+'</span><div class="search-chips">'+popularTerms.map(t=>'<button class="search-chip" data-action="search-quick" data-id="'+t+'">'+t+'</button>').join('')+'</div></div>';
+    inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
   }
   else if(state.modal==='booking') inner=bookingModal();
   else if(state.modal==='address') inner='<div class="modal-head"><p class="eyebrow">SAVED ADDRESS</p><h2>Add an address.</h2><p>For home services and thoughtful deliveries.</p></div><form id="address-form"><label>Label<input name="label" required placeholder="Home, Work..."></label><label>Full address<textarea name="text" required placeholder="Street, area, city and postal code"></textarea></label><button class="btn btn-primary full" type="submit">Save address '+icon('arrow',17)+'</button></form>';
@@ -1413,10 +1585,21 @@ async function action(el){
   else if(a==='location'){ state.modal='location'; render(); }
   else if(a==='location-set'){ state.location=id; state.modal=null; persist(); render(); toast('Location updated'); }
   else if(a==='search-open'){ state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
+  else if(a==='search-quick'){
+    state.query = id || '';
+    render();
+    const input = document.getElementById('global-search');
+    if(input){ input.focus(); const len = input.value.length; input.setSelectionRange(len, len); }
+  }
+  else if(a==='search-clear'){
+    state.query = '';
+    render();
+    document.getElementById('global-search')?.focus();
+  }
   else if(a==='search-result'){
     state.modal=null;
     if(el.dataset.type==='Salon'){ state.experience='salon'; state.selectedSalon=id; navigate('salon-detail'); }
-    else if(el.dataset.type==='Product'){ state.experience='shop'; state.selectedProduct=id; navigate('product-detail'); }
+    else if(el.dataset.type==='Product'){ state.experience='shop'; state.selectedProduct=id; state.productVariant=null; state.pdpTab='details'; navigate('product-detail'); ensureProductExtras(id); }
     else { state.experience='home'; openBooking('home',id); }
     persist();
   }
@@ -1432,9 +1615,23 @@ async function action(el){
       document.getElementById(target)?.scrollIntoView({behavior:'smooth'});
     }
   }
+  else if(a==='shop-all'){
+    state.modal=null;
+    state.experience='shop';
+    state.shopCategory='All';
+    state.shopCollection='All';
+    state.shopBrand='All';
+    state.sort='featured';
+    state.activeNav='landing';
+    scrollLockUntil = Date.now() + 700;
+    persist();
+    if(state.view!=='landing') navigate('landing'); else render();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
   else if(a==='explore-bestsellers'){
     state.experience='shop';
     state.shopCategory='All';
+    state.shopCollection='BESTSELLER';
     state.activeNav='bestsellers';
     scrollLockUntil = Date.now() + 800;
     persist();
@@ -1444,10 +1641,47 @@ async function action(el){
   else if(a==='home-category'){ state.homeCategory=id; state.activeNav='popular'; state.view='landing'; render(); document.getElementById('popular')?.scrollIntoView({behavior:'smooth'}); }
   else if(a==='salon-category'){ state.salonCategory=id; state.activeNav='salons'; state.view='landing'; render(); document.getElementById('salons')?.scrollIntoView({behavior:'smooth'}); }
   else if(a==='shop-category'){
-    state.shopCategory=id;
+    state.experience='shop';
+    state.shopCategory=id || 'All';
     state.activeNav = el.closest('#shop-categories') ? 'categories' : 'bestsellers';
     scrollLockUntil = Date.now() + 700;
-    state.view='landing';
+    persist();
+    if(state.view!=='landing') navigate('landing'); else render();
+    setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
+  }
+  else if(a==='shop-collection'){
+    const col = el.dataset.collection || id || 'All';
+    const fromSubnav = Boolean(el.closest('.subnav'));
+    state.experience='shop';
+    state.shopCollection = (!fromSubnav && state.shopCollection === col && col !== 'All') ? 'All' : col;
+    state.activeNav = state.shopCollection === 'NEW' ? 'new-arrivals' : 'bestsellers';
+    scrollLockUntil = Date.now() + 700;
+    persist();
+    if(state.view!=='landing') navigate('landing'); else render();
+    if(fromSubnav || el.dataset.target) setTimeout(()=>document.getElementById(el.dataset.target||'bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
+  }
+  else if(a==='shop-brand'){
+    state.experience='shop';
+    const nextBrand = (!el.classList.contains('pdp-brand-link') && state.shopBrand === id && id !== 'All') ? 'All' : (id || 'All');
+    state.shopBrand = nextBrand;
+    state.activeNav = 'bestsellers';
+    scrollLockUntil = Date.now() + 700;
+    persist();
+    if(state.view!=='landing') navigate('landing'); else render();
+    setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
+  }
+  else if(a==='shop-sort-reset'){
+    state.sort='featured';
+    render();
+  }
+  else if(a==='shop-reset'){
+    state.shopCategory='All';
+    state.shopCollection='All';
+    state.shopBrand='All';
+    state.sort='featured';
+    state.activeNav='bestsellers';
+    scrollLockUntil = Date.now() + 700;
+    persist();
     render();
     document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'});
   }
@@ -1460,14 +1694,24 @@ async function action(el){
   else if(a==='product-detail'){
     state.selectedProduct=id;
     state.productVariant=null;
+    state.pdpTab='details';
     navigate('product-detail');
-    apiGetProductOffers(id).then(res => {
-      if(!state.productOffers) state.productOffers = {};
-      state.productOffers[id] = res;
-      render();
-    }).catch(e => console.warn('[ProductOffers]', e));
+    ensureProductExtras(id);
   }
   else if(a==='variant'){ state.productVariant=id; render(); }
+  else if(a==='pdp-tab'){ state.pdpTab=id||'details'; if(state.pdpTab==='reviews'&&state.selectedProduct) ensureProductExtras(state.selectedProduct); render(); }
+  else if(a==='pdp-reviews-jump'){
+    state.pdpTab='reviews';
+    if(state.selectedProduct) ensureProductExtras(state.selectedProduct);
+    render();
+    setTimeout(()=>document.getElementById('pdp-tab-panel')?.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+  }
+  else if(a==='apply-pdp-coupon'){
+    state.coupon = el.dataset.code || 'GLAM10';
+    persist();
+    render();
+    toast('Code GLAM10 saved for checkout');
+  }
   else if(a==='wish'){
     state.wishlist = state.wishlist.includes(id) ? state.wishlist.filter(x=>x!==id) : [...state.wishlist,id];
     persist();
@@ -1482,8 +1726,8 @@ async function action(el){
   else if(a==='add-cart'){
     const prod = products.find(p => p.id === id);
     if(!prod) return;
-    if(prod.stock === 0 || prod.in_stock === false || prod.soldOut === true) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
+    if(getStockInfo(prod, chosenVariant).soldOut || prod.in_stock === false || prod.soldOut === true) return;
     state.cart[id] = (state.cart[id] || 0) + 1;
     state.pendingCheckoutOrder = null;
     state.pendingCheckoutKey = null;
@@ -1510,8 +1754,8 @@ async function action(el){
   else if(a==='buy-now'){
     const prod = products.find(p => p.id === id);
     if(!prod) return;
-    if(prod.stock === 0 || prod.in_stock === false || prod.soldOut === true) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
+    if(getStockInfo(prod, chosenVariant).soldOut || prod.in_stock === false || prod.soldOut === true) return;
     state.cart[id]=(state.cart[id]||0)+1;
     state.pendingCheckoutOrder = null;
     state.pendingCheckoutKey = null;
@@ -2516,6 +2760,10 @@ document.addEventListener('change', async e => {
     state.sort = e.target.value;
     render();
   }
+  if(e.target.id === 'shop-brand-select'){
+    state.shopBrand = e.target.value || 'All';
+    render();
+  }
   if(e.target.classList.contains('admin-role-select')){
     const userId = Number(e.target.dataset.userId);
     const newRole = e.target.value;
@@ -2538,7 +2786,7 @@ document.addEventListener('change', async e => {
 window.addEventListener('scroll', () => {
   if (state.view !== 'landing' || Date.now() < scrollLockUntil) return;
   const targets = state.experience === 'shop'
-    ? ['shop-categories', 'bestsellers', 'new-arrivals']
+    ? ['shop-categories', 'bestsellers']
     : state.experience === 'salon'
     ? ['salons', 'salon-categories']
     : ['categories', 'popular', 'professionals', 'how'];
@@ -2587,6 +2835,17 @@ document.addEventListener('keydown', e => {
     e.preventDefault();
     state.modal = 'search';
     render();
+    setTimeout(()=>document.getElementById('global-search')?.focus(),20);
+  }
+  if((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && document.activeElement?.classList?.contains('pdp-tab')){
+    const tabs = Array.from(document.querySelectorAll('.pdp-tab'));
+    const idx = tabs.indexOf(document.activeElement);
+    if(idx !== -1){
+      e.preventDefault();
+      const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+      next.click();
+      next.focus();
+    }
   }
 });
 

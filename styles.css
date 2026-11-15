@@ -107,3 +107,121 @@
 .payment-notice-warn{border-color:rgba(197,160,89,.55);background:rgba(197,160,89,.12)}
 .payment-notice-warn strong{color:#7c5b20}
 .catalog-loading-panel{padding:48px 20px;text-align:center;color:var(--muted);font-size:14px}
+
+/* ==========================================================================
+   BEAUTY STORE & PRODUCT DETAIL REFINEMENTS (TIRA-INSPIRED DISCOVERY)
+   ========================================================================== */
+.soft-section>.collection-pills,.soft-section>.shop-shelf-meta,.soft-section>.empty-filtered{max-width:1440px;margin-left:auto;margin-right:auto}
+.shop-hero>*,.product-detail>*{min-width:0}
+.shop-mobile-search{display:none}
+.mobile-search-trigger{width:100%;height:46px;border:1px solid var(--border);background:var(--card);padding:0 14px;display:flex;align-items:center;gap:10px;text-align:left;font-size:12px;color:var(--muted)}
+.mobile-search-trigger:hover{border-color:var(--champagne);color:var(--ink)}
+.shop-category-card>span .cat-copy{display:flex;flex-direction:column;min-width:0;gap:2px}
+.cat-count{font-size:11px;font-weight:500;color:var(--muted);line-height:1.2}
+.shop-category-card.active>div{outline:2px solid var(--champagne);outline-offset:2px}
+.shop-category-card.active .cat-label{color:var(--terracotta-deep)}
+.collection-pills{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.collection-pill{border:1px solid var(--border);background:var(--card);padding:8px 14px;font-size:11px;font-weight:700;color:var(--ink);white-space:nowrap;transition:background .2s,color .2s,border-color .2s}
+.collection-pill:hover{border-color:var(--champagne)}
+.collection-pill.active{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.listing-tools{margin-bottom:16px}
+.listing-tools .filter-row{margin-bottom:0}
+.shop-controls-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;flex-shrink:0}
+.shop-shelf-meta{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:22px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.shelf-count{font-size:12px;color:var(--muted)}
+.shelf-count strong{color:var(--ink)}
+.active-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.active-filter-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--card);padding:6px 10px;font-size:11px;font-weight:700;color:var(--ink)}
+.active-filter-chip:hover{border-color:var(--terracotta);color:var(--terracotta-deep)}
+.reset-filters-link{border:0;background:none;padding:4px 2px;font-size:11px;font-weight:800;color:var(--terracotta-deep);text-decoration:underline}
+.empty-filtered .empty-actions{display:flex;justify-content:center;padding-bottom:24px}
+.product-meta-line{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:10px}
+.product-low-stock{color:var(--terracotta-deep);font-weight:700}
+.product-save{font-size:11px;font-weight:800;color:var(--terracotta-deep);background:rgba(184,107,82,.1);padding:2px 6px}
+.brand-pill{border:0;border-bottom:1.5px solid transparent;background:none;padding:6px 10px;font-family:var(--serif);font-size:26px;letter-spacing:.08em;color:var(--muted);transition:color .2s,border-color .2s}
+.brand-pill:hover,.brand-pill.active{color:var(--ink);border-bottom-color:var(--champagne)}
+.pdp-breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:24px;font-size:12px;color:var(--muted)}
+.pdp-breadcrumb button{border:0;background:none;padding:0;font-weight:700;color:var(--muted)}
+.pdp-breadcrumb button:hover{color:var(--ink);text-decoration:underline}
+.pdp-breadcrumb span[aria-current="page"]{color:var(--ink);font-weight:600}
+.product-detail-image{position:relative;overflow:hidden}
+.pdp-discount-badge{position:absolute;top:14px;right:14px;background:var(--terracotta-deep);color:var(--card);font-size:10px;font-weight:800;letter-spacing:.08em;padding:5px 9px}
+.pdp-brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.pdp-brand-link{border:0;background:none;padding:0;margin:0;color:var(--muted);cursor:pointer}
+.pdp-brand-link:hover{color:var(--ink);text-decoration:underline}
+.pdp-edit-pill{border:1px solid var(--champagne);background:#F6EFE0;color:var(--ink);font-size:9px;font-weight:800;letter-spacing:.12em;padding:4px 8px}
+.pdp-rating-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:16px}
+.pdp-rating-jump{border:0;background:none;padding:0;cursor:pointer}
+.pdp-rating-jump:hover{opacity:.8}
+.stock-pill{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border:1px solid var(--border);background:var(--card)}
+.stock-pill.in{border-color:rgba(46,111,64,.3);background:rgba(46,111,64,.08);color:#245c34}
+.stock-pill.low{border-color:rgba(184,107,82,.45);background:rgba(184,107,82,.12);color:var(--terracotta-deep)}
+.stock-pill.out{border-color:var(--border);background:var(--cream);color:var(--muted)}
+.product-detail-info .product-detail-price{margin:14px 0 6px}
+.pdp-tax-note{font-size:11px;color:var(--muted);margin:0 0 18px}
+.pdp-coupon-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 14px;background:var(--card);border:1px dashed var(--champagne);margin-bottom:20px}
+.pdp-coupon-banner strong{display:block;font-size:12px;color:var(--ink);margin-bottom:2px}
+.pdp-coupon-banner span{font-size:11px;color:var(--muted)}
+.btn-link-accent{border:1px solid var(--ink);background:none;padding:7px 12px;font-size:11px;font-weight:800;color:var(--ink);display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-link-accent:hover{background:var(--ink);color:var(--card)}
+.variant-select button.sold-out-var{opacity:.55;text-decoration:line-through}
+.product-offers{margin-top:20px;padding:16px;background:var(--ivory);border:1px solid var(--champagne);border-radius:4px}
+.product-offers .eyebrow{margin-bottom:6px}
+.offers-sub{font-size:12px;color:var(--muted);margin-bottom:12px}
+.offer-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);flex-wrap:wrap}
+.offer-row small{display:block;color:var(--muted);margin-top:2px}
+.offer-row-right{display:flex;gap:10px;align-items:center}
+.pdp-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-top:26px;overflow-x:auto;scrollbar-width:none}
+.pdp-tab{border:0;border-bottom:2px solid transparent;background:none;padding:11px 14px;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+.pdp-tab:hover{color:var(--ink)}
+.pdp-tab.active{color:var(--ink);border-bottom-color:var(--ink)}
+.pdp-tab-panel{padding:20px 0 8px;border-bottom:1px solid var(--border)}
+.pdp-tab-copy,.pdp-tab-sub,.pdp-tab-note{font-size:13px;line-height:1.75;color:var(--muted);margin:0 0 14px}
+.pdp-specs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px;margin:16px 0 4px;padding-top:14px;border-top:1px solid var(--border)}
+.pdp-specs dt{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:3px}
+.pdp-specs dd{margin:0;font-size:13px;font-weight:600;color:var(--ink)}
+.ingredient-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.ingredient-chip{border:1px solid var(--border);background:var(--card);padding:6px 11px;font-size:12px;color:var(--ink)}
+.pdp-policy-list{display:grid;gap:14px}
+.pdp-policy-list strong{display:block;font-size:12px;color:var(--ink);margin-bottom:3px}
+.pdp-policy-list p{margin:0;font-size:12.5px;line-height:1.65;color:var(--muted)}
+.pdp-review-summary{display:flex;align-items:center;gap:14px;padding:12px 14px;background:var(--card);border:1px solid var(--border);margin-bottom:14px}
+.pdp-review-summary strong{font-family:var(--serif);font-size:32px;line-height:1;color:var(--ink);margin-right:8px}
+.pdp-review-list{display:grid;gap:10px}
+.pdp-review-item{padding:12px 14px;background:var(--card);border:1px solid var(--border)}
+.pdp-review-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+.pdp-review-item p{margin:0;font-size:12.5px;line-height:1.6;color:var(--muted)}
+.pdp-related{margin-top:64px;padding-top:44px;border-top:1px solid var(--border)}
+.pdp-related-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:26px}
+.pdp-related-head h2{font-size:clamp(30px,3.2vw,42px);line-height:1.2;margin:0}
+.pdp-related-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.search-clear-btn{border:0;background:none;padding:6px;color:var(--muted);display:grid;place-items:center}
+.search-clear-btn:hover{color:var(--ink)}
+.search-chips-wrap{margin-top:16px}
+.search-chips-label{display:block;font-size:9px;letter-spacing:.16em;font-weight:800;color:var(--muted);margin-bottom:8px}
+.search-chips{display:flex;flex-wrap:wrap;gap:7px}
+.search-chip{border:1px solid var(--border);background:var(--card);padding:6px 11px;font-size:11px;font-weight:700;color:var(--ink)}
+.search-chip:hover{border-color:var(--ink);background:var(--cream)}
+.search-empty-box{padding-bottom:8px}
+.search-empty-box .empty-state{padding:28px 10px 18px}
+.search-noresult-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+@media(max-width:950px){
+  .shop-mobile-search{display:block;padding:18px 24px 0}
+  .pdp-related-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:700px){
+  .shop-mobile-search{padding:14px 18px 0}
+  .collection-pills{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-right:-18px;padding-right:18px}
+  .collection-pill{flex:none;padding:7px 12px}
+  .shop-controls-right{gap:14px;width:100%;justify-content:space-between;margin-top:12px}
+  .shop-controls-right .sort-label{margin-bottom:12px}
+  .pdp-related-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .pdp-specs{grid-template-columns:1fr}
+  .brand-pill{font-size:20px}
+}
+@media(max-width:390px){
+  .pdp-related-grid{gap:8px}
+  .product-meta-line{font-size:10px}
+  .product-save{font-size:10px;padding:1px 5px}
+  .pdp-tab{padding:10px 11px;font-size:11px}
+}

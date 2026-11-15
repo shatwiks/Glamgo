@@ -26,7 +26,9 @@ def format_product(p: Product) -> dict:
         "tag": p.tag or "",
         "description": p.description,
         "ingredients": p.ingredients or "",
-        "variants": [v.name for v in p.variants] if p.variants else []
+        "variants": [v.name for v in p.variants] if p.variants else [],
+        "stock": p.stock if p.stock is not None else 100,
+        "variant_stocks": {v.name: (v.stock if v.stock is not None else 50) for v in (p.variants or [])}
     }
 
 
@@ -38,7 +40,7 @@ def get_products(
     query: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:products:{category}:{sort}:{tag}:{query}"
+    cache_key = f"glamgo:catalog:products:v2:{category}:{sort}:{tag}:{query}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -50,12 +52,22 @@ def get_products(
         q = q.filter(Product.tag == tag)
     if query:
         q_term = f"%{query}%"
-        q = q.filter((Product.name.ilike(q_term)) | (Product.brand.ilike(q_term)) | (Product.description.ilike(q_term)))
+        q = q.filter(
+            (Product.name.ilike(q_term))
+            | (Product.brand.ilike(q_term))
+            | (Product.category.ilike(q_term))
+            | (Product.ingredients.ilike(q_term))
+            | (Product.description.ilike(q_term))
+        )
 
     if sort == "price":
         q = q.order_by(Product.price.asc())
+    elif sort == "price_desc":
+        q = q.order_by(Product.price.desc())
     elif sort == "rating":
         q = q.order_by(Product.rating.desc())
+    elif sort == "reviews":
+        q = q.order_by(Product.reviews.desc())
 
     products = q.all()
     result = [format_product(p) for p in products]
