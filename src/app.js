@@ -271,10 +271,12 @@ const state = {
 const app = document.getElementById('app');
 const persist = () => localStorage.setItem('glamgo-state', JSON.stringify(Object.fromEntries(Object.keys(defaults).map(k => [k,state[k]]))));
 const toast = message => {
+  const root = document.getElementById('toast-root');
+  root.innerHTML = '';
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = icon('check',16) + esc(message);
-  document.getElementById('toast-root').append(el);
+  root.append(el);
   setTimeout(() => el.remove(), 3300);
 };
 
