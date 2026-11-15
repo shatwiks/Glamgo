@@ -256,3 +256,33 @@ def test_verify_rejects_uncaptured_or_mismatched_gateway_payment(client, db, cus
     }, headers=customer_auth_headers)
     assert uncaptured.status_code == 400
     assert "not captured" in uncaptured.json()["detail"].lower()
+
+
+def test_rejects_sub_100_paise_and_never_leaks_secret(client, db, customer_auth_headers, monkeypatch):
+    order = client.post("/api/v1/orders/", json={
+        "items": [{"id": "b3", "qty": 1}],
+        "payment_method": "UPI",
+        "address_label": "Home",
+        "address_text": "Bandra West",
+    }, headers=customer_auth_headers).json()
+
+    db_order = db.query(Order).filter(Order.id == order["id"]).first()
+    db_order.total = 0.50  # 50 paise (< 100 paise minimum)
+    db.commit()
+
+    sub_min = client.post("/api/v1/payments/razorpay/create-order", json={
+        "order_id": order["id"],
+    }, headers=customer_auth_headers)
+    assert sub_min.status_code == 400
+    assert "100 paise" in sub_min.json()["detail"].lower()
+
+    db_order.total = 1.00  # Exact 100 paise minimum succeeds
+    db.commit()
+    _install_mock_razorpay(monkeypatch)
+    exact_min = client.post("/api/v1/payments/razorpay/create-order", json={
+        "order_id": order["id"],
+    }, headers=customer_auth_headers)
+    assert exact_min.status_code == 200
+    body = exact_min.json()
+    assert body["amount_paise"] == 100
+    assert settings.RAZORPAY_KEY_SECRET not in str(body)

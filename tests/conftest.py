@@ -15,6 +15,14 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_db():
+    # Populate ephemeral test-only gateway defaults if .env is absent in CI
+    if not settings.RAZORPAY_KEY_ID:
+        settings.RAZORPAY_KEY_ID = "rzp_test_ci_placeholder"
+    if not settings.RAZORPAY_KEY_SECRET:
+        settings.RAZORPAY_KEY_SECRET = "ci_test_secret_placeholder"
+    if not settings.RAZORPAY_WEBHOOK_SECRET:
+        settings.RAZORPAY_WEBHOOK_SECRET = "ci_webhook_secret_placeholder"
+
     # Ensure database is seeded with initial data and reset catalog inventory
     db = TestingSessionLocal()
     try:

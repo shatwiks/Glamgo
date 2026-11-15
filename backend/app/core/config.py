@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = "redis://127.0.0.1:6382/0"
 
-    # Payments (Razorpay)
-    RAZORPAY_KEY_ID: str = "rzp_test_glamgo_demo"
-    RAZORPAY_KEY_SECRET: str = "glamgo_test_secret_key_demo"
-    RAZORPAY_WEBHOOK_SECRET: str = "glamgo_webhook_secret_test_2026"
+    # Payments (Razorpay) - loaded exclusively from environment variables / .env
+    RAZORPAY_KEY_ID: str = ""
+    RAZORPAY_KEY_SECRET: str = ""
+    RAZORPAY_WEBHOOK_SECRET: str = ""
 
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
         return v
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", "../.env"),
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore"

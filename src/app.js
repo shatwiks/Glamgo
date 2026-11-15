@@ -1615,7 +1615,7 @@ async function action(el){
       const payOrder = await apiCreatePaymentOrder(order.total, order.id);
       let terminalOutcome = false;
       const rzp = new window.Razorpay({
-        key: payOrder.key_id,
+        key: payOrder.key_id || import.meta.env?.VITE_RAZORPAY_KEY_ID,
         amount: payOrder.amount_paise ?? Math.round(payOrder.amount * 100),
         currency: payOrder.currency || 'INR',
         name: 'GlamGo Luxury Beauty',
@@ -2092,7 +2092,7 @@ async function action(el){
         const payOrder = await apiCreatePaymentOrder(booked.price, null, booked.id);
         let terminalOutcome = false;
         const rzp = new window.Razorpay({
-          key: payOrder.key_id,
+          key: payOrder.key_id || import.meta.env?.VITE_RAZORPAY_KEY_ID,
           amount: payOrder.amount_paise ?? Math.round(payOrder.amount * 100),
           currency: payOrder.currency || 'INR',
           name: 'GlamGo Luxury Beauty',

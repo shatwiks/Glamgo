@@ -181,6 +181,11 @@ def create_razorpay_order(
 ):
     target_type, target, server_amount = _resolve_payment_target(db, user, req.order_id, req.booking_id)
     amount_paise = int(round(server_amount * 100))
+    if amount_paise < 100:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Minimum online payment amount is ₹1 (100 paise)."
+        )
 
     # Reuse existing pending Razorpay order for the same order/booking on safe retries
     existing_filter = (
