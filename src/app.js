@@ -230,6 +230,7 @@ try { saved = JSON.parse(localStorage.getItem('glamgo-state') || '{}'); } catch 
 const state = {
   ...defaults,
   ...saved,
+  signedIn: Boolean(tokenStorage.get() && saved.signedIn),
   view: saved.experience ? 'landing' : 'onboarding',
   modal: null,
   menu: false,
@@ -291,7 +292,48 @@ const syncSubnavActive = () => {
     else btn.removeAttribute('aria-current');
   });
 };
-const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); render(); window.scrollTo({top:0,behavior:'instant'}); };
+let pendingAuthResume = null;
+const PROTECTED_VIEWS = new Set(['checkout', 'account', 'order-success', 'booking-success', 'tracking', 'partner', 'admin']);
+const PUBLIC_EXPERIENCE_ROUTES = {
+  '#shop': 'shop',
+  '/shop': 'shop',
+  '#home': 'home',
+  '/home': 'home',
+  '#services': 'home',
+  '/services': 'home',
+  '#salons': 'salon',
+  '/salons': 'salon'
+};
+const routeHashForExperience = id => '#' + (id === 'salon' ? 'salons' : id);
+function applyRouteFromLocation() {
+  const hash = window.location.hash;
+  const path = window.location.pathname;
+  const exp = PUBLIC_EXPERIENCE_ROUTES[hash] || PUBLIC_EXPERIENCE_ROUTES[path];
+  if (exp) {
+    state.experience = exp;
+    state.view = 'landing';
+    state.activeNav = 'landing';
+    return true;
+  }
+  if (hash === '#onboarding' || path === '/onboarding') {
+    state.view = 'onboarding';
+    return true;
+  }
+  return false;
+}
+function requireAuth(resume = null, message = 'Please sign in to continue.') {
+  if (state.signedIn) return true;
+  pendingAuthResume = resume;
+  state.view = 'auth';
+  state.modal = null;
+  state.menu = false;
+  state.mobileMenu = false;
+  render();
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  if (message) toast(message);
+  return false;
+}
+const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
 const image = (src, alt, cls='') => '<img class="'+cls+'" src="'+src+'" alt="'+esc(alt)+'" loading="lazy" onerror="this.style.opacity=0.15">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
@@ -304,19 +346,22 @@ const dateOptions = () => Array.from({length:6},(_,i)=>{const d=new Date();d.set
 const formatDate = value => new Date(value+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
 function onboarding(){
-  return '<div class="onboarding"><div class="onboard-top"><a class="wordmark" href="#" data-action="onboarding">GLAMGO<span>✦</span></a><div class="onboard-top-right"><span>YOUR BEAUTY. YOUR WAY.</span>'+button('My account '+icon('user',17),'account','btn-text')+'</div></div><div class="onboard-intro"><p class="eyebrow line-eyebrow">THREE EXPERIENCES. ONE BEAUTIFUL WORLD.</p><h1>Beauty is yours <em>to define.</em></h1><p>Where would you like to begin today?</p></div><div class="experience-grid">'+experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><span class="eyebrow">'+x.eyebrow+'</span><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',18)+'</span></div></button>').join('')+'</div><div class="onboard-bottom"><span>ONE ACCOUNT. EVERY SIDE OF BEAUTY.</span><span>CURATED WITH CARE &nbsp; · &nbsp; MADE FOR YOU</span></div></div>';
+  return '<div class="onboarding"><div class="onboard-top"><a class="wordmark" href="#" data-action="onboarding">GLAMGO<span>✦</span></a><div class="onboard-top-right"><span>YOUR BEAUTY. YOUR WAY.</span>'+button((state.signedIn?'My account ':'Sign in ')+icon('user',17),'account','btn-text')+'</div></div><div class="onboard-intro"><p class="eyebrow line-eyebrow">THREE EXPERIENCES. ONE BEAUTIFUL WORLD.</p><h1>Beauty is yours <em>to define.</em></h1><p>Where would you like to begin today?</p></div><div class="experience-grid">'+experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><span class="eyebrow">'+x.eyebrow+'</span><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',18)+'</span></div></button>').join('')+'</div><div class="onboard-bottom"><span>ONE ACCOUNT. EVERY SIDE OF BEAUTY.</span><span>CURATED WITH CARE &nbsp; · &nbsp; MADE FOR YOU</span></div></div>';
 }
 
 function auth(){
-  return '<div class="auth-layout"><div class="auth-image">'+image(HOME_IMG,'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#" data-action="onboarding">GLAMGO<span>✦</span></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+(state.authMode==='signup'?'Create your account':'A beautiful place to begin.')+'</h2><p>Find exceptional care at home, discover salons and shop your favourites.</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p></div></div></div>';
+  return '<div class="auth-layout"><div class="auth-image">'+image(HOME_IMG,'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">GLAMGO<span>✦</span></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+(state.authMode==='signup'?'Create your account':'A beautiful place to begin.')+'</h2><p>Find exceptional care at home, discover salons and shop your favourites.</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p><p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
 }
 
 function header(){
   const current = experiences.find(x => x.id === state.experience) || experiences[0];
   const userInitials = state.user?.name ? state.user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AM';
+  const accountBtn = state.signedIn
+    ? '<button class="avatar-button" aria-label="My account" data-action="account">'+userInitials+'</button>'
+    : '<button class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',15)+'</button>';
   const activeKey = getActiveSubnavKey();
   const navBtn = (act, label, key, extraAttrs='') => '<button data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
-  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="#" data-action="landing">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">✦ Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">✦ Salon & Partner Portal</button><button class="avatar-button" aria-label="My account" data-action="account">'+userInitials+'</button></div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="Open menu">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('landing','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('scroll','Best sellers','bestsellers','data-target="bestsellers"')+navBtn('scroll','New arrivals','new-arrivals','data-target="new-arrivals"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+'My account'+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">✦ Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="#" data-action="landing">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">✦ Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">✦ Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="Open menu">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('landing','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('scroll','Best sellers','bestsellers','data-target="bestsellers"')+navBtn('scroll','New arrivals','new-arrivals','data-target="new-arrivals"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">✦ Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -1236,7 +1281,7 @@ function bookingSuccess(){
 }
 
 function render(){
-  if(!state.signedIn){ app.innerHTML = auth(); return; }
+  if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); return; }
   if(state.view === 'onboarding'){ app.innerHTML = onboarding(); return; }
   if(state.view === 'admin'){
     if(state.user?.role !== 'admin'){
@@ -1254,6 +1299,7 @@ function render(){
 }
 
 function openBooking(type, itemId, serviceId = null, pro = null){
+  if(!requireAuth({ type: 'booking', args: [type, itemId, serviceId, pro] }, 'Sign in to book an appointment')) return;
   const selectedService = serviceId || (type === 'home' ? itemId : null);
   state.booking = {
     type,
@@ -1272,7 +1318,8 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
-  if(a==='onboarding'){ state.view='onboarding'; render(); }
+  if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); }
+  else if(a==='guest-browse'){ pendingAuthResume=null; state.view=state.experience?'landing':'onboarding'; render(); }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
   else if(a==='switch-toggle'){
@@ -1379,6 +1426,7 @@ async function action(el){
       state.cartVariants[id] = chosenVariant;
     }
     persist();
+    if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
     navigate('checkout');
   }
   else if(a==='cart') navigate('cart');
@@ -1389,9 +1437,13 @@ async function action(el){
     persist();
     render();
   }
-  else if(a==='checkout') navigate('checkout');
+  else if(a==='checkout'){
+    if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
+    navigate('checkout');
+  }
   else if(a==='payment'){ state.checkoutPayment=id; render(); }
   else if(a==='place-order'){
+    if(!requireAuth({ view: 'checkout' }, 'Sign in to place your order')) return;
     if(!state.addresses.length){
       state.modal='address';
       render();
@@ -1496,10 +1548,16 @@ async function action(el){
       toast(err.message || 'Failed to submit return request');
     }
   }
-  else if(a==='account'){ state.accountTab='Overview'; navigate('account'); }
+  else if(a==='account' || a==='account-bookings' || a==='orders' || a==='wishlist' || a==='support'){
+    const tabMap = { account: 'Overview', 'account-bookings': 'My bookings', orders: 'My orders', wishlist: 'Wishlist', support: 'Customer support' };
+    const targetTab = tabMap[a];
+    if(!requireAuth({ view: 'account', accountTab: targetTab }, 'Sign in to access your account')) return;
+    state.accountTab = targetTab;
+    navigate('account');
+  }
   else if(a==='account-tab'){ state.accountTab=id; render(); }
-  else if(a==='account-bookings'){ state.accountTab='My bookings'; navigate('account'); }
   else if(a==='booking-cancel'){
+    if(!requireAuth({ view: 'account', accountTab: 'My bookings' }, 'Sign in to manage bookings')) return;
     if(confirm('Are you sure you wish to cancel this appointment?')){
       try {
         const updated = await apiUpdateBookingStatus(id, 'cancelled');
@@ -1513,8 +1571,6 @@ async function action(el){
       }
     }
   }
-  else if(a==='orders'){ state.accountTab='My orders'; navigate('account'); }
-  else if(a==='wishlist'){ state.accountTab='Wishlist'; navigate('account'); }
   else if(a==='notifications'){ state.modal='notifications'; render(); }
   else if(a==='address-add'){ state.modal='address'; render(); }
   else if(a==='address-delete'){
@@ -1536,10 +1592,10 @@ async function action(el){
       toast('Address removed');
     }
   }
-  else if(a==='support'){ state.accountTab='Customer support'; navigate('account'); }
   else if(a==='logout'){
     tokenStorage.remove();
     tokenStorage.removeRefresh();
+    pendingAuthResume = null;
     state.signedIn = false;
     state.view = 'auth';
     persist();
@@ -1547,7 +1603,12 @@ async function action(el){
     toast('Signed out');
   }
   else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; render(); }
-  else if(a==='partners'){ state.partnerTab='Overview'; navigate('partner'); loadPartnerData(); }
+  else if(a==='partners'){
+    if(!requireAuth({ view: 'partner' }, 'Sign in to access the Salon & Partner Portal')) return;
+    state.partnerTab='Overview';
+    navigate('partner');
+    loadPartnerData();
+  }
   else if(a==='partner-role'){
     state.partnerRole=id;
     state.partnerTab='Overview';
@@ -1813,6 +1874,7 @@ async function action(el){
     render();
   }
   else if(a==='booking-confirm'){
+    if(!requireAuth({ view: state.experience ? 'landing' : 'onboarding' }, 'Sign in to confirm your booking')) return;
     const b = state.booking;
     const s = services.find(x => x.id === b.serviceId);
     const salon = salons.find(x => x.id === b.itemId);
@@ -1901,6 +1963,28 @@ document.addEventListener('click', e => {
   action(el);
 });
 
+function applyPostAuthNavigation(role) {
+  const resume = pendingAuthResume;
+  pendingAuthResume = null;
+  if (role === 'admin' && (window.location.hash === '#admin' || resume?.view === 'admin')) {
+    state.view = 'admin';
+    loadAdminData();
+    return null;
+  }
+  if (resume?.type === 'booking') {
+    state.view = 'landing';
+    return resume;
+  }
+  if (resume?.view) {
+    if (resume.accountTab) state.accountTab = resume.accountTab;
+    state.view = resume.view;
+    if (resume.view === 'partner') loadPartnerData();
+    return null;
+  }
+  state.view = state.experience ? 'landing' : 'onboarding';
+  return null;
+}
+
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, d = new FormData(f);
@@ -1915,9 +1999,10 @@ document.addEventListener('submit', async e => {
         const res = await apiRegister(name, email, password, phone);
         state.signedIn = true;
         state.user = { id: res.user_id, name: res.name, email: res.email, phone: res.phone || phone || '', role: res.role };
-        state.view = state.experience ? 'landing' : 'onboarding';
+        const bookingResume = applyPostAuthNavigation(res.role);
         persist();
         render();
+        if (bookingResume) openBooking(...bookingResume.args);
         toast('Account created successfully');
       } catch (err) {
         toast(err.message || 'Registration failed');
@@ -1927,12 +2012,7 @@ document.addEventListener('submit', async e => {
         const res = await apiLogin(email, password);
         state.signedIn = true;
         state.user = { id: res.user_id, name: res.name, email: res.email, phone: res.phone || state.user?.phone || '', role: res.role };
-        if (res.role === 'admin' && (window.location.hash === '#admin' || state.view === 'admin')) {
-          state.view = 'admin';
-          loadAdminData();
-        } else {
-          state.view = state.experience ? 'landing' : 'onboarding';
-        }
+        const bookingResume = applyPostAuthNavigation(res.role);
         const [myB, myO, myA, myN] = await Promise.allSettled([
           apiGetMyBookings(),
           apiGetMyOrders(),
@@ -1945,6 +2025,7 @@ document.addEventListener('submit', async e => {
         if(myN.status==='fulfilled') state.notifications = myN.value;
         persist();
         render();
+        if (bookingResume) openBooking(...bookingResume.args);
         toast(`Welcome back, ${res.name.split(' ')[0]}`);
       } catch (err) {
         toast(err.message || 'Login failed');
@@ -2239,8 +2320,12 @@ window.addEventListener('scroll', () => {
 }, { passive: true });
 
 window.addEventListener('hashchange', () => {
+  if(applyRouteFromLocation()){
+    render();
+    return;
+  }
   if(window.location.hash === '#admin'){
-    if(state.user?.role === 'admin'){
+    if(state.user?.role === 'admin' && state.signedIn){
       state.view = 'admin';
       render();
       loadAdminData();
@@ -2248,6 +2333,7 @@ window.addEventListener('hashchange', () => {
       toast('Unauthorized access. Administrator privileges required.');
     }
   } else if(window.location.hash === '#salon' || window.location.hash === '#partner' || window.location.hash === '#partners'){
+    if(!requireAuth({ view: 'partner' }, 'Sign in to access the Salon & Partner Portal')) return;
     state.view = 'partner';
     state.partnerRole = window.location.hash === '#salon' ? 'Salon Owner' : (state.partnerRole || 'Salon Owner');
     state.partnerTab = 'Overview';
@@ -2270,9 +2356,10 @@ document.addEventListener('keydown', e => {
 
 // Initial boot and background live sync
 async function init() {
-  if(window.location.hash === '#admin' && state.user?.role === 'admin'){
+  applyRouteFromLocation();
+  if(window.location.hash === '#admin' && state.user?.role === 'admin' && state.signedIn){
     state.view = 'admin';
-  } else if(window.location.hash === '#salon' || window.location.hash === '#partner' || window.location.hash === '#partners'){
+  } else if((window.location.hash === '#salon' || window.location.hash === '#partner' || window.location.hash === '#partners') && state.signedIn){
     state.view = 'partner';
     state.partnerRole = window.location.hash === '#salon' ? 'Salon Owner' : 'Salon Owner';
     state.partnerTab = 'Overview';
@@ -2316,6 +2403,7 @@ async function init() {
         }
       } catch {
         tokenStorage.remove();
+        state.signedIn = false;
       }
     }
     render();
