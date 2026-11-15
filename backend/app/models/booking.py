@@ -23,6 +23,9 @@ class Booking(Base):
     location = Column(Text, nullable=False)
     price = Column(Float, nullable=False)
     status = Column(Enum(BookingStatus), default=BookingStatus.CONFIRMED, nullable=False)
+    payment_status = Column(String(50), default="pending", nullable=False)
+    razorpay_order_id = Column(String(100), index=True, nullable=True)
+    idempotency_key = Column(String(100), index=True, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     customer = relationship("User", back_populates="bookings")

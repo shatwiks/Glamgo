@@ -3,6 +3,7 @@ import secrets
 from typing import List
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.api.deps import get_current_user
@@ -74,6 +75,7 @@ def format_order(order: Order) -> dict:
         "status": order.status.value,
         "payment_method": order.payment_method,
         "payment_status": order.payment_status,
+        "razorpay_order_id": order.razorpay_order_id,
         "address": {
             "label": order.address_label,
             "text": order.address_text
@@ -140,6 +142,15 @@ def create_order(
 ):
     if not order_in.items:
         raise HTTPException(status_code=400, detail="Cart is empty.")
+
+    idem_key = order_in.idempotency_key.strip() if order_in.idempotency_key and order_in.idempotency_key.strip() else None
+    if idem_key:
+        existing_order = db.query(Order).filter(
+            Order.customer_id == user.id,
+            Order.idempotency_key == idem_key
+        ).first()
+        if existing_order:
+            return format_order(existing_order)
 
     # 1. Resolve Delivery Address
     address_label = order_in.address_label or "Home"
@@ -219,6 +230,7 @@ def create_order(
             status=order_status,
             payment_method=order_in.payment_method,
             payment_status=payment_status,
+            idempotency_key=idem_key,
             address_label=address_label,
             address_text=address_text,
             coupon_code=coupon_applied
@@ -236,14 +248,29 @@ def create_order(
             ))
 
         # Add notification
+        notif_text = (
+            f"Your order {order.id} is confirmed."
+            if is_cod
+            else f"Your order {order.id} was placed and is awaiting payment."
+        )
         notif = Notification(
             user_id=user.id,
             type="order",
-            text=f"Your order {order.id} is confirmed."
+            text=notif_text
         )
         db.add(notif)
         db.commit()
         db.refresh(order)
+    except IntegrityError:
+        db.rollback()
+        if idem_key:
+            existing_order = db.query(Order).filter(
+                Order.customer_id == user.id,
+                Order.idempotency_key == idem_key
+            ).first()
+            if existing_order:
+                return format_order(existing_order)
+        raise
     except Exception:
         db.rollback()
         raise

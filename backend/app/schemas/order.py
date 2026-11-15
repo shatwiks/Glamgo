@@ -15,6 +15,7 @@ class OrderCreate(BaseModel):
     address_text: Optional[str] = None
     payment_method: str = "UPI"
     coupon: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 
 class OrderItemResponse(BaseModel):
@@ -34,6 +35,7 @@ class OrderResponse(BaseModel):
     status: str
     payment_method: str
     payment_status: str
+    razorpay_order_id: Optional[str] = None
     address: Dict[str, Any]
     created_at: datetime
     suborders: Optional[List[Dict[str, Any]]] = None

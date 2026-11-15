@@ -3,6 +3,7 @@ import secrets
 from typing import List
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.api.deps import get_current_user
@@ -21,6 +22,15 @@ def create_booking(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    idem_key = b_in.idempotency_key.strip() if b_in.idempotency_key and b_in.idempotency_key.strip() else None
+    if idem_key:
+        existing_booking = db.query(Booking).filter(
+            Booking.customer_id == user.id,
+            Booking.idempotency_key == idem_key
+        ).first()
+        if existing_booking:
+            return existing_booking
+
     service = db.query(Service).filter(Service.id == b_in.service_id).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found.")
@@ -84,7 +94,9 @@ def create_booking(
             time=b_in.time,
             location=location,
             price=service.price,
-            status=BookingStatus.CONFIRMED
+            status=BookingStatus.CONFIRMED,
+            payment_status="pending",
+            idempotency_key=idem_key
         )
         db.add(booking)
 
@@ -97,6 +109,16 @@ def create_booking(
         db.add(notif)
         db.commit()
         db.refresh(booking)
+    except IntegrityError:
+        db.rollback()
+        if idem_key:
+            existing_booking = db.query(Booking).filter(
+                Booking.customer_id == user.id,
+                Booking.idempotency_key == idem_key
+            ).first()
+            if existing_booking:
+                return existing_booking
+        raise
     except Exception:
         db.rollback()
         raise

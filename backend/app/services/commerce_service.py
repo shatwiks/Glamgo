@@ -512,6 +512,18 @@ class CommerceService:
     # Milestones D & E: Suborder Fulfillment, Logistics & Rollup
     # -------------------------------------------------------------------------
     @staticmethod
+    def _ensure_parent_order_payable_for_fulfillment(db: Session, parent_order_id: str) -> None:
+        parent = db.query(Order).filter(Order.id == parent_order_id).first()
+        if not parent:
+            return
+        is_cod = (parent.payment_method or "").strip().upper() in ("COD", "CASH ON DELIVERY", "CASH")
+        if not is_cod and parent.payment_status != "completed":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot fulfill suborder before online payment is confirmed."
+            )
+
+    @staticmethod
     def pack_suborder(db: Session, seller_id: int, suborder_id: str) -> SubOrder:
         suborder = db.query(SubOrder).filter(SubOrder.id == suborder_id).first()
         if not suborder:
@@ -521,6 +533,8 @@ class CommerceService:
 
         if suborder.status != SubOrderStatus.PLACED:
             raise HTTPException(status_code=400, detail=f"Cannot pack suborder with status '{suborder.status.value}'")
+
+        CommerceService._ensure_parent_order_payable_for_fulfillment(db, suborder.parent_order_id)
 
         suborder.status = SubOrderStatus.PACKED
         suborder.updated_at = datetime.now(timezone.utc)
@@ -539,6 +553,8 @@ class CommerceService:
 
         if suborder.status not in (SubOrderStatus.PLACED, SubOrderStatus.PACKED):
             raise HTTPException(status_code=400, detail=f"Cannot ship suborder with status '{suborder.status.value}'")
+
+        CommerceService._ensure_parent_order_payable_for_fulfillment(db, suborder.parent_order_id)
 
         now_utc = datetime.now(timezone.utc)
         suborder.status = SubOrderStatus.IN_TRANSIT

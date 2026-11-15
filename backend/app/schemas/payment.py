@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class PaymentOrderCreate(BaseModel):
-    amount: float
+    amount: Optional[float] = None
     order_id: Optional[str] = None
     booking_id: Optional[str] = None
 
@@ -11,6 +11,7 @@ class PaymentOrderCreate(BaseModel):
 class PaymentOrderResponse(BaseModel):
     razorpay_order_id: str
     amount: float
+    amount_paise: int
     currency: str
     key_id: str
 

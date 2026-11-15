@@ -29,6 +29,8 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PLACED, nullable=False)
     payment_method = Column(String(50), default="UPI", nullable=False)
     payment_status = Column(String(50), default="completed", nullable=False)
+    razorpay_order_id = Column(String(100), index=True, nullable=True)
+    idempotency_key = Column(String(100), index=True, nullable=True)
     address_label = Column(String(100), default="Home")
     address_text = Column(Text, nullable=False)
     coupon_code = Column(String(50), nullable=True)

@@ -154,3 +154,68 @@ def test_razorpay_webhook_signature_and_lifecycle(client, db):
     assert resp_fail.json()["processed"] is True
     db.refresh(fail_tx)
     assert fail_tx.status == "failed"
+
+    # 7. Out-of-order payment.failed for already CAPTURED tx must NOT reverse paid state
+    out_of_order_fail = {
+        "event": "payment.failed",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": razorpay_payment_id,
+                    "order_id": razorpay_order_id,
+                    "status": "failed"
+                }
+            }
+        }
+    }
+    ooo_bytes = json.dumps(out_of_order_fail).encode("utf-8")
+    ooo_sig = generate_webhook_signature(ooo_bytes, settings.RAZORPAY_WEBHOOK_SECRET)
+    resp_ooo = client.post(
+        "/api/v1/payments/razorpay/webhook",
+        content=ooo_bytes,
+        headers={"Content-Type": "application/json", "X-Razorpay-Signature": ooo_sig}
+    )
+    assert resp_ooo.status_code == 200
+    assert resp_ooo.json()["processed"] is False
+    db.refresh(tx)
+    db.refresh(order)
+    assert tx.status == "captured"
+    assert order.payment_status == "completed"
+
+    # 8. Webhook amount tampering rejected (400) for a pending transaction
+    tamper_order_id = f"order_{secrets.token_hex(8)}"
+    tamper_tx = PaymentTransaction(
+        user_id=user.id,
+        order_id=order_id,
+        razorpay_order_id=tamper_order_id,
+        amount=1500.0,
+        currency="INR",
+        status="created"
+    )
+    db.add(tamper_tx)
+    db.commit()
+
+    tamper_payload = {
+        "event": "payment.captured",
+        "payload": {
+            "payment": {
+                "entity": {
+                    "id": f"pay_tamper_{secrets.token_hex(4)}",
+                    "order_id": tamper_order_id,
+                    "amount": 100,
+                    "currency": "INR",
+                    "status": "captured"
+                }
+            }
+        }
+    }
+    tamper_bytes = json.dumps(tamper_payload).encode("utf-8")
+    tamper_sig = generate_webhook_signature(tamper_bytes, settings.RAZORPAY_WEBHOOK_SECRET)
+    resp_tamper = client.post(
+        "/api/v1/payments/razorpay/webhook",
+        content=tamper_bytes,
+        headers={"Content-Type": "application/json", "X-Razorpay-Signature": tamper_sig}
+    )
+    assert resp_tamper.status_code == 400
+    db.refresh(tamper_tx)
+    assert tamper_tx.status == "created"

@@ -257,7 +257,35 @@ def test_order_checkout_inventory_and_coupon_enforcement(client: TestClient, cus
     assert "insufficient stock" in oos_res.json()["detail"].lower()
 
 
-def test_razorpay_order_and_signature_verification_lifecycle(client: TestClient, customer_auth_headers, pro_auth_headers):
+def test_razorpay_order_and_signature_verification_lifecycle(client: TestClient, customer_auth_headers, pro_auth_headers, monkeypatch):
+    from types import SimpleNamespace
+    import backend.app.api.v1.payments as payments_module
+
+    class MockRazorpayClient:
+        def __init__(self):
+            self.created_orders = {}
+            self.order = SimpleNamespace(create=self.create_order)
+            self.payment = SimpleNamespace(fetch=self.fetch_payment)
+
+        def create_order(self, payload):
+            rzp_id = f"order_mock_{secrets.token_hex(6)}"
+            self.created_orders[rzp_id] = payload
+            return {"id": rzp_id, "amount": payload["amount"], "currency": payload["currency"]}
+
+        def fetch_payment(self, payment_id):
+            latest_id, latest_payload = next(reversed(self.created_orders.items()))
+            return {
+                "id": payment_id,
+                "order_id": latest_id,
+                "amount": latest_payload["amount"],
+                "currency": "INR",
+                "status": "captured",
+                "captured": True,
+            }
+
+    mock_client = MockRazorpayClient()
+    monkeypatch.setattr(payments_module, "get_razorpay_client", lambda: mock_client)
+
     # 1. Place order
     order = client.post(
         "/api/v1/orders/",
@@ -283,6 +311,7 @@ def test_razorpay_order_and_signature_verification_lifecycle(client: TestClient,
     assert create_pay.status_code == 200
     pay_data = create_pay.json()
     assert pay_data["amount"] == order["total"], "Server should enforce order.total over client spoofed amount"
+    assert pay_data["amount_paise"] == int(round(order["total"] * 100))
     rzp_order_id = pay_data["razorpay_order_id"]
 
     # 3. Compute authentic HMAC-SHA256 signature

@@ -136,38 +136,10 @@ const experiences = [
   {id:'shop', eyebrow:'03 / BEAUTY SHOPPING', title:'Everything beauty, in one place.', desc:'Discover and shop your favourite beauty and personal care products.', cta:'Explore Beauty Store', img:SHOP_IMG, icon:'bag'}
 ];
 
-let services = [
-  {id:'s1',name:'The Signature Facial',category:'Skin',price:1499,duration:'75 min',rating:'4.9',reviews:126,img:images.facial,desc:'A restorative cleanse, massage and glow treatment tailored to your skin.'},
-  {id:'s2',name:'Express Hair Styling',category:'Hair',price:899,duration:'45 min',rating:'4.8',reviews:98,img:images.hair,desc:'A polished blowout and styling session for every occasion.'},
-  {id:'s3',name:'Classic Manicure',category:'Nails',price:699,duration:'50 min',rating:'4.9',reviews:84,img:images.nails,desc:'Nail shaping, cuticle care, hand massage and a flawless finish.'},
-  {id:'s4',name:'Occasion Makeup',category:'Makeup',price:2499,duration:'90 min',rating:'4.9',reviews:112,img:images.makeup,desc:'A look made for you, from soft radiance to evening glamour.'},
-  {id:'s5',name:'Relax & Restore Massage',category:'Spa',price:1799,duration:'60 min',rating:'4.8',reviews:71,img:images.spa,desc:'A calm, deeply relaxing ritual in the comfort of your home.'},
-  {id:'s6',name:'Smooth Finish Waxing',category:'Waxing',price:599,duration:'40 min',rating:'4.8',reviews:63,img:images.facial,desc:'Gentle, professional waxing with quality products and careful technique.'},
-  {id:'s7',name:'Brow & Threading Edit',category:'Threading',price:299,duration:'25 min',rating:'4.9',reviews:103,img:images.makeup,desc:'Precise brow shaping and threading for a beautifully defined finish.'},
-  {id:'s8',name:'The Complete Glow',category:'Packages',price:3299,duration:'150 min',rating:'4.9',reviews:56,img:images.spa,desc:'Facial, manicure and hair styling in one considered package.'}
-];
-
-let professionals = [
-  {id:1,name:'Nisha Kapoor',experience:'8 years of experience',rating:'4.9',reviews:212,price:699,img:photo('photo-1559839734-2b71ea197ec2',500),specialty:'Skin & makeup'},
-  {id:2,name:'Riya Malhotra',experience:'6 years of experience',rating:'4.9',reviews:186,price:599,img:photo('photo-1534528741775-53994a69daeb',500),specialty:'Hair & styling'},
-  {id:3,name:'Meera Shah',experience:'10 years of experience',rating:'4.8',reviews:241,price:799,img:photo('photo-1580489944761-15a19d654956',500),specialty:'Spa & wellness'}
-];
-
-let salons = [
-  {id:'l1',name:'The Ivory Room',area:'Bandra West, Mumbai',distance:'1.8 km away',rating:'4.9',reviews:312,price:800,img:SALON_IMG,tag:'Most loved',services:['Hair','Skin','Nails'],hours:'10:00 AM – 8:00 PM',about:'A quiet, contemporary salon where considered care meets effortless style.'},
-  {id:'l2',name:'Atelier Beauty House',area:'Juhu, Mumbai',distance:'3.2 km away',rating:'4.8',reviews:204,price:650,img:images.salon2,tag:'Popular',services:['Hair','Makeup','Spa'],hours:'9:30 AM – 8:30 PM',about:'A warm, creative space for personal beauty rituals and expert styling.'},
-  {id:'l3',name:'Maison de Glow',area:'Khar West, Mumbai',distance:'2.4 km away',rating:'4.9',reviews:178,price:900,img:images.salon3,tag:'New to GlamGo',services:['Skin','Nails','Spa'],hours:'10:00 AM – 7:30 PM',about:'Skin and wellness treatments in a calming neighbourhood retreat.'}
-];
-
-let products = [
-  {id:'b1',brand:'LUMIÈRE',name:'The Daily Renewal Serum',category:'Skincare',price:1890,old:2290,rating:'4.9',reviews:86,img:images.serum,tag:'BESTSELLER',description:'A lightweight daily serum for skin that feels hydrated and quietly radiant.',ingredients:'Niacinamide, hyaluronic acid, glycerin',variants:['30 ml','50 ml']},
-  {id:'b2',brand:'THE BOTANIST',name:'Barrier Repair Moisturiser',category:'Skincare',price:1490,old:0,rating:'4.8',reviews:67,img:images.cream,tag:'NEW',description:'Comforting everyday moisture with a soft, non-greasy finish.',ingredients:'Ceramides, squalane, oat extract',variants:['50 ml','100 ml']},
-  {id:'b3',brand:'VELVET FORM',name:'Satin Colour Lipstick',category:'Makeup',price:990,old:1290,rating:'4.8',reviews:124,img:images.lipstick,tag:'TRENDING',description:'Rich colour and a smooth satin feel that lasts beautifully.',ingredients:'Jojoba oil, vitamin E, colour pigments',variants:['Rosewood','Soft Nude','Deep Berry']},
-  {id:'b4',brand:'NOURISH & CO.',name:'Restorative Hair Oil',category:'Haircare',price:1190,old:0,rating:'4.7',reviews:42,img:images.haircare,tag:'',description:'A pre-wash ritual to nourish lengths and leave hair feeling softer.',ingredients:'Argan oil, almond oil, rosemary',variants:['100 ml','200 ml']},
-  {id:'b5',brand:'MAISON CALME',name:'Linen & Neroli Eau de Parfum',category:'Fragrance',price:3490,old:0,rating:'4.9',reviews:31,img:images.fragrance,tag:'NEW',description:'A delicate, airy fragrance with a warm, lasting trail.',ingredients:'Neroli, white musk, cedarwood',variants:['30 ml','75 ml']},
-  {id:'b6',brand:'STUDIO EDIT',name:'The Everyday Brush Set',category:'Beauty Tools',price:1790,old:2190,rating:'4.8',reviews:59,img:images.tools,tag:'',description:'Five thoughtfully chosen brushes for an easy, polished routine.',ingredients:'Soft synthetic bristles, wooden handles',variants:['5 piece set']},
-  {id:'b7',brand:'THE BOTANIST',name:'Soft Skin Body Cream',category:'Body Care',price:1290,old:0,rating:'4.8',reviews:38,img:images.cream,tag:'',description:'A rich daily body cream that leaves skin comfortable and softly scented.',ingredients:'Shea butter, oat extract, glycerin',variants:['200 ml','400 ml']}
-];
+let services = [];
+let professionals = [];
+let salons = [];
+let products = [];
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
 const shopCategories = ['All','Skincare','Makeup','Haircare','Body Care','Fragrance','Beauty Tools'];
@@ -265,7 +237,17 @@ const state = {
   adminUserFilter: 'ALL',
   adminUserSearch: '',
   selectedDraftId: null,
-  reviews: []
+  reviews: [],
+  catalogLoading: true,
+  catalogErrors: { services: false, professionals: false, salons: false, products: false },
+  checkoutBusy: false,
+  pendingCheckoutOrder: null,
+  pendingCheckoutKey: null,
+  paymentNotice: null,
+  bookingBusy: false,
+  pendingBooking: null,
+  pendingBookingKey: null,
+  bookingNotice: null
 };
 
 const app = document.getElementById('app');
@@ -342,6 +324,46 @@ const button = (label, action, cls='btn-primary', attrs='') => '<button class="b
 const sectionHead = (eyebrow,title,sub='',action='') => '<div class="section-head"><div><p class="eyebrow">'+eyebrow+'</p><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
 const rating = (value,count) => '<span class="rating">'+icon('star',14)+' '+value+' <span>('+count+')</span></span>';
 const empty = (symbol,title,text,action='') => '<div class="empty-state"><div class="empty-symbol">'+icon(symbol,28)+'</div><h3>'+title+'</h3><p>'+text+'</p>'+action+'</div>';
+const catalogLoadingState = label => '<div class="catalog-loading-panel"><p>Curating live '+esc(label)+'...</p></div>';
+const catalogUnavailableState = (title, message = 'Live inventory could not be loaded right now. Please try again in a moment.') => '<div class="catalog-unavailable">'+empty('bag', title + ' unavailable', message, button('Retry loading '+icon('arrow',16), 'retry-catalog', 'btn-primary'))+'</div>';
+async function loadCatalogFeeds() {
+  state.catalogLoading = true;
+  const [sData, pData, lData, bData] = await Promise.allSettled([
+    apiGetServices(),
+    apiGetProfessionals(),
+    apiGetSalons(),
+    apiGetProducts()
+  ]);
+  if (sData.status === 'fulfilled' && Array.isArray(sData.value)) {
+    services = sData.value;
+    state.catalogErrors.services = false;
+  } else {
+    services = [];
+    state.catalogErrors.services = true;
+  }
+  if (pData.status === 'fulfilled' && Array.isArray(pData.value)) {
+    professionals = pData.value;
+    state.catalogErrors.professionals = false;
+  } else {
+    professionals = [];
+    state.catalogErrors.professionals = true;
+  }
+  if (lData.status === 'fulfilled' && Array.isArray(lData.value)) {
+    salons = lData.value;
+    state.catalogErrors.salons = false;
+  } else {
+    salons = [];
+    state.catalogErrors.salons = true;
+  }
+  if (bData.status === 'fulfilled' && Array.isArray(bData.value)) {
+    products = bData.value;
+    state.catalogErrors.products = false;
+  } else {
+    products = [];
+    state.catalogErrors.products = true;
+  }
+  state.catalogLoading = false;
+}
 const countCart = () => Object.values(state.cart).reduce((a,b)=>a+b,0);
 const cartTotal = () => products.reduce((sum,p)=>sum+p.price*(state.cart[p.id]||0),0);
 const dateOptions = () => Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i+1);return {value:d.toISOString().slice(0,10),day:d.toLocaleDateString('en-IN',{weekday:'short'}),date:d.getDate(),month:d.toLocaleDateString('en-IN',{month:'short'})};});
@@ -386,7 +408,17 @@ function homePage(){
   let filtered = services.filter(s => state.homeCategory === 'All' || s.category === state.homeCategory);
   if(state.sort === 'rating') filtered = [...filtered].sort((a,b) => Number(b.rating) - Number(a.rating));
   if(state.sort === 'price') filtered = [...filtered].sort((a,b) => a.price - b.price);
-  return '<main><section class="home-hero"><div class="hero-copy"><p class="eyebrow line-eyebrow">BEAUTY, BROUGHT TO YOU</p><h1>Professional beauty care. <em>Right at your doorstep.</em></h1><p>Expert hands, thoughtful rituals and time for yourself—beautifully brought to the comfort of home.</p><div class="hero-buttons">'+button('Book a service '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+button('How it works','scroll','btn-outline','data-target="how"')+'</div><div class="hero-proof"><span>'+icon('shield',17)+' Verified professionals</span><span>'+icon('spark',17)+' Care chosen for you</span></div></div><div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'<div class="visual-note"><span>THE GLAMGO EDIT</span><strong>Your moment of care,<br>in your own space.</strong></div></div></section><section class="search-strip"><div><span class="eyebrow">WHAT FEELS GOOD TODAY?</span><h2>Find your next moment of care.</h2></div><button data-action="search-open">'+icon('search',19)+' Search for a service <span>Explore '+icon('arrow',16)+'</span></button></section><section class="section" id="categories">'+sectionHead('EXPLORE BY CATEGORY','The care you\'re looking for.','From a little refresh to a complete ritual.')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile"><div class="category-art cat-'+i+'">'+icon(['spark','grid','spark','spark','spark','spark','spark','spark'][i],29)+'</div><span>'+c+'</span>'+icon('arrow',17)+'</button>').join('')+'</div></section><section class="section soft-section" id="popular">'+sectionHead('BOOK WHAT YOU LOVE','Popular home services.','Expert care for the moments that matter.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div><div class="card-grid">'+filtered.map(homeCard).join('')+'</div></section><section class="section" id="professionals">'+sectionHead('IN GOOD HANDS','Meet your beauty experts.','Experienced professionals, carefully verified and rated.','<span class="section-aside">Personal service, every time.</span>')+'<div class="pro-grid">'+professionals.map(professionalCard).join('')+'</div></section><section class="how-section" id="how"><div class="how-heading"><p class="eyebrow">SIMPLE BY DESIGN</p><h2>A beautiful experience, <em>from start to finish.</em></h2></div><div class="steps">'+[['01','Choose your service','Find the treatment or package that feels right.'],['02','Meet your professional','Select an expert whose style suits you.'],['03','Pick your moment','Book a date and time that fits your day.'],['04','Enjoy your service','Make room for beauty, right at home.']].map(x=>'<div class="step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('')+'</div></section><section class="section package-section"><div class="package-image">'+image(images.spa,'Relaxing beauty ritual')+'</div><div class="package-copy"><p class="eyebrow">THE GLAMGO RITUAL</p><h2>Make time for <em>all of you.</em></h2><p>The Complete Glow brings together facial care, manicure and hair styling into one unhurried moment.</p><div class="package-price">From '+money(3299)+' <span>· 150 minutes</span></div>'+button('Explore the package '+icon('arrow',17),'book-home','btn-primary','data-id="s8"')+'</div></section><section class="section review-section">'+sectionHead('YOUR EXPERIENCE MATTERS','Care worth coming back to.','After every booking, your feedback helps shape a better GlamGo.')+'<div class="review-panel">'+icon('star',30)+'<div><h3>Your voice belongs here.</h3><p>Book a service and share a review from your account after your appointment.</p></div>'+button('Explore services '+icon('arrow',17),'scroll','btn-outline','data-target="popular"')+'</div></section></main>';
+  const servicesSection = !services.length && state.catalogLoading
+    ? catalogLoadingState('home treatments')
+    : !services.length && state.catalogErrors.services
+      ? catalogUnavailableState('Home treatments catalog')
+      : '<div class="card-grid">'+filtered.map(homeCard).join('')+'</div>';
+  const prosSection = !professionals.length && state.catalogLoading
+    ? catalogLoadingState('specialists')
+    : !professionals.length && state.catalogErrors.professionals
+      ? catalogUnavailableState('Professionals directory')
+      : '<div class="pro-grid">'+professionals.map(professionalCard).join('')+'</div>';
+  return '<main><section class="home-hero"><div class="hero-copy"><p class="eyebrow line-eyebrow">BEAUTY, BROUGHT TO YOU</p><h1>Professional beauty care. <em>Right at your doorstep.</em></h1><p>Expert hands, thoughtful rituals and time for yourself—beautifully brought to the comfort of home.</p><div class="hero-buttons">'+button('Book a service '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+button('How it works','scroll','btn-outline','data-target="how"')+'</div><div class="hero-proof"><span>'+icon('shield',17)+' Verified professionals</span><span>'+icon('spark',17)+' Care chosen for you</span></div></div><div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'<div class="visual-note"><span>THE GLAMGO EDIT</span><strong>Your moment of care,<br>in your own space.</strong></div></div></section><section class="search-strip"><div><span class="eyebrow">WHAT FEELS GOOD TODAY?</span><h2>Find your next moment of care.</h2></div><button data-action="search-open">'+icon('search',19)+' Search for a service <span>Explore '+icon('arrow',16)+'</span></button></section><section class="section" id="categories">'+sectionHead('EXPLORE BY CATEGORY','The care you\'re looking for.','From a little refresh to a complete ritual.')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile"><div class="category-art cat-'+i+'">'+icon(['spark','grid','spark','spark','spark','spark','spark','spark'][i],29)+'</div><span>'+c+'</span>'+icon('arrow',17)+'</button>').join('')+'</div></section><section class="section soft-section" id="popular">'+sectionHead('BOOK WHAT YOU LOVE','Popular home services.','Expert care for the moments that matter.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</section><section class="section" id="professionals">'+sectionHead('IN GOOD HANDS','Meet your beauty experts.','Experienced professionals, carefully verified and rated.','<span class="section-aside">Personal service, every time.</span>')+' '+prosSection+'</section><section class="how-section" id="how"><div class="how-heading"><p class="eyebrow">SIMPLE BY DESIGN</p><h2>A beautiful experience, <em>from start to finish.</em></h2></div><div class="steps">'+[['01','Choose your service','Find the treatment or package that feels right.'],['02','Meet your professional','Select an expert whose style suits you.'],['03','Pick your moment','Book a date and time that fits your day.'],['04','Enjoy your service','Make room for beauty, right at home.']].map(x=>'<div class="step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('')+'</div></section><section class="section package-section"><div class="package-image">'+image(images.spa,'Relaxing beauty ritual')+'</div><div class="package-copy"><p class="eyebrow">THE GLAMGO RITUAL</p><h2>Make time for <em>all of you.</em></h2><p>The Complete Glow brings together facial care, manicure and hair styling into one unhurried moment.</p><div class="package-price">From '+money(3299)+' <span>· 150 minutes</span></div>'+button('Explore the package '+icon('arrow',17),'book-home','btn-primary','data-id="s8"')+'</div></section><section class="section review-section">'+sectionHead('YOUR EXPERIENCE MATTERS','Care worth coming back to.','After every booking, your feedback helps shape a better GlamGo.')+'<div class="review-panel">'+icon('star',30)+'<div><h3>Your voice belongs here.</h3><p>Book a service and share a review from your account after your appointment.</p></div>'+button('Explore services '+icon('arrow',17),'scroll','btn-outline','data-target="popular"')+'</div></section></main>';
 }
 
 function salonCard(s){
@@ -397,11 +429,19 @@ function salonPage(){
   let list = salons.filter(s => state.salonCategory === 'All' || s.services.includes(state.salonCategory));
   if(state.sort === 'rating') list = [...list].sort((a,b) => Number(b.rating) - Number(a.rating));
   if(state.sort === 'price') list = [...list].sort((a,b) => a.price - b.price);
-  return '<main><section class="salon-hero"><div class="salon-hero-image">'+image(SALON_IMG,'Luxury contemporary salon interior')+'</div><div class="salon-hero-copy"><p class="eyebrow line-eyebrow">THE SALON EDIT</p><h1>Discover salons that make you <em>feel your best.</em></h1><p>Beautiful spaces, trusted hands and the perfect appointment—find your next favourite salon nearby.</p>'+button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</div></section><section class="salon-search-box"><div><label>WHERE</label><button data-action="location">'+icon('pin',18)+esc(state.location)+'</button></div><div><label>WHAT</label><button data-action="search-open">'+icon('search',18)+' Service or salon name</button></div><div><label>WHEN</label><button data-action="salon-date">'+icon('calendar',18)+' '+(state.salonDate?formatDate(state.salonDate):'Choose a date')+'</button></div>'+button('Find salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</section><section class="section" id="salon-categories">'+sectionHead('FIND YOUR FIT','An appointment for every mood.','Discover a salon by the care you have in mind.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="salons">'+sectionHead('CURATED NEAR YOU','Salons worth discovering.','Thoughtful spaces and talented teams around '+esc(state.location)+'.')+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div><div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another category to discover more beautiful spaces.'))+'</section><section class="section salon-note"><div><p class="eyebrow">A LITTLE MORE PERSONAL</p><h2>Find your place. <em>Feel at home.</em></h2><p>Browse real services and available times before you commit to an appointment.</p></div>'+button('View appointments '+icon('arrow',17),'account-bookings','btn-outline')+'</section></main>';
+  const salonsSection = !salons.length && state.catalogLoading
+    ? catalogLoadingState('salons near you')
+    : !salons.length && state.catalogErrors.salons
+      ? catalogUnavailableState('Salons directory')
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another category to discover more beautiful spaces.'));
+  return '<main><section class="salon-hero"><div class="salon-hero-image">'+image(SALON_IMG,'Luxury contemporary salon interior')+'</div><div class="salon-hero-copy"><p class="eyebrow line-eyebrow">THE SALON EDIT</p><h1>Discover salons that make you <em>feel your best.</em></h1><p>Beautiful spaces, trusted hands and the perfect appointment—find your next favourite salon nearby.</p>'+button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</div></section><section class="salon-search-box"><div><label>WHERE</label><button data-action="location">'+icon('pin',18)+esc(state.location)+'</button></div><div><label>WHAT</label><button data-action="search-open">'+icon('search',18)+' Service or salon name</button></div><div><label>WHEN</label><button data-action="salon-date">'+icon('calendar',18)+' '+(state.salonDate?formatDate(state.salonDate):'Choose a date')+'</button></div>'+button('Find salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</section><section class="section" id="salon-categories">'+sectionHead('FIND YOUR FIT','An appointment for every mood.','Discover a salon by the care you have in mind.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="salons">'+sectionHead('CURATED NEAR YOU','Salons worth discovering.','Thoughtful spaces and talented teams around '+esc(state.location)+'.')+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+salonsSection+'</section><section class="section salon-note"><div><p class="eyebrow">A LITTLE MORE PERSONAL</p><h2>Find your place. <em>Feel at home.</em></h2><p>Browse real services and available times before you commit to an appointment.</p></div>'+button('View appointments '+icon('arrow',17),'account-bookings','btn-outline')+'</section></main>';
 }
 
 function salonDetail(){
   const s = salons.find(x => x.id === state.selectedSalon) || salons[0];
+  if (!s) {
+    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button>'+(state.catalogLoading?catalogLoadingState('salon details'):catalogUnavailableState('Salon details'))+'</main>';
+  }
   const staffList = (s.staff && s.staff.length) ? s.staff : professionals.slice(0, 2);
   return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(images.salon2,'Salon styling space')+image(images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>Map preview</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
 }
@@ -419,11 +459,24 @@ function productCard(p){
 
 function shopPage(){
   let list = products.filter(p => state.shopCategory === 'All' || p.category === state.shopCategory);
-  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Thoughtful delivery</span><span>'+icon('shield',18)+' Authentic products</span></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>'<button class="shop-category-card" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+icon('arrow',16)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen products for your everyday.')+'<div class="listing-tools"><div class="filter-row">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option></select></label></div><div class="product-grid">'+(state.sort==='price'?[...list].sort((a,b)=>a.price-b.price):state.sort==='rating'?[...list].sort((a,b)=>Number(b.rating)-Number(a.rating)):list).map(productCard).join('')+'</div>'+(list.length?'':empty('bag','A new edit is coming','Explore another category while we curate more favourites.'))+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore the pieces that make every day feel a little more yours.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section><section class="section" id="trending">'+sectionHead('IN THE MOMENT','Trending now.','Beauty favourites earning their place on your shelf.')+'<div class="product-grid">'+products.filter(p=>p.tag==='TRENDING'||p.tag==='BESTSELLER').map(productCard).join('')+'</div></section><section class="section" id="new-arrivals">'+sectionHead('JUST ARRIVED','New on the shelf.','Fresh discoveries to make room for.')+'<div class="product-grid">'+products.filter(p=>p.tag==='NEW'||p.tag==='TRENDING').map(productCard).join('')+'</div></section><section class="brand-section"><p class="eyebrow">THE BRANDS WE LOVE</p><div><span>LUMIÈRE</span><span>THE BOTANIST</span><span>VELVET FORM</span><span>MAISON CALME</span></div></section></main>';
+  const catalogDown = !products.length && state.catalogErrors.products;
+  const catalogBusy = !products.length && state.catalogLoading;
+  const shelfContent = catalogBusy
+    ? catalogLoadingState('beauty store')
+    : catalogDown
+      ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
+      : '<div class="product-grid">'+(state.sort==='price'?[...list].sort((a,b)=>a.price-b.price):state.sort==='rating'?[...list].sort((a,b)=>Number(b.rating)-Number(a.rating)):list).map(productCard).join('')+'</div>'+(list.length?'':empty('bag','A new edit is coming','Explore another category while we curate more favourites.'));
+  const secondaryProductSections = products.length
+    ? '<section class="section" id="trending">'+sectionHead('IN THE MOMENT','Trending now.','Beauty favourites earning their place on your shelf.')+'<div class="product-grid">'+products.filter(p=>p.tag==='TRENDING'||p.tag==='BESTSELLER').map(productCard).join('')+'</div></section><section class="section" id="new-arrivals">'+sectionHead('JUST ARRIVED','New on the shelf.','Fresh discoveries to make room for.')+'<div class="product-grid">'+products.filter(p=>p.tag==='NEW'||p.tag==='TRENDING').map(productCard).join('')+'</div></section>'
+    : '';
+  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Thoughtful delivery</span><span>'+icon('shield',18)+' Authentic products</span></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>'<button class="shop-category-card" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+icon('arrow',16)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen products for your everyday.')+'<div class="listing-tools"><div class="filter-row">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option></select></label></div>'+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore the pieces that make every day feel a little more yours.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section>'+secondaryProductSections+'<section class="brand-section"><p class="eyebrow">THE BRANDS WE LOVE</p><div><span>LUMIÈRE</span><span>THE BOTANIST</span><span>VELVET FORM</span><span>MAISON CALME</span></div></section></main>';
 }
 
 function productDetail(){
   const p = products.find(x => x.id === state.selectedProduct) || products[0];
+  if (!p) {
+    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to shop</button>'+(state.catalogLoading?catalogLoadingState('product details'):catalogUnavailableState('Product details'))+'</main>';
+  }
   const variant = state.productVariant || (p.variants && p.variants[0]) || '';
   const isSoldOut = p.stock === 0 || p.in_stock === false || p.soldOut === true;
   const isLoading = state.addingCartId === p.id;
@@ -463,15 +516,30 @@ function account(){
 }
 
 function cartPage(){
+  const savedCount = countCart();
   const items = products.filter(p => state.cart[p.id]);
   const popularPicks = [...products].sort((a,b)=> (b.tag==='BESTSELLER'?3:b.tag==='TRENDING'?2:b.tag==='NEW'?1:0) - (a.tag==='BESTSELLER'?3:a.tag==='TRENDING'?2:a.tag==='NEW'?1:0) || Number(b.rating)-Number(a.rating)).slice(0,3);
-  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(items.length?'<div class="cart-layout"><div class="cart-items">'+items.map(p=>'<div class="cart-item">'+image(p.img,p.name)+'<div><span class="product-brand">'+esc(p.brand)+'</span><h3>'+esc(p.name)+'</h3><p>'+esc(state.cartVariants?.[p.id] || p.variants[0] || '')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+p.id+'">Remove</button></div><div class="cart-item-end"><strong>'+money(p.price*state.cart[p.id])+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+p.id+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+state.cart[p.id]+'</span><button data-action="cart-qty" data-id="'+p.id+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div><div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal())+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full')+'<p>Secure checkout · Authentic products</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore Bestsellers '+icon('arrow',17),'explore-bestsellers','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">POPULAR PICKS</p><h2 id="empty-recs-title">Most-loved beauty rituals</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':'')+'</div>')+'</main>';
+  if (savedCount > 0 && !items.length) {
+    const noticeBody = state.catalogLoading
+      ? catalogLoadingState('your saved beauty bag (' + savedCount + ' item' + (savedCount > 1 ? 's' : '') + ')')
+      : catalogUnavailableState('Saved beauty bag pricing', 'Your bag still keeps ' + savedCount + ' saved item' + (savedCount > 1 ? 's' : '') + ', but live catalog pricing could not be verified right now.');
+    return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Saved items remain preserved until the catalog is ready.</p></div>'+noticeBody+'</main>';
+  }
+  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(items.length?'<div class="cart-layout"><div class="cart-items">'+items.map(p=>'<div class="cart-item">'+image(p.img,p.name)+'<div><span class="product-brand">'+esc(p.brand)+'</span><h3>'+esc(p.name)+'</h3><p>'+esc(state.cartVariants?.[p.id] || p.variants[0] || '')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+p.id+'">Remove</button></div><div class="cart-item-end"><strong>'+money(p.price*state.cart[p.id])+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+p.id+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+state.cart[p.id]+'</span><button data-action="cart-qty" data-id="'+p.id+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div><div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal())+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full')+'<p>Secure checkout · Authentic products</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore Bestsellers '+icon('arrow',17),'explore-bestsellers','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">POPULAR PICKS</p><h2 id="empty-recs-title">Most-loved beauty rituals</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
 }
 
 function checkoutPage(){
   if(!countCart()) return cartPage();
+  const matchedItems = products.filter(p=>state.cart[p.id]);
+  if(!matchedItems.length && (state.catalogLoading || state.catalogErrors.products)) return cartPage();
   const discount = state.coupon === 'GLAM10' ? Math.min(300, Math.round(cartTotal() * .1)) : 0;
-  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'">'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon==='GLAM10'?'<p class="success-note">'+icon('check',16)+' GLAM10 applied — you save '+money(discount)+'</p>':'')+'</section></div><aside class="order-summary"><h3>Your order</h3>'+products.filter(p=>state.cart[p.id]).map(p=>'<div><span>'+esc(p.name)+' × '+state.cart[p.id]+'</span><strong>'+money(p.price*state.cart[p.id])+'</strong></div>').join('')+'<hr><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal()-discount)+'</strong></div>'+button('Place order '+icon('arrow',17),'place-order','btn-primary full')+'<p>PostgreSQL-backed order. Server verified pricing.</p></aside></div></main>';
+  const noticeHtml = state.paymentNotice
+    ? '<div class="payment-notice payment-notice-'+esc(state.paymentNotice.type||'error')+'" role="alert"><strong>'+esc(state.paymentNotice.title)+'</strong><p>'+esc(state.paymentNotice.message)+'</p></div>'
+    : '';
+  const payLabel = state.checkoutBusy
+    ? 'Processing...'
+    : (state.paymentNotice && state.checkoutPayment !== 'Cash on delivery' ? 'Retry payment '+icon('arrow',17) : 'Place order '+icon('arrow',17));
+  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'">'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon==='GLAM10'?'<p class="success-note">'+icon('check',16)+' GLAM10 applied — you save '+money(discount)+'</p>':'')+'</section></div><aside class="order-summary"><h3>Your order</h3>'+matchedItems.map(p=>'<div><span>'+esc(p.name)+' × '+state.cart[p.id]+'</span><strong>'+money(p.price*state.cart[p.id])+'</strong></div>').join('')+'<hr><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal()-discount)+'</strong></div>'+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing &amp; secure checkout.</p></aside></div></main>';
 }
 
 function orderSuccess(){
@@ -698,7 +766,7 @@ function partnerPage(){
   } else if(tab === 'Availability calendar' || tab === 'Availability'){
     body = '<div class="dashboard-panel">' +
       '<h3>Weekly Working Days</h3>' +
-      '<p>Select the days you accept client appointments. Toggles sync to PostgreSQL in real time.</p>' +
+      '<p>Select the days you accept client appointments. Changes sync in real time.</p>' +
       '<div class="availability-grid" style="margin-top:20px">' +
         ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => '<button data-action="availability" data-id="'+day+'" class="'+(state.availability.includes(day)?'active':'')+'"><strong>'+day+'</strong><span>'+(state.availability.includes(day)?'Available':'Unavailable')+'</span></button>').join('') +
       '</div>' +
@@ -921,7 +989,7 @@ function partnerPage(){
         '<div class="account-heading">' +
           '<div>' +
             '<h3>Settlement Ledger & Statements</h3>' +
-            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Verified payout accounting backed by PostgreSQL transactions.</p>' +
+            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Verified payout accounting across completed transactions.</p>' +
           '</div>' +
           '<span class="badge badge-info">Status: '+esc(fin.settlement_summary?.payout_status || 'Pending cycle')+'</span>' +
         '</div>' +
@@ -968,7 +1036,7 @@ function partnerPage(){
       '<div class="partner-main">' +
         '<div class="dashboard-heading">' +
           '<div><p class="eyebrow">'+role.toUpperCase()+' DASHBOARD</p><h2>'+state.partnerTab+'</h2></div>' +
-          '<span>Live PostgreSQL Sync</span>' +
+          '<span>Live Partner Sync</span>' +
         '</div>' +
         body +
       '</div>' +
@@ -1079,7 +1147,7 @@ function adminPage(){
     '<div class="admin-panel">' +
       '<div class="admin-panel-head">' +
         '<h2>Vertical GMV Contribution</h2>' +
-        '<span class="admin-status-pulse"><i></i> PostgreSQL Live Metrics</span>' +
+        '<span class="admin-status-pulse"><i></i> Live Platform Metrics</span>' +
       '</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:20px">' +
         '<div style="background:var(--ivory);padding:20px;border:1px solid var(--border)">' +
@@ -1173,7 +1241,7 @@ function adminPage(){
     const bList = state.adminBookings || [];
     mainContent = '<div class="admin-panel">' +
       '<div class="admin-panel-head">' +
-        '<div><h2>Global Platform Bookings</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">All at-home treatments and salon appointments recorded in PostgreSQL.</p></div>' +
+        '<div><h2>Global Platform Bookings</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">All at-home treatments and salon appointments across the platform.</p></div>' +
         '<span class="admin-status-pulse"><i></i> '+bList.length+' Bookings</span>' +
       '</div>' +
       (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Service / Title</th><th>Customer</th><th>Type</th><th>Date & Time</th><th>Location</th><th>Price</th><th>Status</th></tr></thead><tbody>' +
@@ -1273,8 +1341,16 @@ function bookingModal(){
   if(b.step===0) body='<h3>Choose your service</h3><div class="booking-options">'+(b.type==='home'?services:services.filter(s=>salon&&salon.services.includes(s.category))).map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join('')+'</div>';
   if(b.step===1) body='<h3>'+(b.type==='home'?'Choose your professional':'Select a staff member')+'</h3><p class="booking-hint">Choose a specialist, or let us find the best available expert for you.</p><div class="booking-options"><button class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>We will match you with a trusted professional.</small></span></button>'+professionals.map(p=>'<button class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+p.name+'">'+image(p.img,p.name,'booking-avatar')+'<span><strong>'+p.name+'</strong><small>'+p.specialty+' · '+p.rating+' ★</small></span></button>').join('')+'</div>';
   if(b.step===2) body='<h3>Pick your moment</h3><p class="booking-hint">Available appointments for '+(salon?salon.name:'at-home beauty care')+'.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">AVAILABLE TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>';
-  if(b.step===3) body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+(service?.name||'Service')+'</strong></div><div><span>Professional</span><strong>'+esc(b.professional)+'</strong></div><div><span>Date & time</span><strong>'+formatDate(b.date)+' · '+b.time+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Price</span><strong>'+money(service?.price||0)+'</strong></div></div><p class="booking-hint">Payment can be arranged after confirmation. Your appointment will appear in My bookings.</p>';
-  return '<div class="modal-head"><p class="eyebrow">'+(salon?'SALON APPOINTMENT':'AT-HOME BEAUTY')+'</p><h2>Book a beautiful moment.</h2><p>'+(salon?salon.name:'Expert care in the comfort of home.')+'</p></div><div class="booking-progress">'+steps.map((s,i)=>'<span class="'+(i<=b.step?'active':'')+'"><b>'+(i<b.step?'✓':i+1)+'</b>'+s+'</span>').join('')+'</div><div class="booking-step">'+body+'</div><div class="booking-footer">'+(b.step>0?button('Back','booking-back','btn-outline'):'<span></span>')+button(b.step===3?'Confirm booking '+icon('check',17):'Continue '+icon('arrow',17),b.step===3?'booking-confirm':'booking-next','btn-primary')+'</div>';
+  if(b.step===3){
+    const noticeHtml = state.bookingNotice
+      ? '<div class="payment-notice payment-notice-'+esc(state.bookingNotice.type||'error')+'" role="alert"><strong>'+esc(state.bookingNotice.title)+'</strong><p>'+esc(state.bookingNotice.message)+'</p></div>'
+      : '';
+    body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+(service?.name||'Service')+'</strong></div><div><span>Professional</span><strong>'+esc(b.professional)+'</strong></div><div><span>Date & time</span><strong>'+formatDate(b.date)+' · '+b.time+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Price</span><strong>'+money(service?.price||0)+'</strong></div></div>'+noticeHtml+'<p class="booking-hint">Complete payment to confirm your appointment in My bookings.</p>';
+  }
+  const confirmLabel = b.step===3
+    ? (state.bookingBusy ? 'Processing...' : (state.bookingNotice ? 'Retry payment '+icon('arrow',16) : 'Confirm booking '+icon('check',17)))
+    : 'Continue '+icon('arrow',17);
+  return '<div class="modal-head"><p class="eyebrow">'+(salon?'SALON APPOINTMENT':'AT-HOME BEAUTY')+'</p><h2>Book a beautiful moment.</h2><p>'+(salon?salon.name:'Expert care in the comfort of home.')+'</p></div><div class="booking-progress">'+steps.map((s,i)=>'<span class="'+(i<=b.step?'active':'')+'"><b>'+(i<b.step?'✓':i+1)+'</b>'+s+'</span>').join('')+'</div><div class="booking-step">'+body+'</div><div class="booking-footer">'+(b.step>0?button('Back','booking-back','btn-outline'):'<span></span>')+button(confirmLabel,b.step===3?'booking-confirm':'booking-next','btn-primary',(b.step===3 && state.bookingBusy)?'disabled aria-disabled="true"':'')+'</div>';
 }
 
 function bookingSuccess(){
@@ -1303,6 +1379,10 @@ function render(){
 function openBooking(type, itemId, serviceId = null, pro = null){
   if(!requireAuth({ type: 'booking', args: [type, itemId, serviceId, pro] }, 'Sign in to book an appointment')) return;
   const selectedService = serviceId || (type === 'home' ? itemId : null);
+  state.pendingBooking = null;
+  state.pendingBookingKey = null;
+  state.bookingNotice = null;
+  state.bookingBusy = false;
   state.booking = {
     type,
     itemId,
@@ -1394,11 +1474,20 @@ async function action(el){
     render();
     toast(state.wishlist.includes(id)?'Saved to your wishlist':'Removed from wishlist');
   }
+  else if(a==='retry-catalog'){
+    await loadCatalogFeeds();
+    render();
+    return;
+  }
   else if(a==='add-cart'){
     const prod = products.find(p => p.id === id);
-    if(prod && (prod.stock === 0 || prod.in_stock === false || prod.soldOut === true)) return;
+    if(!prod) return;
+    if(prod.stock === 0 || prod.in_stock === false || prod.soldOut === true) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
     state.cart[id] = (state.cart[id] || 0) + 1;
+    state.pendingCheckoutOrder = null;
+    state.pendingCheckoutKey = null;
+    state.paymentNotice = null;
     if(chosenVariant){
       if(!state.cartVariants) state.cartVariants = {};
       state.cartVariants[id] = chosenVariant;
@@ -1420,9 +1509,13 @@ async function action(el){
   }
   else if(a==='buy-now'){
     const prod = products.find(p => p.id === id);
-    if(prod && (prod.stock === 0 || prod.in_stock === false || prod.soldOut === true)) return;
+    if(!prod) return;
+    if(prod.stock === 0 || prod.in_stock === false || prod.soldOut === true) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
     state.cart[id]=(state.cart[id]||0)+1;
+    state.pendingCheckoutOrder = null;
+    state.pendingCheckoutKey = null;
+    state.paymentNotice = null;
     if(chosenVariant){
       if(!state.cartVariants) state.cartVariants = {};
       state.cartVariants[id] = chosenVariant;
@@ -1432,10 +1525,13 @@ async function action(el){
     navigate('checkout');
   }
   else if(a==='cart') navigate('cart');
-  else if(a==='cart-remove'){ delete state.cart[id]; if(state.cartVariants) delete state.cartVariants[id]; persist(); render(); }
+  else if(a==='cart-remove'){ delete state.cart[id]; if(state.cartVariants) delete state.cartVariants[id]; state.pendingCheckoutOrder=null; state.pendingCheckoutKey=null; state.paymentNotice=null; persist(); render(); }
   else if(a==='cart-qty'){
     state.cart[id] = Math.max(0,(state.cart[id]||0)+Number(el.dataset.delta));
     if(!state.cart[id]){ delete state.cart[id]; if(state.cartVariants) delete state.cartVariants[id]; }
+    state.pendingCheckoutOrder = null;
+    state.pendingCheckoutKey = null;
+    state.paymentNotice = null;
     persist();
     render();
   }
@@ -1443,8 +1539,9 @@ async function action(el){
     if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
     navigate('checkout');
   }
-  else if(a==='payment'){ state.checkoutPayment=id; render(); }
+  else if(a==='payment'){ state.checkoutPayment=id; state.paymentNotice=null; render(); }
   else if(a==='place-order'){
+    if(state.checkoutBusy) return;
     if(!requireAuth({ view: 'checkout' }, 'Sign in to place your order')) return;
     if(!state.addresses.length){
       state.modal='address';
@@ -1457,79 +1554,155 @@ async function action(el){
       id: p.id,
       qty: state.cart[p.id]
     }));
+    if(!items.length){
+      toast('Your bag is empty or catalog data is unavailable.');
+      return;
+    }
+    const isCod = state.checkoutPayment === 'Cash on delivery';
+    const fingerprint = JSON.stringify({
+      items,
+      coupon: state.coupon || '',
+      addr: (addr.label || '') + '|' + (addr.text || ''),
+      mode: isCod ? 'cod' : 'online'
+    });
+    state.checkoutBusy = true;
+    state.paymentNotice = null;
+    render();
     try {
-      const order = await apiCreateOrder({
-        items,
-        address_label: addr.label,
-        address_text: addr.text,
-        payment_method: state.checkoutPayment,
-        coupon: state.coupon || null
-      });
-
-      // If online payment (UPI or Card) and Razorpay checkout script is loaded, trigger payment modal
-      if (state.checkoutPayment !== 'Cash on delivery' && typeof window.Razorpay === 'function') {
-        try {
-          const payOrder = await apiCreatePaymentOrder(order.total, order.id);
-          const rzp = new window.Razorpay({
-            key: payOrder.key_id,
-            amount: Math.round(payOrder.amount * 100),
-            currency: payOrder.currency || 'INR',
-            name: 'GlamGo Luxury Beauty',
-            description: `Order #${order.id}`,
-            order_id: payOrder.razorpay_order_id,
-            prefill: {
-              name: state.user?.name || '',
-              email: state.user?.email || '',
-              contact: state.user?.phone || ''
-            },
-            theme: { color: '#0F0F11' },
-            handler: async function (response) {
-              try {
-                await apiVerifyPayment({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
-                });
-                state.orders.unshift(order);
-                state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed & paid.` });
-                state.cart = {};
-                state.coupon = '';
-                persist();
-                navigate('order-success');
-                toast('Payment captured successfully!');
-              } catch (verifyErr) {
-                toast('Payment verification notice: ' + (verifyErr.message || 'Processing'));
-                state.orders.unshift(order);
-                state.cart = {};
-                persist();
-                navigate('order-success');
-              }
-            },
-            modal: {
-              ondismiss: function() {
-                toast('Payment window closed. Order created as pending.');
-                state.orders.unshift(order);
-                state.cart = {};
-                persist();
-                navigate('account');
-              }
-            }
-          });
-          rzp.open();
-          return;
-        } catch (payErr) {
-          console.warn('Razorpay checkout error, proceeding with standard placement:', payErr);
+      let order;
+      if (state.pendingCheckoutOrder && state.pendingCheckoutOrder.fingerprint === fingerprint) {
+        order = state.pendingCheckoutOrder.order;
+      } else {
+        if (!state.pendingCheckoutKey || state.pendingCheckoutOrder?.fingerprint !== fingerprint) {
+          state.pendingCheckoutKey = 'ord-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
         }
+        order = await apiCreateOrder({
+          items,
+          address_label: addr.label,
+          address_text: addr.text,
+          payment_method: state.checkoutPayment,
+          coupon: state.coupon || null,
+          idempotency_key: state.pendingCheckoutKey
+        });
+        state.pendingCheckoutOrder = { fingerprint, order };
       }
 
-      state.orders.unshift(order);
-      state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed.` });
-      state.cart = {};
-      state.coupon = '';
-      persist();
-      navigate('order-success');
+      if (isCod) {
+        if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(order);
+        state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed.` });
+        state.cart = {};
+        state.cartVariants = {};
+        state.coupon = '';
+        state.pendingCheckoutOrder = null;
+        state.pendingCheckoutKey = null;
+        state.paymentNotice = null;
+        persist();
+        navigate('order-success');
+        return;
+      }
+
+      if (typeof window.Razorpay !== 'function') {
+        state.paymentNotice = {
+          type: 'error',
+          title: 'Payment window unavailable',
+          message: 'The payment script did not load. Please check your connection and retry payment, or switch to Cash on delivery. Your bag has been preserved.'
+        };
+        toast('Payment gateway script unavailable. Your bag is saved.');
+        render();
+        return;
+      }
+
+      const payOrder = await apiCreatePaymentOrder(order.total, order.id);
+      let terminalOutcome = false;
+      const rzp = new window.Razorpay({
+        key: payOrder.key_id,
+        amount: payOrder.amount_paise ?? Math.round(payOrder.amount * 100),
+        currency: payOrder.currency || 'INR',
+        name: 'GlamGo Luxury Beauty',
+        description: `Order #${order.id}`,
+        order_id: payOrder.razorpay_order_id,
+        prefill: {
+          name: state.user?.name || '',
+          email: state.user?.email || '',
+          contact: state.user?.phone || ''
+        },
+        theme: { color: '#1E1C1A' },
+        handler: async function (response) {
+          terminalOutcome = true;
+          try {
+            await apiVerifyPayment({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              order_id: order.id
+            });
+            const paidOrder = { ...order, payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
+            if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(paidOrder);
+            state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed & paid.` });
+            state.cart = {};
+            state.cartVariants = {};
+            state.coupon = '';
+            state.pendingCheckoutOrder = null;
+            state.pendingCheckoutKey = null;
+            state.paymentNotice = null;
+            state.checkoutBusy = false;
+            persist();
+            navigate('order-success');
+            toast('Payment verified and order confirmed!');
+          } catch (verifyErr) {
+            state.paymentNotice = {
+              type: 'error',
+              title: 'Payment verification failed',
+              message: (verifyErr.message || 'We could not verify your payment with the gateway.') + ' Your bag remains saved — retry payment or contact support with order #' + order.id + '.'
+            };
+            state.checkoutBusy = false;
+            persist();
+            render();
+            toast(verifyErr.message || 'Payment verification failed');
+          }
+        },
+        modal: {
+          ondismiss: function() {
+            if (terminalOutcome) return;
+            state.paymentNotice = {
+              type: 'warn',
+              title: 'Payment cancelled',
+              message: 'You closed the payment window before completing payment. Your bag is preserved — click Retry payment whenever you are ready.'
+            };
+            state.checkoutBusy = false;
+            persist();
+            render();
+            toast('Payment cancelled. Your bag is saved.');
+          }
+        }
+      });
+      if (typeof rzp.on === 'function') {
+        rzp.on('payment.failed', function (failureResp) {
+          terminalOutcome = true;
+          const desc = failureResp?.error?.description || 'Payment was declined or interrupted.';
+          state.paymentNotice = {
+            type: 'error',
+            title: 'Payment failed',
+            message: desc + ' Your bag is still saved — please retry or choose another payment method.'
+          };
+          state.checkoutBusy = false;
+          persist();
+          render();
+          toast('Payment failed. Please retry.');
+        });
+      }
+      rzp.open();
     } catch (err) {
-      toast(err.message || 'Failed to place order');
+      state.paymentNotice = {
+        type: 'error',
+        title: 'Unable to complete checkout',
+        message: (err.message || 'Payment initiation failed.') + ' Your bag has been preserved — please try again.'
+      };
+      toast(err.message || 'Unable to start payment');
+      render();
+    } finally {
+      state.checkoutBusy = false;
+      render();
     }
   }
   else if(a==='tracking'){ state.trackingId=id; navigate('tracking'); }
@@ -1876,6 +2049,7 @@ async function action(el){
     render();
   }
   else if(a==='booking-confirm'){
+    if(state.bookingBusy) return;
     if(!requireAuth({ view: state.experience ? 'landing' : 'onboarding' }, 'Sign in to confirm your booking')) return;
     const b = state.booking;
     const s = services.find(x => x.id === b.serviceId);
@@ -1889,70 +2063,127 @@ async function action(el){
       time: b.time,
       location: salon ? `${salon.name}, ${salon.area}` : (state.addresses[0]?.text || state.location)
     };
+    const fingerprint = JSON.stringify(payload);
+    state.bookingBusy = true;
+    state.bookingNotice = null;
+    render();
     try {
-      const booked = await apiCreateBooking(payload);
-
-      // If Razorpay SDK is available, trigger payment modal
-      if (typeof window.Razorpay === 'function' && booked.price > 0) {
-        try {
-          const payOrder = await apiCreatePaymentOrder(booked.price, null, booked.id);
-          const rzp = new window.Razorpay({
-            key: payOrder.key_id,
-            amount: Math.round(payOrder.amount * 100),
-            currency: payOrder.currency || 'INR',
-            name: 'GlamGo Luxury Beauty',
-            description: `Appointment #${booked.id} (${s?.name || 'Service'})`,
-            order_id: payOrder.razorpay_order_id,
-            prefill: {
-              name: state.user?.name || '',
-              email: state.user?.email || '',
-              contact: state.user?.phone || ''
-            },
-            theme: { color: '#0F0F11' },
-            handler: async function (response) {
-              try {
-                await apiVerifyPayment({
-                  razorpay_order_id: response.razorpay_order_id,
-                  razorpay_payment_id: response.razorpay_payment_id,
-                  razorpay_signature: response.razorpay_signature
-                });
-                booked.payment_status = 'completed';
-                state.bookings.unshift(booked);
-                state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} appointment #${booked.id} is confirmed & paid.` });
-                state.modal = null;
-                persist();
-                navigate('booking-success');
-                toast('Booking paid & confirmed!');
-              } catch (verifyErr) {
-                state.bookings.unshift(booked);
-                state.modal = null;
-                persist();
-                navigate('booking-success');
-              }
-            },
-            modal: {
-              ondismiss: function() {
-                state.bookings.unshift(booked);
-                state.modal = null;
-                persist();
-                navigate('booking-success');
-              }
-            }
-          });
-          rzp.open();
-          return;
-        } catch (payErr) {
-          console.warn('Razorpay checkout initialization failed for booking:', payErr);
+      let booked;
+      if (state.pendingBooking && state.pendingBooking.fingerprint === fingerprint) {
+        booked = state.pendingBooking.booked;
+      } else {
+        if (!state.pendingBookingKey || state.pendingBooking?.fingerprint !== fingerprint) {
+          state.pendingBookingKey = 'bkg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
         }
+        booked = await apiCreateBooking({ ...payload, idempotency_key: state.pendingBookingKey });
+        state.pendingBooking = { fingerprint, booked };
       }
 
-      state.bookings.unshift(booked);
+      if (booked.price > 0) {
+        if (typeof window.Razorpay !== 'function') {
+          state.bookingNotice = {
+            type: 'error',
+            title: 'Payment window unavailable',
+            message: 'The payment gateway script failed to load. Please retry.'
+          };
+          toast('Payment window unavailable. Please retry.');
+          return;
+        }
+        const payOrder = await apiCreatePaymentOrder(booked.price, null, booked.id);
+        let terminalOutcome = false;
+        const rzp = new window.Razorpay({
+          key: payOrder.key_id,
+          amount: payOrder.amount_paise ?? Math.round(payOrder.amount * 100),
+          currency: payOrder.currency || 'INR',
+          name: 'GlamGo Luxury Beauty',
+          description: `Appointment #${booked.id} (${s?.name || 'Service'})`,
+          order_id: payOrder.razorpay_order_id,
+          prefill: {
+            name: state.user?.name || '',
+            email: state.user?.email || '',
+            contact: state.user?.phone || ''
+          },
+          theme: { color: '#1E1C1A' },
+          handler: async function (response) {
+            terminalOutcome = true;
+            try {
+              await apiVerifyPayment({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                booking_id: booked.id
+              });
+              const paidBooking = { ...booked, payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
+              if (!state.bookings.some(item => item.id === booked.id)) state.bookings.unshift(paidBooking);
+              state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} appointment #${booked.id} is confirmed & paid.` });
+              state.modal = null;
+              state.pendingBooking = null;
+              state.pendingBookingKey = null;
+              state.bookingNotice = null;
+              state.bookingBusy = false;
+              persist();
+              navigate('booking-success');
+              toast('Booking paid & confirmed!');
+            } catch (verifyErr) {
+              state.bookingNotice = {
+                type: 'error',
+                title: 'Booking payment verification failed',
+                message: (verifyErr.message || 'Could not verify booking payment.') + ' Please retry payment.'
+              };
+              state.bookingBusy = false;
+              render();
+              toast(verifyErr.message || 'Booking payment verification failed');
+            }
+          },
+          modal: {
+            ondismiss: function() {
+              if (terminalOutcome) return;
+              state.bookingNotice = {
+                type: 'warn',
+                title: 'Payment cancelled',
+                message: 'Payment window was closed. Retry payment to finish booking #' + booked.id + '.'
+              };
+              state.bookingBusy = false;
+              render();
+              toast('Booking payment cancelled.');
+            }
+          }
+        });
+        if (typeof rzp.on === 'function') {
+          rzp.on('payment.failed', function (failureResp) {
+            terminalOutcome = true;
+            state.bookingNotice = {
+              type: 'error',
+              title: 'Booking payment failed',
+              message: (failureResp?.error?.description || 'Payment declined.') + ' Please retry.'
+            };
+            state.bookingBusy = false;
+            render();
+            toast('Booking payment failed.');
+          });
+        }
+        rzp.open();
+        return;
+      }
+
+      if (!state.bookings.some(item => item.id === booked.id)) state.bookings.unshift(booked);
       state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} booking is confirmed for ${formatDate(b.date)}.` });
       state.modal = null;
+      state.pendingBooking = null;
+      state.pendingBookingKey = null;
+      state.bookingNotice = null;
       persist();
       navigate('booking-success');
     } catch (err) {
+      state.bookingNotice = {
+        type: 'error',
+        title: 'Unable to complete booking',
+        message: err.message || 'Booking conflict or payment initiation error.'
+      };
       toast(err.message || 'Booking conflict or error');
+    } finally {
+      state.bookingBusy = false;
+      render();
     }
   }
 }
@@ -2075,6 +2306,9 @@ document.addEventListener('submit', async e => {
       const val = await apiValidateCoupon(code, cartTotal());
       if(val.valid){
         state.coupon = val.code;
+        state.pendingCheckoutOrder = null;
+        state.pendingCheckoutKey = null;
+        state.paymentNotice = null;
         toast(val.message);
       } else {
         toast(val.message || 'This coupon is not available');
@@ -2369,16 +2603,7 @@ async function init() {
   }
   render();
   try {
-    const [sData, pData, lData, bData] = await Promise.allSettled([
-      apiGetServices(),
-      apiGetProfessionals(),
-      apiGetSalons(),
-      apiGetProducts()
-    ]);
-    if(sData.status === 'fulfilled' && sData.value.length) services = sData.value;
-    if(pData.status === 'fulfilled' && pData.value.length) professionals = pData.value;
-    if(lData.status === 'fulfilled' && lData.value.length) salons = lData.value;
-    if(bData.status === 'fulfilled' && bData.value.length) products = bData.value;
+    await loadCatalogFeeds();
 
     if(tokenStorage.get()){
       try {

@@ -347,10 +347,24 @@ def test_seller_order_fulfillment_lifecycle(client):
     seller_headers = get_auth_headers(client, "seller@glamgo.com", "Seller@123456")
     customer_headers = get_auth_headers(client, "aanya@example.com", "Password@123")
 
-    # 1. Customer purchases product
-    checkout_resp = client.post("/api/v1/orders/", json={
+    # 1. Customer places an unpaid UPI order first -> fulfillment must be blocked
+    unpaid_resp = client.post("/api/v1/orders/", json={
         "items": [{"id": "b1", "name": "Lumière Elixir", "qty": 1, "price": 2400.0}],
         "payment_method": "UPI",
+        "address_label": "Home",
+        "address_text": "24 Sea View Road, Bandra West"
+    }, headers=customer_headers)
+    assert unpaid_resp.status_code == 200
+    unpaid_id = unpaid_resp.json()["id"]
+    blocked_pack = client.patch(f"/api/v1/partners/seller/orders/{unpaid_id}/status", json={
+        "status": "packed"
+    }, headers=seller_headers)
+    assert blocked_pack.status_code == 400
+
+    # 2. Customer purchases product with COD for fulfillment lifecycle
+    checkout_resp = client.post("/api/v1/orders/", json={
+        "items": [{"id": "b1", "name": "Lumière Elixir", "qty": 1, "price": 2400.0}],
+        "payment_method": "Cash on delivery",
         "address_label": "Home",
         "address_text": "24 Sea View Road, Bandra West"
     }, headers=customer_headers)

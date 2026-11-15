@@ -11,6 +11,7 @@ class BookingCreate(BaseModel):
     date: str  # YYYY-MM-DD
     time: str  # "10:30 AM"
     location: str
+    idempotency_key: Optional[str] = None
 
 
 class BookingStatusUpdate(BaseModel):
@@ -27,6 +28,8 @@ class BookingResponse(BaseModel):
     location: str
     price: float
     status: str
+    payment_status: str = "pending"
+    razorpay_order_id: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -985,6 +985,17 @@ def update_seller_order_status(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid order status '{payload.status}'.")
 
+    is_cod = (order.payment_method or "").strip().upper() in ("COD", "CASH ON DELIVERY", "CASH")
+    if (
+        new_status in (OrderStatus.PACKED, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED)
+        and not is_cod
+        and order.payment_status != "completed"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot fulfill an online order before payment is confirmed."
+        )
+
     order.status = new_status
 
     # Dispatched tracking updates to customer

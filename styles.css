@@ -100,3 +100,10 @@
 @media(max-width:550px){
   .admin-kpi-grid{grid-template-columns:1fr}
 }
+.btn[disabled]{opacity:.65;cursor:not-allowed;pointer-events:none}
+.payment-notice{display:block !important;margin:14px 0 4px;padding:12px 14px;border-radius:3px;border:1px solid rgba(184,107,82,.45);background:rgba(184,107,82,.09);color:#1E1C1A;font-size:13px;line-height:1.45;text-align:left}
+.payment-notice strong{display:block;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#9d452a;margin-bottom:4px;text-align:left !important}
+.payment-notice p{margin:0;color:#1E1C1A;font-size:13px;text-align:left !important}
+.payment-notice-warn{border-color:rgba(197,160,89,.55);background:rgba(197,160,89,.12)}
+.payment-notice-warn strong{color:#7c5b20}
+.catalog-loading-panel{padding:48px 20px;text-align:center;color:var(--muted);font-size:14px}
