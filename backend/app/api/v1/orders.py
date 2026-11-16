@@ -19,6 +19,7 @@ from backend.app.schemas.commerce import (
     MultiVendorCheckoutResponse, ReturnRequestCreate, ReturnRequestResponse
 )
 from backend.app.services.commerce_service import CommerceService
+from backend.app.services.cache_service import cache_service
 
 router = APIRouter()
 
@@ -261,6 +262,7 @@ def create_order(
         db.add(notif)
         db.commit()
         db.refresh(order)
+        cache_service.invalidate_catalog()
     except IntegrityError:
         db.rollback()
         if idem_key:

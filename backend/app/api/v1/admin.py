@@ -21,6 +21,7 @@ from backend.app.schemas.admin import (
     UserRoleUpdateRequest
 )
 from backend.app.services.audit_service import log_admin_action
+from backend.app.services.cache_service import cache_service
 
 router = APIRouter()
 
@@ -321,6 +322,7 @@ def approve_partner_draft(
         )
         db.commit()
         db.refresh(draft)
+        cache_service.invalidate_catalog()
     except Exception:
         db.rollback()
         raise
@@ -396,6 +398,7 @@ def reject_partner_draft(
         )
         db.commit()
         db.refresh(draft)
+        cache_service.invalidate_catalog()
     except Exception:
         db.rollback()
         raise

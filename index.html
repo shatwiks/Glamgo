@@ -6,6 +6,9 @@
     <meta name="theme-color" content="#F8F5EF" />
     <meta name="description" content="GlamGo — premium beauty services, salons and thoughtfully curated beauty shopping. Your beauty. Your way." />
     <title>GlamGo — Your Beauty. Your Way.</title>
+    <link rel="preconnect" href="https://glamgo-backend-lqn6.onrender.com" crossorigin />
+    <link rel="dns-prefetch" href="https://glamgo-backend-lqn6.onrender.com" />
+    <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -13,7 +16,7 @@
     <script>
       window.GLAMGO_API_URL = "https://glamgo-backend-lqn6.onrender.com/api/v1";
     </script>
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js" defer onload="this.dataset.loaded='1'" onerror="this.dataset.error='1'"></script>
   </head>
   <body>
     <div id="app"></div>

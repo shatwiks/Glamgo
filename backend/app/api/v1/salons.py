@@ -1,9 +1,10 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from backend.app.core.database import get_db
 from backend.app.models.catalog import Salon, SalonStaff
 from backend.app.schemas.catalog import SalonResponse, SalonCreate, SalonStaffResponse
+from backend.app.services.cache_service import cache_service
 from backend.app.api.deps import require_salon_owner
 
 router = APIRouter()
@@ -39,7 +40,12 @@ def get_salons(
     query: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    salons = db.query(Salon).all()
+    cache_key = f"glamgo:catalog:salons:v1:{category}:{sort}:{query}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
+    salons = db.query(Salon).options(selectinload(Salon.staff)).all()
     res = []
     for s in salons:
         data = format_salon(s)
@@ -57,6 +63,7 @@ def get_salons(
     elif sort == "price":
         res.sort(key=lambda x: x["price"])
 
+    cache_service.set(cache_key, res, ttl=300)
     return res
 
 
@@ -92,4 +99,5 @@ def create_salon(
     db.add(salon)
     db.commit()
     db.refresh(salon)
+    cache_service.invalidate_catalog()
     return format_salon(salon)

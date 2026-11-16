@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from backend.app.core.database import get_db
 from backend.app.models.catalog import Product, ProductVariant
 from backend.app.schemas.catalog import ProductResponse, ProductCreate
@@ -69,7 +69,7 @@ def get_products(
     elif sort == "reviews":
         q = q.order_by(Product.reviews.desc())
 
-    products = q.all()
+    products = q.options(selectinload(Product.variants)).all()
     result = [format_product(p) for p in products]
     cache_service.set(cache_key, result, ttl=300)
     return result

@@ -136,10 +136,36 @@ const experiences = [
   {id:'shop', eyebrow:'03 / BEAUTY SHOPPING', title:'Everything beauty, in one place.', desc:'Discover and shop your favourite beauty and personal care products.', cta:'Explore Beauty Store', img:SHOP_IMG, icon:'bag'}
 ];
 
-let services = [];
-let professionals = [];
-let salons = [];
-let products = [];
+const CATALOG_CACHE_KEY = 'glamgo-catalog-cache-v1';
+const CATALOG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+function readCatalogCache() {
+  try {
+    const raw = localStorage.getItem(CATALOG_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    if (parsed.ts && Date.now() - Number(parsed.ts) > CATALOG_CACHE_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+function writeCatalogCache() {
+  try {
+    localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({
+      ts: Date.now(),
+      services,
+      professionals,
+      salons,
+      products
+    }));
+  } catch {}
+}
+const initialCatalogCache = readCatalogCache();
+let services = Array.isArray(initialCatalogCache?.services) ? initialCatalogCache.services : [];
+let professionals = Array.isArray(initialCatalogCache?.professionals) ? initialCatalogCache.professionals : [];
+let salons = Array.isArray(initialCatalogCache?.salons) ? initialCatalogCache.salons : [];
+let products = Array.isArray(initialCatalogCache?.products) ? initialCatalogCache.products : [];
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
 const shopCategories = ['All','Skincare','Makeup','Haircare','Body Care','Fragrance','Beauty Tools'];
@@ -242,7 +268,13 @@ const state = {
   adminUserSearch: '',
   selectedDraftId: null,
   reviews: [],
-  catalogLoading: true,
+  catalogFeedsLoading: {
+    services: !services.length,
+    professionals: !professionals.length,
+    salons: !salons.length,
+    products: !products.length
+  },
+  catalogLoading: !(services.length && professionals.length && salons.length && products.length),
   catalogErrors: { services: false, professionals: false, salons: false, products: false },
   checkoutBusy: false,
   pendingCheckoutOrder: null,
@@ -428,43 +460,95 @@ const rating = (value,count) => '<span class="rating">'+icon('star',14)+' '+valu
 const empty = (symbol,title,text,action='') => '<div class="empty-state"><div class="empty-symbol">'+icon(symbol,28)+'</div><h3>'+title+'</h3><p>'+text+'</p>'+action+'</div>';
 const catalogLoadingState = label => '<div class="catalog-loading-panel"><p>Curating live '+esc(label)+'...</p></div>';
 const catalogUnavailableState = (title, message = 'Live inventory could not be loaded right now. Please try again in a moment.') => '<div class="catalog-unavailable">'+empty('bag', title + ' unavailable', message, button('Retry loading '+icon('arrow',16), 'retry-catalog', 'btn-primary'))+'</div>';
+const canSafelyBackgroundRender = () => {
+  if (state.modal) return false;
+  const active = document.activeElement;
+  if (active && app.contains(active) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return false;
+  return true;
+};
+const syncOverallCatalogLoading = () => {
+  const f = state.catalogFeedsLoading;
+  state.catalogLoading = Boolean(f.services || f.professionals || f.salons || f.products);
+};
 async function loadCatalogFeeds() {
+  state.catalogFeedsLoading = {
+    services: true,
+    professionals: true,
+    salons: true,
+    products: true
+  };
   state.catalogLoading = true;
-  const [sData, pData, lData, bData] = await Promise.allSettled([
-    apiGetServices(),
-    apiGetProfessionals(),
-    apiGetSalons(),
-    apiGetProducts()
+  let deferredRender = false;
+  const refreshUI = () => {
+    syncOverallCatalogLoading();
+    if (canSafelyBackgroundRender()) render();
+    else deferredRender = true;
+  };
+  const fetchFeed = (key, fetcher, applyValue, resetEmpty) =>
+    Promise.resolve()
+      .then(fetcher)
+      .then(data => {
+        if (Array.isArray(data)) {
+          applyValue(data);
+          state.catalogErrors[key] = false;
+          writeCatalogCache();
+        } else {
+          resetEmpty();
+          state.catalogErrors[key] = true;
+        }
+      })
+      .catch(() => {
+        resetEmpty();
+        state.catalogErrors[key] = true;
+      })
+      .finally(() => {
+        state.catalogFeedsLoading[key] = false;
+        refreshUI();
+      });
+
+  await Promise.allSettled([
+    fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = []; }),
+    fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = []; }),
+    fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = []; }),
+    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = []; })
   ]);
-  if (sData.status === 'fulfilled' && Array.isArray(sData.value)) {
-    services = sData.value;
-    state.catalogErrors.services = false;
-  } else {
-    services = [];
-    state.catalogErrors.services = true;
-  }
-  if (pData.status === 'fulfilled' && Array.isArray(pData.value)) {
-    professionals = pData.value;
-    state.catalogErrors.professionals = false;
-  } else {
-    professionals = [];
-    state.catalogErrors.professionals = true;
-  }
-  if (lData.status === 'fulfilled' && Array.isArray(lData.value)) {
-    salons = lData.value;
-    state.catalogErrors.salons = false;
-  } else {
-    salons = [];
-    state.catalogErrors.salons = true;
-  }
-  if (bData.status === 'fulfilled' && Array.isArray(bData.value)) {
-    products = bData.value;
-    state.catalogErrors.products = false;
-  } else {
-    products = [];
-    state.catalogErrors.products = true;
-  }
   state.catalogLoading = false;
+  if (deferredRender && canSafelyBackgroundRender()) render();
+}
+
+let razorpayLoadPromise = null;
+function ensureRazorpayLoaded(timeoutMs = 8000) {
+  if (typeof window.Razorpay === 'function') return Promise.resolve(true);
+  if (razorpayLoadPromise) return razorpayLoadPromise;
+  razorpayLoadPromise = new Promise(resolve => {
+    const finish = ok => {
+      if (!ok) razorpayLoadPromise = null;
+      resolve(ok);
+    };
+    const existing = Array.from(document.scripts || []).find(s => (s.src || '').includes('checkout.razorpay.com/v1/checkout.js'));
+    if (existing && existing.dataset?.error !== '1' && existing.dataset?.loaded !== '1') {
+      const timer = setTimeout(() => finish(typeof window.Razorpay === 'function'), timeoutMs);
+      existing.addEventListener('load', () => { clearTimeout(timer); finish(typeof window.Razorpay === 'function'); }, { once: true });
+      existing.addEventListener('error', () => { clearTimeout(timer); finish(false); }, { once: true });
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    const timer = setTimeout(() => finish(typeof window.Razorpay === 'function'), timeoutMs);
+    script.onload = () => {
+      script.dataset.loaded = '1';
+      clearTimeout(timer);
+      finish(typeof window.Razorpay === 'function');
+    };
+    script.onerror = () => {
+      script.dataset.error = '1';
+      clearTimeout(timer);
+      finish(false);
+    };
+    document.head.appendChild(script);
+  });
+  return razorpayLoadPromise;
 }
 const countCart = () => Object.values(state.cart).reduce((a,b)=>a+b,0);
 const cartTotal = () => products.reduce((sum,p)=>sum+p.price*(state.cart[p.id]||0),0);
@@ -510,12 +594,12 @@ function homePage(){
   let filtered = services.filter(s => state.homeCategory === 'All' || s.category === state.homeCategory);
   if(state.sort === 'rating') filtered = [...filtered].sort((a,b) => Number(b.rating) - Number(a.rating));
   if(state.sort === 'price') filtered = [...filtered].sort((a,b) => a.price - b.price);
-  const servicesSection = !services.length && state.catalogLoading
+  const servicesSection = !services.length && state.catalogFeedsLoading.services
     ? catalogLoadingState('home treatments')
     : !services.length && state.catalogErrors.services
       ? catalogUnavailableState('Home treatments catalog')
       : '<div class="card-grid">'+filtered.map(homeCard).join('')+'</div>';
-  const prosSection = !professionals.length && state.catalogLoading
+  const prosSection = !professionals.length && state.catalogFeedsLoading.professionals
     ? catalogLoadingState('specialists')
     : !professionals.length && state.catalogErrors.professionals
       ? catalogUnavailableState('Professionals directory')
@@ -531,7 +615,7 @@ function salonPage(){
   let list = salons.filter(s => state.salonCategory === 'All' || s.services.includes(state.salonCategory));
   if(state.sort === 'rating') list = [...list].sort((a,b) => Number(b.rating) - Number(a.rating));
   if(state.sort === 'price') list = [...list].sort((a,b) => a.price - b.price);
-  const salonsSection = !salons.length && state.catalogLoading
+  const salonsSection = !salons.length && state.catalogFeedsLoading.salons
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
@@ -542,7 +626,7 @@ function salonPage(){
 function salonDetail(){
   const s = salons.find(x => x.id === state.selectedSalon) || salons[0];
   if (!s) {
-    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button>'+(state.catalogLoading?catalogLoadingState('salon details'):catalogUnavailableState('Salon details'))+'</main>';
+    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button>'+(state.catalogFeedsLoading.salons?catalogLoadingState('salon details'):catalogUnavailableState('Salon details'))+'</main>';
   }
   const staffList = (s.staff && s.staff.length) ? s.staff : professionals.slice(0, 2);
   return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(images.salon2,'Salon styling space')+image(images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>Map preview</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
@@ -565,7 +649,7 @@ function productCard(p){
 function shopPage(){
   const list = getFilteredShopProducts(products);
   const catalogDown = !products.length && state.catalogErrors.products;
-  const catalogBusy = !products.length && state.catalogLoading;
+  const catalogBusy = !products.length && state.catalogFeedsLoading.products;
   const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
   const visibleCollections = shopCollections.filter(col => col.id === 'All' || products.some(p => matchesShopCollection(p, col.id)));
   const activeFilters = [];
@@ -599,7 +683,7 @@ function shopPage(){
 function productDetail(){
   const p = products.find(x => x.id === state.selectedProduct) || products[0];
   if (!p) {
-    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to shop</button>'+(state.catalogLoading?catalogLoadingState('product details'):catalogUnavailableState('Product details'))+'</main>';
+    return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to shop</button>'+(state.catalogFeedsLoading.products?catalogLoadingState('product details'):catalogUnavailableState('Product details'))+'</main>';
   }
   const variants = Array.isArray(p.variants) && p.variants.length ? p.variants : [];
   const variant = state.productVariant || variants[0] || '';
@@ -681,7 +765,7 @@ function cartPage(){
   const items = products.filter(p => state.cart[p.id]);
   const popularPicks = [...products].sort((a,b)=> (b.tag==='BESTSELLER'?3:b.tag==='TRENDING'?2:b.tag==='NEW'?1:0) - (a.tag==='BESTSELLER'?3:a.tag==='TRENDING'?2:a.tag==='NEW'?1:0) || Number(b.rating)-Number(a.rating)).slice(0,3);
   if (savedCount > 0 && !items.length) {
-    const noticeBody = state.catalogLoading
+    const noticeBody = state.catalogFeedsLoading.products
       ? catalogLoadingState('your saved beauty bag (' + savedCount + ' item' + (savedCount > 1 ? 's' : '') + ')')
       : catalogUnavailableState('Saved beauty bag pricing', 'Your bag still keeps ' + savedCount + ' saved item' + (savedCount > 1 ? 's' : '') + ', but live catalog pricing could not be verified right now.');
     return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Saved items remain preserved until the catalog is ready.</p></div>'+noticeBody+'</main>';
@@ -692,7 +776,7 @@ function cartPage(){
 function checkoutPage(){
   if(!countCart()) return cartPage();
   const matchedItems = products.filter(p=>state.cart[p.id]);
-  if(!matchedItems.length && (state.catalogLoading || state.catalogErrors.products)) return cartPage();
+  if(!matchedItems.length && (state.catalogFeedsLoading.products || state.catalogErrors.products)) return cartPage();
   const discount = state.coupon === 'GLAM10' ? Math.min(300, Math.round(cartTotal() * .1)) : 0;
   const noticeHtml = state.paymentNotice
     ? '<div class="payment-notice payment-notice-'+esc(state.paymentNotice.type||'error')+'" role="alert"><strong>'+esc(state.paymentNotice.title)+'</strong><p>'+esc(state.paymentNotice.message)+'</p></div>'
@@ -1845,7 +1929,8 @@ async function action(el){
         return;
       }
 
-      if (typeof window.Razorpay !== 'function') {
+      const rzpReady = await ensureRazorpayLoaded();
+      if (!rzpReady || typeof window.Razorpay !== 'function') {
         state.paymentNotice = {
           type: 'error',
           title: 'Payment window unavailable',
@@ -2324,7 +2409,8 @@ async function action(el){
       }
 
       if (booked.price > 0) {
-        if (typeof window.Razorpay !== 'function') {
+        const rzpReady = await ensureRazorpayLoaded();
+        if (!rzpReady || typeof window.Razorpay !== 'function') {
           state.bookingNotice = {
             type: 'error',
             title: 'Payment window unavailable',
@@ -2862,9 +2948,8 @@ async function init() {
   }
   render();
   try {
-    await loadCatalogFeeds();
-
-    if(tokenStorage.get()){
+    const hydrateSession = async () => {
+      if (!tokenStorage.get()) return;
       try {
         const me = await apiGetMe();
         state.user = { id: me.id, name: me.name, email: me.email, phone: me.phone, role: me.role };
@@ -2891,8 +2976,11 @@ async function init() {
         tokenStorage.remove();
         state.signedIn = false;
       }
-    }
-    render();
+      if (canSafelyBackgroundRender()) render();
+    };
+
+    await Promise.allSettled([loadCatalogFeeds(), hydrateSession()]);
+    if (canSafelyBackgroundRender()) render();
   } catch (err) {
     console.warn('[GlamGo] Live sync initialization notice:', err);
   }

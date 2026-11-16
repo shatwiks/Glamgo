@@ -1,21 +1,35 @@
+import fnmatch
 import json
 import logging
+import threading
+import time
 from typing import Any, Optional
 from backend.app.core.redis_client import get_redis
 
 logger = logging.getLogger("glamgo.cache")
 
 CATALOG_CACHE_TTL = 300  # 5 minutes default
+_mem_lock = threading.Lock()
+_mem_store: dict[str, tuple[float, str]] = {}
 
 
 class CacheService:
-    """Production Redis caching layer with seamless fallback on cache miss or Redis outage."""
+    """Production Redis caching layer with seamless in-memory TTL fallback."""
 
     @staticmethod
     def get(key: str) -> Optional[Any]:
         r = get_redis()
         if not r:
-            return None
+            now = time.monotonic()
+            with _mem_lock:
+                entry = _mem_store.get(key)
+                if not entry:
+                    return None
+                expires_at, raw = entry
+                if now >= expires_at:
+                    _mem_store.pop(key, None)
+                    return None
+            return json.loads(raw)
         try:
             val = r.get(key)
             if val is not None:
@@ -26,11 +40,18 @@ class CacheService:
 
     @staticmethod
     def set(key: str, value: Any, ttl: int = CATALOG_CACHE_TTL) -> bool:
-        r = get_redis()
-        if not r:
-            return False
         try:
             serialized = json.dumps(value, default=str)
+        except Exception as e:
+            logger.warning("Cache serialize failed for key '%s': %s", key, e)
+            return False
+
+        r = get_redis()
+        if not r:
+            with _mem_lock:
+                _mem_store[key] = (time.monotonic() + max(1, int(ttl)), serialized)
+            return True
+        try:
             return bool(r.set(key, serialized, ex=ttl))
         except Exception as e:
             logger.warning("Cache SET failed for key '%s': %s", key, e)
@@ -40,7 +61,11 @@ class CacheService:
     def invalidate_pattern(pattern: str) -> int:
         r = get_redis()
         if not r:
-            return 0
+            with _mem_lock:
+                keys = [k for k in _mem_store if fnmatch.fnmatchcase(k, pattern)]
+                for k in keys:
+                    _mem_store.pop(k, None)
+                return len(keys)
         try:
             keys = list(r.scan_iter(match=pattern))
             if keys:

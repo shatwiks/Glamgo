@@ -30,6 +30,7 @@ from backend.app.schemas.commerce import (
     ShipmentCreate, ReturnDecisionRequest, ReturnRequestResponse, SellerFinancialsResponse
 )
 from backend.app.services.commerce_service import CommerceService
+from backend.app.services.cache_service import cache_service
 from backend.app.schemas.partner import (
     PartnerProfileUpdate,
     PartnerDraftCreate,
@@ -423,6 +424,7 @@ def update_professional_profile(
 
     db.commit()
     db.refresh(pro)
+    cache_service.invalidate_catalog()
     return {
         "id": pro.id,
         "name": pro.name,
@@ -639,6 +641,7 @@ def update_salon_profile(
 
     db.commit()
     db.refresh(salon)
+    cache_service.invalidate_catalog()
     return _format_salon(salon)
 
 
@@ -676,6 +679,7 @@ def add_salon_staff(
     db.add(staff)
     db.commit()
     db.refresh(staff)
+    cache_service.invalidate_catalog()
     return staff
 
 
@@ -698,6 +702,7 @@ def delete_salon_staff(
 
     db.delete(staff)
     db.commit()
+    cache_service.invalidate_catalog()
     return {"message": "Staff member removed successfully"}
 
 
@@ -830,6 +835,7 @@ def create_seller_product(
         db.commit()
         db.refresh(product)
 
+    cache_service.invalidate_catalog()
     return _format_product(product)
 
 
@@ -871,6 +877,7 @@ def update_seller_product(
 
     db.commit()
     db.refresh(product)
+    cache_service.invalidate_catalog()
     return _format_product(product)
 
 
@@ -902,6 +909,7 @@ def update_seller_stock(
         ))
 
     db.commit()
+    cache_service.invalidate_catalog()
     return {"product_id": product.id, "name": product.name, "stock": product.stock}
 
 
@@ -930,6 +938,7 @@ def add_seller_variant(
     db.add(variant)
     db.commit()
     db.refresh(variant)
+    cache_service.invalidate_catalog()
     return {"id": variant.id, "product_id": variant.product_id, "name": variant.name, "stock": variant.stock}
 
 

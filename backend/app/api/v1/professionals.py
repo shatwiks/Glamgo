@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.models.catalog import ProfessionalProfile, Availability
 from backend.app.schemas.catalog import ProfessionalResponse
+from backend.app.services.cache_service import cache_service
 
 router = APIRouter()
 
@@ -13,10 +14,17 @@ def get_professionals(
     specialty: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
+    cache_key = f"glamgo:catalog:professionals:v1:{specialty}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
     q = db.query(ProfessionalProfile).filter(ProfessionalProfile.is_verified == True)
     if specialty:
         q = q.filter(ProfessionalProfile.specialty.ilike(f"%{specialty}%"))
-    return q.all()
+    result = [ProfessionalResponse.model_validate(p).model_dump() for p in q.all()]
+    cache_service.set(cache_key, result, ttl=300)
+    return result
 
 
 @router.get("/{professional_id}", response_model=ProfessionalResponse)

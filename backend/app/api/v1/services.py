@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.models.catalog import Service
 from backend.app.schemas.catalog import ServiceResponse, ServiceCreate
+from backend.app.services.cache_service import cache_service
 from backend.app.api.deps import require_partner
 
 router = APIRouter()
@@ -15,12 +16,19 @@ def get_services(
     query: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
+    cache_key = f"glamgo:catalog:services:v1:{category}:{query}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
     q = db.query(Service).filter(Service.is_active == True)
     if category and category.lower() != "all":
         q = q.filter(Service.category.ilike(category))
     if query:
         q = q.filter((Service.name.ilike(f"%{query}%")) | (Service.desc.ilike(f"%{query}%")))
-    return q.all()
+    result = [ServiceResponse.model_validate(s).model_dump() for s in q.all()]
+    cache_service.set(cache_key, result, ttl=300)
+    return result
 
 
 @router.get("/categories", response_model=List[str])
@@ -58,4 +66,5 @@ def create_service(
     db.add(service)
     db.commit()
     db.refresh(service)
+    cache_service.invalidate_catalog()
     return service
