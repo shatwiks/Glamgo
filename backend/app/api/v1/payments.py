@@ -1,17 +1,28 @@
 import hmac
 import hashlib
 import json
+import secrets
+from datetime import datetime, timezone
 import razorpay
 import requests
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-from backend.app.core.database import get_db
+from backend.app.core.database import get_db, SessionLocal
 from backend.app.core.config import settings
 from backend.app.api.deps import get_current_user
 from backend.app.models.user import User, UserRole, Notification, BookingStatus
 from backend.app.models.payment import PaymentTransaction
 from backend.app.models.order import Order, OrderStatus
 from backend.app.models.booking import Booking
+from backend.app.models.commerce import (
+    SellerListing, SubOrder, SubOrderStatus, ReturnRequest, ReturnStatus,
+    InventoryAuditLog, StockAction, SellerEscrowRecord, EscrowStatus,
+)
+from backend.app.services.commerce_service import (
+    CommerceService, to_paise, to_rupees, is_cod_payment_method,
+)
+from backend.app.services.cache_service import cache_service
 from backend.app.schemas.payment import (
     PaymentOrderCreate, PaymentOrderResponse, PaymentVerifyRequest, PaymentVerifyResponse
 )
@@ -67,14 +78,16 @@ def _resolve_payment_target(db: Session, user: User, order_id: str | None, booki
             raise HTTPException(status_code=403, detail="Not authorized to initiate payment for this order.")
         if order.status == OrderStatus.CANCELLED:
             raise HTTPException(status_code=400, detail="Cannot initiate payment for a cancelled order.")
+        if is_cod_payment_method(order.payment_method):
+            raise HTTPException(status_code=400, detail="Cash on Delivery orders do not require online payment.")
         captured_tx = db.query(PaymentTransaction).filter(
             PaymentTransaction.order_id == order.id,
-            PaymentTransaction.status == "captured"
+            PaymentTransaction.status.in_(("captured", "refunded")),
         ).first()
-        if order.payment_status == "completed" or captured_tx:
+        if order.payment_status in ("completed", "partially_refunded", "refunded", "refunded_oos", "refund_pending_oos") or captured_tx:
             raise HTTPException(status_code=409, detail="Payment has already been completed for this order.")
-        amount = float(order.total)
-        if amount <= 0:
+        amount = to_rupees(to_paise(order.total))
+        if to_paise(amount) <= 0:
             raise HTTPException(status_code=400, detail="Order total must be greater than zero for online payment.")
         return "order", order, amount
 
@@ -87,45 +100,120 @@ def _resolve_payment_target(db: Session, user: User, order_id: str | None, booki
         raise HTTPException(status_code=400, detail="Cannot initiate payment for a cancelled booking.")
     captured_tx = db.query(PaymentTransaction).filter(
         PaymentTransaction.booking_id == booking.id,
-        PaymentTransaction.status == "captured"
+        PaymentTransaction.status.in_(("captured", "refunded")),
     ).first()
-    if booking.payment_status == "completed" or captured_tx:
+    if booking.payment_status in ("completed", "refunded") or captured_tx:
         raise HTTPException(status_code=409, detail="Payment has already been completed for this booking.")
-    amount = float(booking.price)
-    if amount <= 0:
+    amount = to_rupees(to_paise(booking.price))
+    if to_paise(amount) <= 0:
         raise HTTPException(status_code=400, detail="Booking price must be greater than zero for online payment.")
     return "booking", booking, amount
 
 
-def _mark_transaction_captured(
+def _apply_capture_in_tx(
     db: Session,
     transaction: PaymentTransaction,
     razorpay_payment_id: str | None,
     razorpay_signature: str | None = None,
-) -> None:
-    """Idempotently transition transaction and linked order/booking to captured/completed."""
+) -> str:
+    """
+    Idempotently transition locked transaction and linked order/booking inside a DB transaction.
+    Returns 'captured', 'restored' (late capture on cancelled order restored), or
+    'oos_needs_refund' (late capture on cancelled order whose stock ran out).
+    """
     transaction.status = "captured"
     if razorpay_payment_id:
         transaction.razorpay_payment_id = razorpay_payment_id
     if razorpay_signature:
         transaction.razorpay_signature = razorpay_signature
 
+    outcome = "captured"
+
     if transaction.order_id:
-        order = db.query(Order).filter(Order.id == transaction.order_id).first()
+        order = db.query(Order).filter(Order.id == transaction.order_id).with_for_update().first()
         if order:
-            was_paid = order.payment_status == "completed"
-            order.payment_status = "completed"
             if transaction.razorpay_order_id:
                 order.razorpay_order_id = transaction.razorpay_order_id
-            if not was_paid:
-                db.add(Notification(
-                    user_id=order.customer_id,
-                    type="order",
-                    text=f"Your order {order.id} is confirmed & paid."
-                ))
+
+            if order.status == OrderStatus.CANCELLED:
+                needed_by_listing: dict[int, int] = {}
+                for oi in (order.items or []):
+                    if oi.seller_listing_id:
+                        needed_by_listing[oi.seller_listing_id] = needed_by_listing.get(oi.seller_listing_id, 0) + oi.qty
+
+                sorted_lids = sorted(needed_by_listing.keys())
+                lmap: dict[int, SellerListing] = {}
+                can_fulfill = bool(sorted_lids)
+                for lid in sorted_lids:
+                    lst = db.query(SellerListing).filter(SellerListing.id == lid).with_for_update().first()
+                    if not lst or not lst.is_active or lst.stock < needed_by_listing[lid]:
+                        can_fulfill = False
+                    if lst:
+                        lmap[lid] = lst
+
+                if can_fulfill:
+                    affected_pids: set[str] = set()
+                    for oi in (order.items or []):
+                        lst = lmap.get(oi.seller_listing_id)
+                        if lst:
+                            before_s = lst.stock
+                            lst.stock -= oi.qty
+                            affected_pids.add(lst.product_id)
+                            db.add(InventoryAuditLog(
+                                listing_id=lst.id,
+                                seller_id=lst.seller_id,
+                                action=StockAction.CHECKOUT_DECREMENT,
+                                quantity_delta=-oi.qty,
+                                balance_before=before_s,
+                                balance_after=lst.stock,
+                                reference_type="LATE_CAPTURE_RESTORE",
+                                reference_id=order.id,
+                            ))
+                    for pid in sorted(affected_pids):
+                        CommerceService.sync_product_stock(db, pid)
+
+                    order.status = OrderStatus.PLACED
+                    order.payment_status = "completed"
+                    order.payment_expires_at = None
+                    now_utc = datetime.now(timezone.utc)
+                    for sub in (order.suborders or []):
+                        if sub.status == SubOrderStatus.CANCELLED:
+                            sub.status = SubOrderStatus.PLACED
+                            sub.updated_at = now_utc
+                        esc = db.query(SellerEscrowRecord).filter(
+                            SellerEscrowRecord.suborder_id == sub.id
+                        ).with_for_update().first()
+                        if esc:
+                            esc.status = EscrowStatus.HELD_IN_ESCROW
+                    db.add(Notification(
+                        user_id=order.customer_id,
+                        type="order",
+                        text=f"Late payment received: your order {order.id} has been restored & confirmed."
+                    ))
+                    cache_service.invalidate_catalog()
+                    outcome = "restored"
+                else:
+                    order.payment_status = "refund_pending_oos"
+                    order.payment_expires_at = None
+                    db.add(Notification(
+                        user_id=order.customer_id,
+                        type="order",
+                        text=f"Payment captured after hold expired for order {order.id}, which is now out of stock. Initiating full automatic refund."
+                    ))
+                    outcome = "oos_needs_refund"
+            else:
+                was_paid = order.payment_status == "completed"
+                order.payment_status = "completed"
+                order.payment_expires_at = None
+                if not was_paid:
+                    db.add(Notification(
+                        user_id=order.customer_id,
+                        type="order",
+                        text=f"Your order {order.id} is confirmed & paid."
+                    ))
 
     if transaction.booking_id:
-        booking = db.query(Booking).filter(Booking.id == transaction.booking_id).first()
+        booking = db.query(Booking).filter(Booking.id == transaction.booking_id).with_for_update().first()
         if booking:
             was_paid = booking.payment_status == "completed"
             booking.payment_status = "completed"
@@ -137,6 +225,63 @@ def _mark_transaction_captured(
                     type="booking",
                     text=f"Your booking {booking.id} is confirmed & paid."
                 ))
+
+    return outcome
+
+
+def _refund_oos_capture_outside_locks(db: Session, tx_id: int, payment_id: str | None) -> str:
+    """
+    Issue an automatic Razorpay refund after an out-of-stock late capture WITHOUT holding DB locks.
+    Returns final order.payment_status ('refunded_oos' or 'refund_pending_oos').
+    """
+    tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
+    if not tx or not payment_id:
+        return "refund_pending_oos"
+
+    amount_paise = to_paise(tx.amount)
+    order_id = tx.order_id
+    refund_resp = None
+    try:
+        client = get_razorpay_client()
+        refund_resp = client.payment.refund(
+            payment_id,
+            {
+                "amount": amount_paise,
+                "notes": {
+                    "order_id": order_id or "",
+                    "reason": "late_capture_out_of_stock",
+                },
+            },
+        )
+    except Exception:
+        refund_resp = None
+
+    tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).with_for_update().first()
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first() if order_id else None
+    final_payment_status = "refund_pending_oos"
+
+    if isinstance(refund_resp, dict) and refund_resp.get("id"):
+        ref_id = refund_resp["id"]
+        gw_status = str(refund_resp.get("status", "processed")).lower()
+        tx.refund_id = ref_id
+        if gw_status == "processed":
+            tx.status = "refunded"
+            final_payment_status = "refunded_oos"
+            if order:
+                order.payment_status = "refunded_oos"
+                db.add(Notification(
+                    user_id=order.customer_id,
+                    type="order",
+                    text=f"Automatic full refund ({ref_id}) processed for out-of-stock expired order {order.id}."
+                ))
+        else:
+            if order:
+                order.payment_status = "refund_pending_oos"
+    elif order:
+        order.payment_status = "refund_pending_oos"
+
+    db.commit()
+    return final_payment_status
 
 
 def _lookup_transaction_for_verify(db: Session, req: PaymentVerifyRequest) -> PaymentTransaction:
@@ -180,12 +325,49 @@ def create_razorpay_order(
     db: Session = Depends(get_db)
 ):
     target_type, target, server_amount = _resolve_payment_target(db, user, req.order_id, req.booking_id)
-    amount_paise = int(round(server_amount * 100))
+    amount_paise = to_paise(server_amount)
     if amount_paise < 100:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Minimum online payment amount is ₹1 (100 paise)."
         )
+
+    idem_key = req.idempotency_key.strip() if req.idempotency_key and req.idempotency_key.strip() else None
+    fingerprint = hashlib.sha256(
+        json.dumps(
+            {
+                "target_type": target_type,
+                "target_id": target.id,
+                "amount_paise": amount_paise,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    if idem_key:
+        idem_tx = db.query(PaymentTransaction).filter(
+            PaymentTransaction.user_id == user.id,
+            PaymentTransaction.idempotency_key == idem_key,
+        ).first()
+        if idem_tx:
+            if idem_tx.request_fingerprint and idem_tx.request_fingerprint != fingerprint:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Idempotency key has already been used for a different payment request."
+                )
+            if idem_tx.status == "initiating":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Payment initiation already in progress; please retry shortly."
+                )
+            if idem_tx.razorpay_order_id and idem_tx.status in ("created", "captured"):
+                return PaymentOrderResponse(
+                    razorpay_order_id=idem_tx.razorpay_order_id,
+                    amount=float(idem_tx.amount),
+                    amount_paise=to_paise(idem_tx.amount),
+                    currency=idem_tx.currency,
+                    key_id=settings.RAZORPAY_KEY_ID,
+                )
 
     # Reuse existing pending Razorpay order for the same order/booking on safe retries
     existing_filter = (
@@ -204,7 +386,7 @@ def create_razorpay_order(
         existing_tx
         and existing_tx.razorpay_order_id
         and target.razorpay_order_id == existing_tx.razorpay_order_id
-        and int(round(float(existing_tx.amount) * 100)) == amount_paise
+        and to_paise(existing_tx.amount) == amount_paise
     ):
         return PaymentOrderResponse(
             razorpay_order_id=existing_tx.razorpay_order_id,
@@ -214,15 +396,60 @@ def create_razorpay_order(
             key_id=settings.RAZORPAY_KEY_ID
         )
 
+    # Pre-commit an initiating PaymentTransaction before external gateway I/O so no DB locks are held
+    pending_ref = f"init_{secrets.token_hex(8)}"
+    transaction = PaymentTransaction(
+        user_id=user.id,
+        order_id=target.id if target_type == "order" else None,
+        booking_id=target.id if target_type == "booking" else None,
+        razorpay_order_id=pending_ref,
+        idempotency_key=idem_key,
+        request_fingerprint=fingerprint,
+        amount=server_amount,
+        currency="INR",
+        status="initiating"
+    )
+    db.add(transaction)
+    try:
+        db.commit()
+        db.refresh(transaction)
+    except IntegrityError:
+        db.rollback()
+        if idem_key:
+            dup = db.query(PaymentTransaction).filter(
+                PaymentTransaction.user_id == user.id,
+                PaymentTransaction.idempotency_key == idem_key,
+            ).first()
+            if dup:
+                if dup.request_fingerprint and dup.request_fingerprint != fingerprint:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Idempotency key has already been used for a different payment request."
+                    )
+                if dup.razorpay_order_id and dup.status in ("created", "captured"):
+                    return PaymentOrderResponse(
+                        razorpay_order_id=dup.razorpay_order_id,
+                        amount=float(dup.amount),
+                        amount_paise=to_paise(dup.amount),
+                        currency=dup.currency,
+                        key_id=settings.RAZORPAY_KEY_ID,
+                    )
+        raise
+
+    tx_id = transaction.id
+    target_id_val = target.id
+    customer_id_val = target.customer_id
+
     try:
         rzp_order = client.order.create({
             "amount": amount_paise,
             "currency": "INR",
-            "receipt": target.id[:40],
+            "receipt": target_id_val[:40],
             "notes": {
                 "target_type": target_type,
-                "target_id": target.id,
-                "user_id": str(target.customer_id),
+                "target_id": target_id_val,
+                "user_id": str(customer_id_val),
+                "tx_id": str(tx_id),
             },
         })
     except (
@@ -231,6 +458,10 @@ def create_razorpay_order(
         razorpay.errors.ServerError,
         requests.exceptions.RequestException,
     ) as exc:
+        failed_tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
+        if failed_tx and failed_tx.status == "initiating":
+            db.delete(failed_tx)
+            db.commit()
         _raise_gateway_error(exc, "order creation")
 
     razorpay_order_id = rzp_order.get("id") if isinstance(rzp_order, dict) else None
@@ -242,24 +473,44 @@ def create_razorpay_order(
         or int(returned_amount if returned_amount is not None else -1) != amount_paise
         or returned_currency != "INR"
     ):
+        bad_tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
+        if bad_tx and bad_tx.status == "initiating":
+            db.delete(bad_tx)
+            db.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Payment gateway returned an invalid or mismatched order payload."
         )
 
-    transaction = PaymentTransaction(
-        user_id=user.id,
-        order_id=target.id if target_type == "order" else None,
-        booking_id=target.id if target_type == "booking" else None,
-        razorpay_order_id=razorpay_order_id,
-        amount=server_amount,
-        currency="INR",
-        status="created"
-    )
-    target.razorpay_order_id = razorpay_order_id
-    db.add(transaction)
-    db.commit()
-    db.refresh(transaction)
+    try:
+        tx_to_update = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).with_for_update().first()
+        if tx_to_update:
+            tx_to_update.razorpay_order_id = razorpay_order_id
+            tx_to_update.status = "created"
+        if target_type == "order":
+            t_row = db.query(Order).filter(Order.id == target_id_val).first()
+        else:
+            t_row = db.query(Booking).filter(Booking.id == target_id_val).first()
+        if t_row:
+            t_row.razorpay_order_id = razorpay_order_id
+        db.commit()
+    except Exception:
+        db.rollback()
+        rec_db = SessionLocal()
+        try:
+            rec_tx = rec_db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
+            if rec_tx:
+                rec_tx.razorpay_order_id = razorpay_order_id
+                rec_tx.status = "created"
+            if target_type == "order":
+                rec_t = rec_db.query(Order).filter(Order.id == target_id_val).first()
+            else:
+                rec_t = rec_db.query(Booking).filter(Booking.id == target_id_val).first()
+            if rec_t:
+                rec_t.razorpay_order_id = razorpay_order_id
+            rec_db.commit()
+        finally:
+            rec_db.close()
 
     return PaymentOrderResponse(
         razorpay_order_id=razorpay_order_id,
@@ -289,11 +540,19 @@ def verify_razorpay_payment(
             return PaymentVerifyResponse(
                 success=True,
                 status="captured",
+                payment_status="completed",
                 message="Payment already verified and confirmed."
             )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="This order has already been paid under another payment reference."
+        )
+    if transaction.status == "refunded":
+        return PaymentVerifyResponse(
+            success=False,
+            status="refunded_oos",
+            payment_status="refunded_oos",
+            message="Payment was already captured and refunded."
         )
 
     if not settings.RAZORPAY_KEY_SECRET:
@@ -317,6 +576,13 @@ def verify_razorpay_payment(
         )
 
     client = get_razorpay_client()
+    tx_id = transaction.id
+    expected_paise = to_paise(transaction.amount)
+    stored_rzp_order_id = transaction.razorpay_order_id
+
+    # End read transaction cleanly before external gateway call
+    db.rollback()
+
     try:
         payment_data = client.payment.fetch(req.razorpay_payment_id)
     except (
@@ -327,14 +593,13 @@ def verify_razorpay_payment(
     ) as exc:
         _raise_gateway_error(exc, "payment lookup")
 
-    expected_paise = int(round(float(transaction.amount) * 100))
     fetched_order_id = payment_data.get("order_id") if isinstance(payment_data, dict) else None
     fetched_currency = str(payment_data.get("currency", "")).upper() if isinstance(payment_data, dict) else ""
     fetched_amount = payment_data.get("amount") if isinstance(payment_data, dict) else None
     fetched_status = str(payment_data.get("status", "")).lower() if isinstance(payment_data, dict) else ""
     fetched_captured = bool(payment_data.get("captured")) if isinstance(payment_data, dict) else False
 
-    if fetched_order_id != transaction.razorpay_order_id:
+    if fetched_order_id != stored_rzp_order_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Payment order association mismatch."
@@ -355,13 +620,46 @@ def verify_razorpay_payment(
             detail=f"Payment is not captured (current status: {fetched_status or 'unknown'})."
         )
 
-    _mark_transaction_captured(db, transaction, req.razorpay_payment_id, req.razorpay_signature)
+    locked_tx = db.query(PaymentTransaction).filter(
+        PaymentTransaction.id == tx_id
+    ).with_for_update().first()
+    if not locked_tx:
+        raise HTTPException(status_code=404, detail="Payment transaction no longer exists.")
+
+    if locked_tx.status == "captured":
+        if locked_tx.razorpay_payment_id == req.razorpay_payment_id:
+            return PaymentVerifyResponse(
+                success=True,
+                status="captured",
+                payment_status="completed",
+                message="Payment already verified and confirmed."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This order has already been paid under another payment reference."
+        )
+
+    outcome = _apply_capture_in_tx(db, locked_tx, req.razorpay_payment_id, req.razorpay_signature)
     db.commit()
+
+    if outcome == "oos_needs_refund":
+        final_pay_status = _refund_oos_capture_outside_locks(db, tx_id, req.razorpay_payment_id)
+        return PaymentVerifyResponse(
+            success=False,
+            status=final_pay_status,
+            payment_status=final_pay_status,
+            message="Payment captured after hold expired and stock sold out; an automatic full refund has been initiated."
+        )
 
     return PaymentVerifyResponse(
         success=True,
         status="captured",
-        message="Payment verified and order confirmed successfully."
+        payment_status="completed",
+        message=(
+            "Late payment verified and order restored successfully."
+            if outcome == "restored"
+            else "Payment verified and order confirmed successfully."
+        ),
     )
 
 
@@ -370,7 +668,7 @@ def _validate_webhook_capture_payload(
     payment_entity: dict,
     order_entity: dict,
 ) -> None:
-    expected_paise = int(round(float(transaction.amount) * 100))
+    expected_paise = to_paise(transaction.amount)
     if payment_entity:
         if payment_entity.get("order_id") and payment_entity["order_id"] != transaction.razorpay_order_id:
             raise HTTPException(status_code=400, detail="Webhook payment order mismatch.")
@@ -437,9 +735,79 @@ async def razorpay_webhook(
 
     event = data.get("event")
     payload = data.get("payload", {})
-    payment_entity = payload.get("payment", {}).get("entity", {})
-    order_entity = payload.get("order", {}).get("entity", {})
+    payment_entity = payload.get("payment", {}).get("entity", {}) or {}
+    order_entity = payload.get("order", {}).get("entity", {}) or {}
+    refund_entity = payload.get("refund", {}).get("entity", {}) or {}
 
+    # 1. Reconcile async gateway refund webhooks (refund.processed / refund.failed)
+    if event in ("refund.processed", "refund.failed"):
+        refund_id = refund_entity.get("id")
+        ref_payment_id = refund_entity.get("payment_id") or payment_entity.get("id")
+        ref_notes = refund_entity.get("notes", {}) or {}
+        ret_id = ref_notes.get("return_id")
+
+        ret_req = None
+        if refund_id:
+            ret_req = db.query(ReturnRequest).filter(
+                ReturnRequest.gateway_refund_id == refund_id
+            ).with_for_update().first()
+        if not ret_req and ret_id:
+            ret_req = db.query(ReturnRequest).filter(
+                ReturnRequest.id == ret_id
+            ).with_for_update().first()
+
+        if ret_req:
+            if event == "refund.processed":
+                if ret_req.status == ReturnStatus.REFUNDED:
+                    return {"status": "ok", "event": event, "message": "Idempotent: Refund already processed"}
+                ret_req.gateway_refund_id = refund_id or ret_req.gateway_refund_id
+                ret_req.refund_status = "PROCESSED"
+                ret_req.status = ReturnStatus.REFUNDED
+                ret_req.refunded_at = datetime.now(timezone.utc)
+                ret_req.updated_at = datetime.now(timezone.utc)
+                CommerceService._apply_refund_to_escrow_and_order(
+                    db, ret_req, ret_req.gateway_refund_id, refund_tx_status="refunded"
+                )
+                db.commit()
+                return {"status": "ok", "event": event, "processed": True}
+            else:
+                if ret_req.status == ReturnStatus.REFUNDED:
+                    return {"status": "ok", "event": event, "processed": False, "note": "Ignored failure after processed refund"}
+                ret_req.gateway_refund_id = refund_id or ret_req.gateway_refund_id
+                ret_req.refund_status = "FAILED"
+                ret_req.status = ReturnStatus.REFUND_FAILED
+                ret_req.updated_at = datetime.now(timezone.utc)
+                db.commit()
+                return {"status": "ok", "event": event, "processed": True}
+
+        # Check payment transaction refund (e.g., OOS capture auto-refund)
+        ref_tx = None
+        if refund_id:
+            ref_tx = db.query(PaymentTransaction).filter(
+                PaymentTransaction.refund_id == refund_id
+            ).with_for_update().first()
+        if not ref_tx and ref_payment_id:
+            ref_tx = db.query(PaymentTransaction).filter(
+                PaymentTransaction.razorpay_payment_id == ref_payment_id
+            ).with_for_update().first()
+        if ref_tx:
+            if event == "refund.processed":
+                if ref_tx.status == "refunded":
+                    return {"status": "ok", "event": event, "message": "Idempotent: Refund already processed"}
+                ref_tx.status = "refunded"
+                if refund_id:
+                    ref_tx.refund_id = refund_id
+                if ref_tx.order_id:
+                    ord_obj = db.query(Order).filter(Order.id == ref_tx.order_id).with_for_update().first()
+                    if ord_obj:
+                        ord_obj.payment_status = "refunded_oos" if ord_obj.payment_status == "refund_pending_oos" else "refunded"
+                db.commit()
+                return {"status": "ok", "event": event, "processed": True}
+            return {"status": "ok", "event": event, "processed": True, "note": "Refund failure recorded"}
+
+        return {"status": "ok", "event": event, "processed": False, "note": "Refund record not found"}
+
+    # 2. Payment capture / failure webhook events
     razorpay_order_id = payment_entity.get("order_id") or order_entity.get("id")
     razorpay_payment_id = payment_entity.get("id")
 
@@ -450,11 +818,84 @@ async def razorpay_webhook(
     if razorpay_order_id:
         transaction = db.query(PaymentTransaction).filter(
             PaymentTransaction.razorpay_order_id == razorpay_order_id
-        ).first()
+        ).with_for_update().first()
     if not transaction and razorpay_payment_id:
         transaction = db.query(PaymentTransaction).filter(
             PaymentTransaction.razorpay_payment_id == razorpay_payment_id
-        ).first()
+        ).with_for_update().first()
+
+    # Reconcile webhook that arrived before local PaymentTransaction record received razorpay_order_id
+    if not transaction:
+        notes = payment_entity.get("notes") or order_entity.get("notes") or {}
+        if not isinstance(notes, dict):
+            notes = {}
+        tx_id_note = notes.get("tx_id")
+        target_id_note = notes.get("target_id") or order_entity.get("receipt")
+        target_type_note = notes.get("target_type")
+
+        if tx_id_note:
+            try:
+                transaction = db.query(PaymentTransaction).filter(
+                    PaymentTransaction.id == int(tx_id_note)
+                ).with_for_update().first()
+            except (TypeError, ValueError):
+                transaction = None
+
+        if transaction and razorpay_order_id and transaction.status == "initiating":
+            transaction.razorpay_order_id = razorpay_order_id
+            transaction.status = "created"
+
+        if not transaction and target_id_note:
+            target_order = None
+            target_booking = None
+            if target_type_note != "booking":
+                target_order = db.query(Order).filter(Order.id == target_id_note).first()
+            if not target_order and target_type_note != "order":
+                target_booking = db.query(Booking).filter(Booking.id == target_id_note).first()
+
+            if target_order:
+                transaction = db.query(PaymentTransaction).filter(
+                    PaymentTransaction.order_id == target_order.id,
+                    PaymentTransaction.status == "initiating",
+                ).order_by(PaymentTransaction.id.desc()).with_for_update().first()
+                if transaction and razorpay_order_id:
+                    transaction.razorpay_order_id = razorpay_order_id
+                    transaction.status = "created"
+                elif razorpay_order_id:
+                    transaction = PaymentTransaction(
+                        user_id=target_order.customer_id,
+                        order_id=target_order.id,
+                        razorpay_order_id=razorpay_order_id,
+                        amount=target_order.total,
+                        currency="INR",
+                        status="created",
+                    )
+                    db.add(transaction)
+                    db.flush()
+            elif target_booking:
+                transaction = db.query(PaymentTransaction).filter(
+                    PaymentTransaction.booking_id == target_booking.id,
+                    PaymentTransaction.status == "initiating",
+                ).order_by(PaymentTransaction.id.desc()).with_for_update().first()
+                if transaction and razorpay_order_id:
+                    transaction.razorpay_order_id = razorpay_order_id
+                    transaction.status = "created"
+                elif razorpay_order_id:
+                    transaction = PaymentTransaction(
+                        user_id=target_booking.customer_id,
+                        booking_id=target_booking.id,
+                        razorpay_order_id=razorpay_order_id,
+                        amount=target_booking.price,
+                        currency="INR",
+                        status="created",
+                    )
+                    db.add(transaction)
+                    db.flush()
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Target order/payment record not yet committed; retry webhook delivery."
+                )
 
     if not transaction:
         return {"status": "ok", "event": event, "processed": False, "note": "Transaction not found"}
@@ -464,9 +905,12 @@ async def razorpay_webhook(
             return {"status": "ok", "message": "Idempotent: Payment already captured"}
 
         _validate_webhook_capture_payload(transaction, payment_entity, order_entity)
-        _mark_transaction_captured(db, transaction, razorpay_payment_id)
+        tx_id = transaction.id
+        outcome = _apply_capture_in_tx(db, transaction, razorpay_payment_id)
         db.commit()
-        return {"status": "ok", "event": event, "processed": True}
+        if outcome == "oos_needs_refund":
+            _refund_oos_capture_outside_locks(db, tx_id, razorpay_payment_id)
+        return {"status": "ok", "event": event, "processed": True, "outcome": outcome}
 
     if event == "payment.failed":
         if transaction.status in ("captured", "refunded"):
@@ -479,13 +923,10 @@ async def razorpay_webhook(
         transaction.status = "failed"
         if razorpay_payment_id and not transaction.razorpay_payment_id:
             transaction.razorpay_payment_id = razorpay_payment_id
-        db.commit()
-        return {"status": "ok", "event": event, "processed": True}
-
-    if event == "refund.processed":
-        if transaction.status == "refunded":
-            return {"status": "ok", "message": "Idempotent: Refund already processed"}
-        transaction.status = "refunded"
+        if transaction.order_id:
+            ord_obj = db.query(Order).filter(Order.id == transaction.order_id).with_for_update().first()
+            if ord_obj and ord_obj.payment_status == "pending":
+                ord_obj.payment_status = "failed"
         db.commit()
         return {"status": "ok", "event": event, "processed": True}
 

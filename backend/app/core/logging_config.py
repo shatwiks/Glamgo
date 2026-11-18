@@ -20,7 +20,17 @@ def get_correlation_id() -> str:
 
 class JSONLogFormatter(logging.Formatter):
     """Formats log records as structured JSON with correlation ID and PII redaction."""
-    SENSITIVE_KEYS = {"password", "secret", "token", "access_token", "refresh_token", "authorization", "razorpay_signature"}
+    SENSITIVE_KEYS = {
+        "password",
+        "secret",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "razorpay_signature",
+        "internal_maintenance_token",
+        "x-maintenance-token",
+    }
 
     def format(self, record: logging.LogRecord) -> str:
         log_obj = {

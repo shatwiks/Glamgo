@@ -1,11 +1,15 @@
 import time
+import hmac
+import hashlib
 import secrets
 from datetime import datetime, timezone, timedelta
+from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from backend.app.main import app
+from backend.app.core.config import settings
 from backend.app.core.database import SessionLocal
 from backend.app.models.user import User, UserRole, OrderStatus
 from backend.app.models.catalog import Product
@@ -74,6 +78,83 @@ def seller_b_headers(client, db_session):
     user.role = UserRole.SELLER
     db_session.commit()
     return {"Authorization": f"Bearer {token}", "user_id": user.id}
+
+
+# Helper: mock Razorpay gateway & verify online payment
+# =============================================================================
+
+def _install_mock_gateway(monkeypatch):
+    orders_store = {}
+    refunds_store = {}
+
+    def create_order(payload):
+        oid = f"order_mv_{secrets.token_hex(6)}"
+        orders_store[oid] = payload
+        return {
+            "id": oid,
+            "amount": payload["amount"],
+            "currency": payload["currency"],
+        }
+
+    def fetch_payment(payment_id):
+        # Resolve order_id linked in test verification or fallback to latest
+        oid = payment_id.split("__")[-1] if "__" in payment_id else next(reversed(orders_store.keys()))
+        amount = orders_store.get(oid, {}).get("amount", 0)
+        return {
+            "id": payment_id,
+            "order_id": oid,
+            "amount": amount,
+            "currency": "INR",
+            "status": "captured",
+            "captured": True,
+        }
+
+    def create_refund(payment_id, payload=None):
+        payload = payload or {}
+        rid = f"rfnd_mv_{secrets.token_hex(6)}"
+        refunds_store[rid] = payload
+        return {
+            "id": rid,
+            "payment_id": payment_id,
+            "amount": payload.get("amount", 0),
+            "status": "processed",
+        }
+
+    mock_client = SimpleNamespace(
+        order=SimpleNamespace(create=create_order),
+        payment=SimpleNamespace(fetch=fetch_payment, refund=create_refund),
+    )
+    monkeypatch.setattr("backend.app.api.v1.payments.get_razorpay_client", lambda: mock_client)
+    return mock_client
+
+
+def _pay_and_verify_order(client, monkeypatch, customer_headers, order_id, total_rupees):
+    _install_mock_gateway(monkeypatch)
+    c_res = client.post(
+        "/api/v1/payments/razorpay/create-order",
+        json={"amount": total_rupees, "order_id": order_id},
+        headers=customer_headers,
+    )
+    assert c_res.status_code == 200, c_res.text
+    rzp_order_id = c_res.json()["razorpay_order_id"]
+    pay_id = f"pay_mv_{secrets.token_hex(4)}__{rzp_order_id}"
+    sig = hmac.new(
+        settings.RAZORPAY_KEY_SECRET.encode("utf-8"),
+        f"{rzp_order_id}|{pay_id}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    v_res = client.post(
+        "/api/v1/payments/razorpay/verify",
+        json={
+            "razorpay_order_id": rzp_order_id,
+            "razorpay_payment_id": pay_id,
+            "razorpay_signature": sig,
+            "order_id": order_id,
+        },
+        headers=customer_headers,
+    )
+    assert v_res.status_code == 200, v_res.text
+    assert v_res.json()["payment_status"] == "completed"
 
 
 # =============================================================================
@@ -272,7 +353,7 @@ def test_coupon_discount_proportional_apportionment(client, customer_headers, se
 # Milestone C: Inventory Reservation & Concurrency (MV-006, MV-007)
 # =============================================================================
 
-def test_inventory_reservation_ttl_and_expiry(client, customer_headers, seller_a_headers, db_session):
+def test_inventory_reservation_ttl_and_expiry(client, customer_headers, seller_a_headers, db_session, maintenance_auth_headers):
     """MV-006: Inventory reservation hold has 15-minute TTL; expired holds are released."""
     res_a = client.post("/api/v1/partners/seller/listings", json={
         "product_id": "b1",
@@ -297,8 +378,8 @@ def test_inventory_reservation_ttl_and_expiry(client, customer_headers, seller_a
     reservation.expires_at = datetime.now(timezone.utc) - timedelta(minutes=5)
     db_session.commit()
 
-    # Trigger background expiry engine
-    exp_res = client.post("/api/v1/internal/inventory/expire-reservations")
+    # Trigger background expiry engine with internal maintenance auth
+    exp_res = client.post("/api/v1/internal/inventory/expire-reservations", headers=maintenance_auth_headers)
     assert exp_res.status_code == 200
     assert exp_res.json()["expired_reservations_count"] >= 1
 
@@ -342,7 +423,7 @@ def test_concurrency_race_condition_no_overselling(client, customer_headers, sel
 # Milestones D & E: Suborder Fulfillment, Logistics & Tracking (MV-008 to MV-011)
 # =============================================================================
 
-def test_independent_seller_fulfillment_and_rbac(client, customer_headers, seller_a_headers, seller_b_headers):
+def test_independent_seller_fulfillment_and_rbac(client, customer_headers, seller_a_headers, seller_b_headers, monkeypatch):
     """MV-008, MV-009, MV-010, MV-011: Independent fulfillment, RBAC isolation, tracking, rollup."""
     res_a = client.post("/api/v1/partners/seller/listings", json={
         "product_id": "b1",
@@ -372,6 +453,7 @@ def test_independent_seller_fulfillment_and_rbac(client, customer_headers, selle
     }, headers=customer_headers).json()
 
     parent_id = co["order_id"]
+    _pay_and_verify_order(client, monkeypatch, customer_headers, parent_id, co["total"])
     suborders = co["suborders"]
     sub_a_id = next(s["suborder_id"] for s in suborders if s["seller_id"] == seller_a_headers["user_id"])
     sub_b_id = next(s["suborder_id"] for s in suborders if s["seller_id"] == seller_b_headers["user_id"])
@@ -422,7 +504,7 @@ def test_independent_seller_fulfillment_and_rbac(client, customer_headers, selle
 # Milestone F: Reverse Logistics & Returns (MV-012, MV-013)
 # =============================================================================
 
-def test_customer_return_request_and_seller_approval_restock(client, customer_headers, seller_a_headers, db_session):
+def test_customer_return_request_and_seller_approval_restock(client, customer_headers, seller_a_headers, db_session, monkeypatch):
     """MV-012, MV-013: Customer submits return within 7 days; seller approves with restock."""
     res_a = client.post("/api/v1/partners/seller/listings", json={
         "product_id": "b1",
@@ -443,9 +525,11 @@ def test_customer_return_request_and_seller_approval_restock(client, customer_he
         "address_text": "Bandra West, Mumbai"
     }, headers=customer_headers).json()
 
+    _pay_and_verify_order(client, monkeypatch, customer_headers, co["order_id"], co["total"])
     sub_id = co["suborders"][0]["suborder_id"]
 
-    # Must deliver before return can be initiated
+    # Must pack, ship, and deliver before return can be initiated
+    client.post(f"/api/v1/partners/seller/suborders/{sub_id}/pack", headers={"Authorization": seller_a_headers["Authorization"]})
     client.post(f"/api/v1/partners/seller/suborders/{sub_id}/ship", json={
         "carrier_name": "BlueDart", "tracking_number": "BLU111"
     }, headers={"Authorization": seller_a_headers["Authorization"]})
@@ -491,8 +575,8 @@ def test_customer_return_request_and_seller_approval_restock(client, customer_he
 # Milestone G: Multi-Vendor Settlement & Escrow Maturity (MV-014, MV-015)
 # =============================================================================
 
-def test_escrow_maturity_engine_post_delivery(client, customer_headers, seller_a_headers, db_session):
-    """MV-014, MV-015: Escrow holds funds for T+3 days post-delivery; matures afterwards."""
+def test_escrow_maturity_engine_post_delivery(client, customer_headers, seller_a_headers, db_session, monkeypatch, maintenance_auth_headers):
+    """MV-014, MV-015: Escrow holds funds for T+7 days post-delivery; matures afterwards."""
     res_a = client.post("/api/v1/partners/seller/listings", json={
         "product_id": "b1",
         "sku": f"ESCROW-{secrets.token_hex(4)}",
@@ -511,9 +595,11 @@ def test_escrow_maturity_engine_post_delivery(client, customer_headers, seller_a
         "address_text": "Bandra, Mumbai"
     }, headers=customer_headers).json()
 
+    _pay_and_verify_order(client, monkeypatch, customer_headers, co["order_id"], co["total"])
     sub_id = co["suborders"][0]["suborder_id"]
 
-    # Ship and deliver
+    # Pack, ship, and deliver
+    client.post(f"/api/v1/partners/seller/suborders/{sub_id}/pack", headers={"Authorization": seller_a_headers["Authorization"]})
     client.post(f"/api/v1/partners/seller/suborders/{sub_id}/ship", json={
         "carrier_name": "BlueDart", "tracking_number": "BLU999"
     }, headers={"Authorization": seller_a_headers["Authorization"]})
@@ -523,15 +609,15 @@ def test_escrow_maturity_engine_post_delivery(client, customer_headers, seller_a
     fin1 = client.get("/api/v1/partners/seller/financials", headers={"Authorization": seller_a_headers["Authorization"]}).json()
     assert fin1["funds_in_escrow"] > 0
 
-    # Simulate delivery timestamp 4 days in the past
+    # Simulate delivery timestamp 8 days in the past (aligned with 7-day return window)
     escrow = db_session.query(SellerEscrowRecord).filter(SellerEscrowRecord.suborder_id == sub_id).first()
-    past_delivery = datetime.now(timezone.utc) - timedelta(days=4)
+    past_delivery = datetime.now(timezone.utc) - timedelta(days=8)
     escrow.delivered_at = past_delivery
-    escrow.matures_at = past_delivery + timedelta(days=3)
+    escrow.matures_at = past_delivery + timedelta(days=7)
     db_session.commit()
 
-    # Trigger maturity engine
-    mat_res = client.post("/api/v1/internal/escrow/mature")
+    # Trigger maturity engine with internal maintenance auth
+    mat_res = client.post("/api/v1/internal/escrow/mature", headers=maintenance_auth_headers)
     assert mat_res.status_code == 200
     assert mat_res.json()["matured_records_count"] >= 1
 
@@ -544,7 +630,7 @@ def test_escrow_maturity_engine_post_delivery(client, customer_headers, seller_a
 # Milestone H: Full End-to-End Multi-Vendor Regression Harness (MV-016)
 # =============================================================================
 
-def test_e2e_multi_vendor_commerce_lifecycle(client, customer_headers, seller_a_headers, seller_b_headers, db_session):
+def test_e2e_multi_vendor_commerce_lifecycle(client, customer_headers, seller_a_headers, seller_b_headers, db_session, monkeypatch, maintenance_auth_headers):
     """MV-016: Complete end-to-end lifecycle verification across all Phase 5 capabilities."""
     # 1. Sellers list offers
     res_a = client.post("/api/v1/partners/seller/listings", json={
@@ -574,6 +660,7 @@ def test_e2e_multi_vendor_commerce_lifecycle(client, customer_headers, seller_a_
         "coupon_code": "GLAM10"
     }, headers=customer_headers).json()
     order_id = checkout["order_id"]
+    _pay_and_verify_order(client, monkeypatch, customer_headers, order_id, checkout["total"])
     sub_a = next(s["suborder_id"] for s in checkout["suborders"] if s["seller_id"] == seller_a_headers["user_id"])
     sub_b = next(s["suborder_id"] for s in checkout["suborders"] if s["seller_id"] == seller_b_headers["user_id"])
 
@@ -616,13 +703,14 @@ def test_e2e_multi_vendor_commerce_lifecycle(client, customer_headers, seller_a_
     final_order = client.get(f"/api/v1/orders/{order_id}", headers=customer_headers).json()
     assert final_order["status"] == "delivered"
 
-    # 10. Verify financial statement and escrow maturity
+    # 10. Verify financial statement and T+7 escrow maturity
     escrow_b = db_session.query(SellerEscrowRecord).filter(SellerEscrowRecord.suborder_id == sub_b).first()
-    past_date = datetime.now(timezone.utc) - timedelta(days=4)
+    past_date = datetime.now(timezone.utc) - timedelta(days=8)
     escrow_b.delivered_at = past_date
-    escrow_b.matures_at = past_date + timedelta(days=3)
+    escrow_b.matures_at = past_date + timedelta(days=7)
     db_session.commit()
 
-    client.post("/api/v1/internal/escrow/mature")
+    mat_resp = client.post("/api/v1/internal/escrow/mature", headers=maintenance_auth_headers)
+    assert mat_resp.status_code == 200
     fin_b = client.get("/api/v1/partners/seller/financials", headers={"Authorization": seller_b_headers["Authorization"]}).json()
     assert fin_b["matured_balance_available"] >= escrow_b.net_settlement

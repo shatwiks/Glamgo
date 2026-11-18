@@ -277,8 +277,12 @@ const state = {
   catalogLoading: !(services.length && professionals.length && salons.length && products.length),
   catalogErrors: { services: false, professionals: false, salons: false, products: false },
   checkoutBusy: false,
+  selectedCheckoutAddressIdx: 0,
+  pendingReservation: null,
   pendingCheckoutOrder: null,
   pendingCheckoutKey: null,
+  pendingPaymentKey: null,
+  couponDiscount: 0,
   paymentNotice: null,
   bookingBusy: false,
   pendingBooking: null,
@@ -550,8 +554,106 @@ function ensureRazorpayLoaded(timeoutMs = 8000) {
   });
   return razorpayLoadPromise;
 }
-const countCart = () => Object.values(state.cart).reduce((a,b)=>a+b,0);
-const cartTotal = () => products.reduce((sum,p)=>sum+p.price*(state.cart[p.id]||0),0);
+const makeCartKey = (productId, variant = '', listingId = null) =>
+  `${productId}::${String(variant || '').trim()}::${listingId || ''}`;
+const parseCartKey = key => {
+  const raw = String(key || '');
+  if (!raw.includes('::')) {
+    const p = products.find(x => x.id === raw);
+    const v = state.cartVariants?.[raw] || (p?.variants?.[0] || '');
+    const lid = (v && p?.variant_listings?.[v]) || p?.default_listing_id || null;
+    return { productId: raw, variant: v, listingId: lid ? Number(lid) : null };
+  }
+  const [productId, variant, lidStr] = raw.split('::');
+  return {
+    productId,
+    variant: variant || '',
+    listingId: lidStr ? Number(lidStr) : null
+  };
+};
+const resolveCartListingMeta = (p, variant = '', explicitListingId = null) => {
+  const offers = state.productOffers?.[p?.id]?.offers || [];
+  const chosenListingId =
+    explicitListingId ||
+    (variant && p?.variant_listings?.[variant]) ||
+    p?.default_listing_id ||
+    null;
+  const offer = offers.find(o => Number(o.id) === Number(chosenListingId));
+  const unitPrice = offer ? Number(offer.price) : Number(p?.price || 0);
+  const sellerName = offer?.seller_name || '';
+  return { listingId: chosenListingId ? Number(chosenListingId) : null, unitPrice, sellerName };
+};
+const getCartEntries = () =>
+  Object.entries(state.cart || {})
+    .filter(([, qty]) => Number(qty) > 0)
+    .map(([key, qty]) => {
+      const parsed = parseCartKey(key);
+      const product = products.find(p => p.id === parsed.productId);
+      if (!product) return null;
+      const variant = parsed.variant || (product.variants?.[0] || '');
+      const meta = resolveCartListingMeta(product, variant, parsed.listingId);
+      return {
+        key,
+        product,
+        productId: parsed.productId,
+        variant,
+        listingId: meta.listingId,
+        sellerName: meta.sellerName,
+        qty: Number(qty),
+        unitPrice: meta.unitPrice,
+        lineTotal: meta.unitPrice * Number(qty)
+      };
+    })
+    .filter(Boolean);
+const getCartItemsFingerprint = entries =>
+  JSON.stringify((entries || []).map(e => ({ k: e.key, q: e.qty })).sort((a, b) => a.k.localeCompare(b.k)));
+const invalidateCheckoutState = (resetReservation = true) => {
+  if (resetReservation) state.pendingReservation = null;
+  state.pendingCheckoutOrder = null;
+  state.pendingCheckoutKey = null;
+  state.pendingPaymentKey = null;
+  state.paymentNotice = null;
+};
+async function ensureCheckoutReservation(force = false) {
+  const entries = getCartEntries();
+  if (!entries.length) return null;
+  const fp = getCartItemsFingerprint(entries);
+  const existing = state.pendingReservation;
+  if (!force && existing && existing.fingerprint === fp) {
+    if (existing.loading) return null;
+    if (existing.data) {
+      const expMs = new Date(existing.data.expires_at).getTime();
+      if (!Number.isNaN(expMs) && expMs - Date.now() > 15000) {
+        return existing.data;
+      }
+    }
+  }
+  state.pendingReservation = { fingerprint: fp, loading: true, error: null, data: null };
+  render();
+  try {
+    const resItems = entries.map(e => ({
+      listing_id: e.listingId || null,
+      product_id: e.productId,
+      variant_name: e.variant || '',
+      qty: e.qty
+    }));
+    const data = await apiReserveInventory(resItems);
+    state.pendingReservation = { fingerprint: fp, loading: false, error: null, data };
+    render();
+    return data;
+  } catch (err) {
+    state.pendingReservation = {
+      fingerprint: fp,
+      loading: false,
+      error: err.message || 'Unable to verify live seller inventory right now.',
+      data: null
+    };
+    render();
+    return null;
+  }
+}
+const countCart = () => Object.values(state.cart || {}).reduce((a, b) => a + Number(b || 0), 0);
+const cartTotal = () => getCartEntries().reduce((sum, e) => sum + e.lineTotal, 0);
 const dateOptions = () => Array.from({length:6},(_,i)=>{const d=new Date();d.setDate(d.getDate()+i+1);return {value:d.toISOString().slice(0,10),day:d.toLocaleDateString('en-IN',{weekday:'short'}),date:d.getDate(),month:d.toLocaleDateString('en-IN',{month:'short'})};});
 const formatDate = value => new Date(value+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
@@ -699,7 +801,10 @@ function productDetail(){
   const detailBtnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added to Bag '+icon('check',17) : 'Add to Bag '+icon('bag',18);
   const offersData = state.productOffers ? state.productOffers[p.id] : null;
   const offers = (offersData && offersData.offers) || [];
-  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Verified partners fulfilling this product with real-time stock.</p>'+offers.map(off=>'<div class="offer-row"><div><strong>'+esc(off.seller_name||'Certified Merchant')+'</strong><small>SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+'>Select Offer</button></div></div>').join('')+'</div>' : '';
+  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Verified partners fulfilling this product with real-time stock.</p>'+offers.map(off=>{
+    const offerVariant = off.variant_name || variant || '';
+    return '<div class="offer-row"><div><strong>'+esc(off.seller_name||'Certified Merchant')+'</strong><small>'+(offerVariant?esc(offerVariant)+' · ':'')+'SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'" data-listing="'+off.id+'"'+(offerVariant?' data-variant="'+esc(offerVariant)+'"':'')+(off.stock<=0?' disabled':'')+'>Select Offer</button></div></div>';
+  }).join('')+'</div>' : '';
 
   const ingredientItems = parseIngredientsList(p.ingredients);
   const reviewState = state.productReviews?.[p.id];
@@ -750,7 +855,7 @@ function account(){
     const payStatus = b.payment_status ? '<small style="display:block;margin-top:3px;color:var(--muted)">Payment: '+esc(b.payment_status)+'</small>' : '';
     return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.location)+'</p>'+payStatus+cancelBtn+reviewBtn+'</div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.status||'Confirmed')+'</span></div>';
   }).join(''):empty('calendar','Your next moment awaits','Choose a home service or salon appointment to see it here.',button('Explore beauty '+icon('arrow',16),'experience','btn-primary','data-id="home"')))+'</div>';
-  else if(state.accountTab==='My orders') content='<div class="account-block"><h2>My orders</h2><p>Your beauty store purchases and delivery updates.</p>'+(state.orders.length?state.orders.map(o=>'<div class="history-card"><div class="history-icon">'+icon('bag',22)+'</div><div><span class="eyebrow">ORDER '+esc(o.id)+'</span><h3>'+(o.items||[]).map(i=>esc(i.name)).join(', ')+'</h3><p>'+formatDate(o.date)+' · '+money(o.total)+' · '+(o.items||[]).length+' item'+((o.items||[]).length>1?'s':'')+'</p></div><button class="text-action" data-action="tracking" data-id="'+esc(o.id)+'">Track order '+icon('arrow',15)+'</button></div>').join(''):empty('bag','Your beauty bag is waiting','Discover your first favourite in the GlamGo beauty store.',button('Explore the store '+icon('arrow',16),'experience','btn-primary','data-id="shop"')))+'</div>';
+  else if(state.accountTab==='My orders') content='<div class="account-block"><h2>My orders</h2><p>Your beauty store purchases and delivery updates.</p>'+(state.orders.length?state.orders.map(o=>'<div class="history-card"><div class="history-icon">'+icon('bag',22)+'</div><div><span class="eyebrow">ORDER '+esc(o.id)+' · '+esc(String(o.status||'placed').replace('_',' ').toUpperCase())+'</span><h3>'+(o.items||[]).map(i=>esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty).join(', ')+'</h3><p>'+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(o.payment_status||'pending')+'</p></div><button class="text-action" data-action="tracking" data-id="'+esc(o.id)+'">Track order '+icon('arrow',15)+'</button></div>').join(''):empty('bag','Your beauty bag is waiting','Discover your first favourite in the GlamGo beauty store.',button('Explore the store '+icon('arrow',16),'experience','btn-primary','data-id="shop"')))+'</div>';
   else if(state.accountTab==='Wishlist'){const liked=[...services,...products].filter(x=>state.wishlist.includes(x.id));content='<div class="account-block"><h2>Your wishlist</h2><p>A space for everything that catches your eye.</p>'+(liked.length?'<div class="wishlist-grid">'+liked.map(x=>x.brand?productCard(x):homeCard(x)).join('')+'</div>':empty('heart','Nothing saved yet','Tap the heart on a service or product to keep it close.'))+'</div>';}
   else if(state.accountTab==='Payment methods') content='<div class="account-block"><h2>Payment methods</h2>'+empty('bag','Pay the way you prefer','Choose UPI, card or cash when you confirm a booking or order.')+'</div>';
   else if(state.accountTab==='Notifications') content='<div class="account-block"><h2>Notifications</h2>'+(state.notifications.length?state.notifications.map(n=>'<div class="notification-row">'+icon(n.type==='order'?'bag':'calendar',20)+'<span>'+esc(n.text)+'</span></div>').join(''):empty('bell','All caught up','Booking confirmations and order updates will appear here.'))+'</div>';
@@ -762,29 +867,56 @@ function account(){
 
 function cartPage(){
   const savedCount = countCart();
-  const items = products.filter(p => state.cart[p.id]);
+  const entries = getCartEntries();
   const popularPicks = [...products].sort((a,b)=> (b.tag==='BESTSELLER'?3:b.tag==='TRENDING'?2:b.tag==='NEW'?1:0) - (a.tag==='BESTSELLER'?3:a.tag==='TRENDING'?2:a.tag==='NEW'?1:0) || Number(b.rating)-Number(a.rating)).slice(0,3);
-  if (savedCount > 0 && !items.length) {
+  if (savedCount > 0 && !entries.length) {
     const noticeBody = state.catalogFeedsLoading.products
       ? catalogLoadingState('your saved beauty bag (' + savedCount + ' item' + (savedCount > 1 ? 's' : '') + ')')
       : catalogUnavailableState('Saved beauty bag pricing', 'Your bag still keeps ' + savedCount + ' saved item' + (savedCount > 1 ? 's' : '') + ', but live catalog pricing could not be verified right now.');
     return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Saved items remain preserved until the catalog is ready.</p></div>'+noticeBody+'</main>';
   }
-  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(items.length?'<div class="cart-layout"><div class="cart-items">'+items.map(p=>'<div class="cart-item">'+image(p.img,p.name)+'<div><span class="product-brand">'+esc(p.brand)+'</span><h3>'+esc(p.name)+'</h3><p>'+esc(state.cartVariants?.[p.id] || p.variants[0] || '')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+p.id+'">Remove</button></div><div class="cart-item-end"><strong>'+money(p.price*state.cart[p.id])+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+p.id+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+state.cart[p.id]+'</span><button data-action="cart-qty" data-id="'+p.id+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div><div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal())+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full')+'<p>Secure checkout · Authentic products</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore Bestsellers '+icon('arrow',17),'explore-bestsellers','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">POPULAR PICKS</p><h2 id="empty-recs-title">Most-loved beauty rituals</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
+  const subtotal = entries.reduce((sum, e) => sum + e.lineTotal, 0);
+  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(entries.length?'<div class="cart-layout"><div class="cart-items">'+entries.map(e=>'<div class="cart-item">'+image(e.product.img,e.product.name)+'<div><span class="product-brand">'+esc(e.product.brand)+'</span><h3>'+esc(e.product.name)+'</h3><p>'+esc(e.variant || '')+(e.sellerName?' · Sold by '+esc(e.sellerName):'')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+esc(e.key)+'">Remove</button></div><div class="cart-item-end"><strong>'+money(e.lineTotal)+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+e.qty+'</span><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div><div><span>Delivery</span><strong>'+(subtotal >= 1500 ? 'Complimentary (≥ ₹1,500/seller)' : 'Calculated per seller at checkout')+'</strong></div><div class="summary-total"><span>Estimated subtotal</span><strong>'+money(subtotal)+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full')+'<p>Secure checkout · Authentic products</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore Bestsellers '+icon('arrow',17),'explore-bestsellers','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">POPULAR PICKS</p><h2 id="empty-recs-title">Most-loved beauty rituals</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
 }
 
 function checkoutPage(){
   if(!countCart()) return cartPage();
-  const matchedItems = products.filter(p=>state.cart[p.id]);
-  if(!matchedItems.length && (state.catalogFeedsLoading.products || state.catalogErrors.products)) return cartPage();
-  const discount = state.coupon === 'GLAM10' ? Math.min(300, Math.round(cartTotal() * .1)) : 0;
+  const entries = getCartEntries();
+  if(!entries.length && (state.catalogFeedsLoading.products || state.catalogErrors.products)) return cartPage();
+
+  const fp = getCartItemsFingerprint(entries);
+  const resState = state.pendingReservation;
+  const resData = (resState && resState.fingerprint === fp && resState.data) ? resState.data : null;
+  const resError = (resState && resState.fingerprint === fp && resState.error) ? resState.error : null;
+
+  const subtotal = resData ? Number(resData.total_subtotal) : entries.reduce((s, e) => s + e.lineTotal, 0);
+  const shipping = resData ? Number(resData.total_shipping) : (subtotal >= 1500 ? 0 : 100);
+  const discount = state.pendingCheckoutOrder?.order?.discount != null
+    ? Number(state.pendingCheckoutOrder.order.discount)
+    : (state.coupon ? Number(state.couponDiscount || (state.coupon === 'GLAM10' ? Math.min(300, Math.round(subtotal * 0.1)) : 0)) : 0);
+  const payableTotal = Math.max(0, subtotal + shipping - discount);
+  const addrIdx = Math.min(Number(state.selectedCheckoutAddressIdx || 0), Math.max(0, state.addresses.length - 1));
+
+  const sellerPackagesHtml = resData && Array.isArray(resData.sellers) && resData.sellers.length
+    ? '<div class="checkout-seller-packages" style="margin:8px 0 12px;border-top:1px solid #eee;padding-top:10px;">' +
+        resData.sellers.map(s => '<div style="margin-bottom:8px;font-size:12px;">' +
+          '<div style="display:flex;justify-content:space-between;color:#666;"><span><strong>'+esc(s.seller_name)+'</strong> package</span><span>Shipping: '+(Number(s.estimated_shipping_fee)===0?'Complimentary':money(s.estimated_shipping_fee))+'</span></div>' +
+          (s.items||[]).map(it => '<div style="display:flex;justify-content:space-between;margin-top:3px;"><span>'+esc(it.product_name)+(it.variant_name?' ('+esc(it.variant_name)+')':'')+' × '+it.qty+'</span><strong>'+money(it.line_total)+'</strong></div>').join('') +
+        '</div>').join('') +
+      '</div>'
+    : entries.map(e => '<div><span>'+esc(e.product.name)+(e.variant?' ('+esc(e.variant)+')':'')+' × '+e.qty+'</span><strong>'+money(e.lineTotal)+'</strong></div>').join('');
+
+  const resNoticeHtml = resError
+    ? '<div class="payment-notice payment-notice-error" role="alert"><strong>Inventory check issue</strong><p>'+esc(resError)+'</p></div>'
+    : '';
   const noticeHtml = state.paymentNotice
     ? '<div class="payment-notice payment-notice-'+esc(state.paymentNotice.type||'error')+'" role="alert"><strong>'+esc(state.paymentNotice.title)+'</strong><p>'+esc(state.paymentNotice.message)+'</p></div>'
     : '';
   const payLabel = state.checkoutBusy
     ? 'Processing...'
     : (state.paymentNotice && state.checkoutPayment !== 'Cash on delivery' ? 'Retry payment '+icon('arrow',17) : 'Place order '+icon('arrow',17));
-  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'">'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon==='GLAM10'?'<p class="success-note">'+icon('check',16)+' GLAM10 applied — you save '+money(discount)+'</p>':'')+'</section></div><aside class="order-summary"><h3>Your order</h3>'+matchedItems.map(p=>'<div><span>'+esc(p.name)+' × '+state.cart[p.id]+'</span><strong>'+money(p.price*state.cart[p.id])+'</strong></div>').join('')+'<hr><div><span>Subtotal</span><strong>'+money(cartTotal())+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery</span><strong>Complimentary</strong></div><div class="summary-total"><span>Total</span><strong>'+money(cartTotal()-discount)+'</strong></div>'+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing &amp; secure checkout.</p></aside></div></main>';
+
+  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div><div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing, live stock hold &amp; secure checkout.</p></aside></div></main>';
 }
 
 function orderSuccess(){
@@ -795,6 +927,9 @@ function orderSuccess(){
 function trackingPage(){
   const o = state.orders.find(x => x.id === state.trackingId) || state.orders[0];
   if(!o) return account();
+
+  const stepOrder = ['placed', 'packed', 'in_transit', 'delivered'];
+  const activeStepIdx = Math.max(0, stepOrder.indexOf(String(o.status || 'placed').toLowerCase()));
 
   let packagesHtml = '';
   if(o.suborders && o.suborders.length > 0) {
@@ -814,11 +949,15 @@ function trackingPage(){
           <div style="margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
             ${(s.items || []).map(it => `
               <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;">
-                <span>${esc(it.name)} × ${it.qty}</span>
-                <span>₹${it.price * it.qty}</span>
+                <span>${esc(it.name)}${it.variant_name ? ' (' + esc(it.variant_name) + ')' : ''}${it.sku ? ' · SKU: ' + esc(it.sku) : ''} × ${it.qty}</span>
+                <span>₹${(Number(it.price) * Number(it.qty) - Number(it.allocated_discount || 0)).toFixed(2).replace(/\.00$/, '')}</span>
               </div>
-              ${s.status === 'delivered' ? `
-                <button class="btn-outline" style="font-size:11px;padding:4px 8px;margin-top:4px;" data-action="return-request" data-suborder="${esc(s.suborder_id)}" data-item="${it.order_item_id}">Request return</button>
+              ${it.return_status ? `
+                <div style="font-size:12px;color:#6f5230;margin:4px 0;">
+                  Return: <strong>${esc(it.return_status)}</strong> · Refund: <strong>${esc(it.refund_status || 'PENDING')}</strong>${it.gateway_refund_id ? ' (' + esc(it.gateway_refund_id) + ')' : ''}
+                </div>
+              ` : (it.return_eligible || s.status === 'delivered') ? `
+                <button class="btn-outline" style="font-size:11px;padding:4px 8px;margin-top:4px;" data-action="return-request" data-suborder="${esc(s.suborder_id)}" data-item="${it.order_item_id}" data-qty="${it.qty}">Request return</button>
               ` : ''}
             `).join('')}
           </div>
@@ -826,7 +965,7 @@ function trackingPage(){
       `).join('') + '</div>';
   }
 
-  return '<main class="tracking-page"><button class="back-link" data-action="orders">← Back to orders</button><div class="page-heading"><p class="eyebrow">ORDER '+o.id+'</p><h1>Your order journey.</h1><p>Placed '+formatDate(o.date)+' · '+money(o.total)+'</p></div><div class="tracking-card"><div class="tracking-steps">'+[['Order placed','Your order is confirmed and being prepared.'],['Packed with care','Our seller is preparing your beauty essentials.'],['On its way','You will receive a delivery update here.'],['Delivered','Enjoy your new favourites.']].map((x,i)=>'<div class="'+(i===0?'active':'')+'"><span>'+icon(i===0?'check':'bag',17)+'</span><div><strong>'+x[0]+'</strong><p>'+x[1]+'</p></div></div>').join('')+'</div><div class="tracking-items">'+(packagesHtml || ('<h3>In this order</h3>'+(o.items||[]).map(i=>'<p>'+i.name+' × '+i.qty+'</p>').join('')))+'<p style="margin-top:16px;"><strong>Delivery address</strong><br>'+esc(o.address?.text||state.addresses[0]?.text||'')+'</p></div></div></main>';
+  return '<main class="tracking-page"><button class="back-link" data-action="orders">← Back to orders</button><div class="page-heading"><p class="eyebrow">ORDER '+esc(o.id)+'</p><h1>Your order journey.</h1><p>Placed '+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(o.payment_method||'')+' ('+esc(o.payment_status||'pending')+')</p></div><div class="tracking-card"><div class="tracking-steps">'+[['Order placed','Your order is confirmed and being prepared.'],['Packed with care','Our seller is preparing your beauty essentials.'],['On its way','You will receive a delivery update here.'],['Delivered','Enjoy your new favourites.']].map((x,i)=>'<div class="'+(i<=activeStepIdx?'active':'')+'"><span>'+icon(i<=activeStepIdx?'check':'bag',17)+'</span><div><strong>'+x[0]+'</strong><p>'+x[1]+'</p></div></div>').join('')+'</div><div class="tracking-items">'+(packagesHtml || ('<h3>In this order</h3>'+(o.items||[]).map(i=>'<p>'+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty+'</p>').join('')))+'<p style="margin-top:16px;"><strong>Delivery address</strong><br>'+esc(o.address?.text||state.addresses[0]?.text||'')+'</p></div></div></main>';
 }
 
 async function loadPartnerData(){
@@ -897,7 +1036,7 @@ function partnerPage(){
   ] : [
     ['Listings & Products', (state.partnerSellerListings || []).length || (state.partnerSellerProducts || []).length || products.length],
     ['Active Suborders', (state.partnerSellerSuborders || state.partnerSellerOrders || state.orders).length],
-    ['Matured Payout', money(state.partnerSellerMVFinancials?.matured_balance ?? state.partnerFinancials?.net_earnings ?? 0)]
+    ['Matured Payout', money(state.partnerSellerMVFinancials?.matured_balance_available ?? state.partnerFinancials?.net_earnings ?? 0)]
   ];
 
   let body = '';
@@ -1131,13 +1270,13 @@ function partnerPage(){
       '</div>' +
       (suborders.length ? suborders.map(s => '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:12px">' +
         '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<div><strong>Suborder #'+esc(s.suborder_id)+'</strong><small>Parent: '+esc(s.parent_order_id)+' · '+(s.created_at?.slice(0,10)||'Recent')+' · '+money(s.subtotal)+' · Shipping: '+money(s.shipping_fee)+'</small></div>' +
+          '<div><strong>Suborder #'+esc(s.suborder_id)+'</strong><small>Parent: '+esc(s.parent_order_id)+' · '+(s.created_at?.slice(0,10)||'Recent')+' · '+money(s.subtotal)+' · Shipping: '+money(s.shipping_fee)+' · Payment: '+esc(s.payment_status||'pending')+'</small></div>' +
           '<span class="badge badge-'+(s.status==='delivered'?'approved':s.status==='cancelled'?'rejected':'info')+'">'+esc(s.status).toUpperCase()+'</span>' +
         '</div>' +
-        '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(s.shipping_address_label)+' — '+esc(s.shipping_address_text)+'</div>' +
+        '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(s.shipping_address_label||'Home')+' — '+esc(s.shipping_address_text||'')+'</div>' +
         (s.shipment ? '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">Carrier: <strong>'+esc(s.shipment.carrier_name)+'</strong> · Tracking AWB: <strong>'+esc(s.shipment.tracking_number)+'</strong>'+(s.shipment.tracking_url?' · <a href="'+esc(s.shipment.tracking_url)+'" target="_blank" style="color:var(--champagne)">Live Courier Tracking</a>':'')+'</div>' : '') +
         '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border)">' +
-          (s.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
+          (s.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+(i.sku?' · SKU: '+esc(i.sku):'')+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
         '</div>' +
         '<div style="display:flex;gap:8px;justify-content:flex-end">' +
           (s.status === 'placed' ? '<button class="btn btn-outline btn-sm" data-action="partner-suborder-pack" data-id="'+s.suborder_id+'">Pack Suborder</button>' : '') +
@@ -1151,7 +1290,7 @@ function partnerPage(){
         '</div>' +
         '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(o.address_text)+'</div>' +
         '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border)">' +
-          (o.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
+          (o.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
         '</div>' +
         '<div style="display:flex;gap:8px;justify-content:flex-end">' +
           (o.status === 'placed' ? '<button class="btn btn-outline btn-sm" data-action="partner-order-pack" data-id="'+o.id+'">Pack Order</button>' : '') +
@@ -1166,52 +1305,56 @@ function partnerPage(){
       '<div class="account-heading">' +
         '<div>' +
           '<h3>Customer Returns & Reverse Logistics</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Inspect client return requests. Approved returns trigger automated customer refund and optional inventory restocking.</p>' +
+          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Inspect client return requests. Approved returns trigger gateway refund orchestration and optional restocking.</p>' +
         '</div>' +
       '</div>' +
-      (returns.length ? returns.map(r => '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:10px">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center">' +
-          '<div><strong>Return #'+r.id+' · Suborder #'+esc(r.suborder_id)+'</strong><small>Requested: '+(r.created_at?.slice(0,10)||'Recent')+' · Item: '+esc(r.item_name || ('Item #'+r.order_item_id))+'</small></div>' +
-          '<span class="badge badge-'+(r.status==='APPROVED'?'approved':r.status==='REJECTED'?'rejected':'pending')+'">'+esc(r.status)+'</span>' +
-        '</div>' +
-        '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">' +
-          '<strong>Reason:</strong> '+esc(r.reason)+'<br>' +
-          (r.detailed_explanation ? '<span style="color:var(--muted)"><strong>Customer note:</strong> '+esc(r.detailed_explanation)+'</span><br>' : '') +
-          (r.rejection_reason ? '<span style="color:#721c24"><strong>Seller decision reason:</strong> '+esc(r.rejection_reason)+'</span>' : '') +
-        '</div>' +
-        (r.status === 'PENDING' ? '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-          '<button class="btn btn-success btn-sm" data-action="partner-return-approve" data-id="'+r.id+'">Approve & Restock</button>' +
-          '<button class="btn btn-danger btn-sm" data-action="partner-return-reject" data-id="'+r.id+'">Reject Return</button>' +
-        '</div>' : '') +
-      '</div>').join('') : empty('shield','No return requests','When customers submit reverse logistics requests, you can inspect and decision them here.')) +
+      (returns.length ? returns.map(r => {
+        const actionable = r.status === 'REQUESTED' || r.status === 'PENDING' || r.status === 'REFUND_FAILED';
+        const badgeCls = (r.status==='REFUNDED'||r.status==='APPROVED') ? 'approved' : (r.status==='REJECTED'||r.status==='REFUND_FAILED') ? 'rejected' : 'pending';
+        return '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:10px">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<div><strong>Return #'+esc(r.id)+' · Suborder #'+esc(r.suborder_id)+'</strong><small>Requested: '+(r.created_at?.slice(0,10)||'Recent')+' · Item #'+r.order_item_id+' (Qty: '+(r.return_qty||1)+') · Refund: '+money(r.refund_amount||0)+'</small></div>' +
+            '<span class="badge badge-'+badgeCls+'">'+esc(r.status)+'</span>' +
+          '</div>' +
+          '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">' +
+            '<strong>Reason:</strong> '+esc(r.reason)+'<br>' +
+            '<strong>Refund state:</strong> '+esc(r.refund_status||'NONE')+(r.gateway_refund_id ? ' (Gateway Ref: <code>'+esc(r.gateway_refund_id)+'</code>)' : '')+'<br>' +
+            (r.detailed_explanation ? '<span style="color:var(--muted)"><strong>Customer note:</strong> '+esc(r.detailed_explanation)+'</span><br>' : '') +
+            (r.rejection_reason ? '<span style="color:#721c24"><strong>Seller decision reason:</strong> '+esc(r.rejection_reason)+'</span>' : '') +
+          '</div>' +
+          (actionable ? '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+            '<button class="btn btn-success btn-sm" data-action="partner-return-approve" data-id="'+esc(r.id)+'">'+(r.status==='REFUND_FAILED'?'Retry Refund':'Approve & Restock')+'</button>' +
+            (r.status!=='REFUND_FAILED' ? '<button class="btn btn-danger btn-sm" data-action="partner-return-reject" data-id="'+esc(r.id)+'">Reject Return</button>' : '') +
+          '</div>' : '') +
+        '</div>';
+      }).join('') : empty('shield','No return requests','When customers submit reverse logistics requests, you can inspect and decision them here.')) +
     '</div>';
   } else if(tab === 'Escrow & settlement' || ['Earnings','Revenue analytics','Sales analytics','Analytics'].includes(tab)){
     const mvFin = state.partnerSellerMVFinancials;
     if(role === 'Product Seller' && mvFin){
       body = '<div class="admin-kpi-grid">' +
-        '<div class="admin-kpi-card"><span>HELD IN ESCROW</span><strong>'+money(mvFin.held_in_escrow)+'</strong><small>Pending delivery + 3-day window</small></div>' +
-        '<div class="admin-kpi-card"><span>MATURED / CLEARED</span><strong>'+money(mvFin.matured_balance)+'</strong><small>Cleared for disbursement</small></div>' +
-        '<div class="admin-kpi-card"><span>SETTLED DISBURSED</span><strong>'+money(mvFin.settled_balance)+'</strong><small>Paid to merchant account</small></div>' +
-        '<div class="admin-kpi-card"><span>TOTAL SALES VOLUME</span><strong>'+money(mvFin.total_gross)+'</strong><small>Commission fee: '+money(mvFin.total_commission)+'</small></div>' +
+        '<div class="admin-kpi-card"><span>HELD IN ESCROW</span><strong>'+money(mvFin.funds_in_escrow ?? 0)+'</strong><small>Pending delivery + 7-day return window</small></div>' +
+        '<div class="admin-kpi-card"><span>MATURED / CLEARED</span><strong>'+money(mvFin.matured_balance_available ?? 0)+'</strong><small>Eligible (T+7, no open returns)</small></div>' +
+        '<div class="admin-kpi-card"><span>SETTLED LEDGER</span><strong>'+money(mvFin.total_disbursed ?? 0)+'</strong><small>Marked settled internally</small></div>' +
+        '<div class="admin-kpi-card"><span>TOTAL SALES VOLUME</span><strong>'+money(mvFin.gross_sales ?? 0)+'</strong><small>Commission (15%): '+money(mvFin.platform_commission_15pct ?? 0)+' · Refunds: '+money(mvFin.refund_deductions ?? 0)+'</small></div>' +
       '</div>' +
       '<div class="dashboard-panel" style="margin-top:20px">' +
         '<div class="account-heading">' +
           '<div>' +
             '<h3>Multi-Vendor Escrow & Settlement Ledger</h3>' +
-            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">GlamGo Escrow holds merchant funds until 3 days ($T+3$) following confirmed delivery to protect against item disputes.</p>' +
+            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">GlamGo Escrow holds merchant funds for 7 days (T+7) after confirmed delivery and blocks maturity while any return remains unresolved.</p>' +
           '</div>' +
-          '<span class="badge badge-info">Policy: T+3 Cooling Period</span>' +
+          '<span class="badge badge-info">Policy: T+7 Return-Aligned Cooling Period</span>' +
         '</div>' +
-        (mvFin.records && mvFin.records.length ? 
-          '<div class="admin-table-wrap" style="margin-top:20px"><table class="admin-table"><thead><tr><th>Escrow ID</th><th>Suborder</th><th>Gross Amount</th><th>Platform Fee</th><th>Net Escrow</th><th>Status</th><th>Maturity Date</th></tr></thead><tbody>' +
-            mvFin.records.map(rec => '<tr>' +
-              '<td><code>#ESC-'+rec.id+'</code></td>' +
+        (mvFin.escrow_batches && mvFin.escrow_batches.length ? 
+          '<div class="admin-table-wrap" style="margin-top:20px"><table class="admin-table"><thead><tr><th>Suborder</th><th>Net Settlement</th><th>Refunded</th><th>Comm. Reversed</th><th>Status</th><th>Maturity Date</th></tr></thead><tbody>' +
+            mvFin.escrow_batches.map(rec => '<tr>' +
               '<td><strong>'+esc(rec.suborder_id)+'</strong></td>' +
-              '<td>'+money(rec.gross_amount)+'</td>' +
-              '<td>'+money(rec.platform_fee)+'</td>' +
               '<td><strong>'+money(rec.net_amount)+'</strong></td>' +
-              '<td><span class="badge badge-'+(rec.status==='MATURED'||rec.status==='SETTLED'?'approved':rec.status==='REFUNDED'?'rejected':'pending')+'">'+esc(rec.status)+'</span></td>' +
-              '<td><small>'+(rec.maturity_date ? new Date(rec.maturity_date).toLocaleDateString() : 'Pending Delivery')+'</small></td>' +
+              '<td>'+money(rec.refunded_amount || 0)+'</td>' +
+              '<td>'+money(rec.reversed_commission || 0)+'</td>' +
+              '<td><span class="badge badge-'+(rec.status==='MATURED'||rec.status==='SETTLED'?'approved':rec.status==='CLAWBACK_REFUND'?'rejected':'pending')+'">'+esc(rec.status)+'</span></td>' +
+              '<td><small>'+(rec.matures_at ? new Date(rec.matures_at).toLocaleDateString() : 'Pending Delivery')+'</small></td>' +
             '</tr>').join('') +
           '</tbody></table></div>' : '<p style="color:var(--muted);padding:25px 0">No escrow records initiated yet.</p>') +
       '</div>';
@@ -1811,11 +1954,11 @@ async function action(el){
     const prod = products.find(p => p.id === id);
     if(!prod) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
+    const chosenListingId = el.dataset.listing ? Number(el.dataset.listing) : ((chosenVariant && prod.variant_listings?.[chosenVariant]) || prod.default_listing_id || null);
     if(getStockInfo(prod, chosenVariant).soldOut || prod.in_stock === false || prod.soldOut === true) return;
-    state.cart[id] = (state.cart[id] || 0) + 1;
-    state.pendingCheckoutOrder = null;
-    state.pendingCheckoutKey = null;
-    state.paymentNotice = null;
+    const cartKey = makeCartKey(id, chosenVariant, chosenListingId);
+    state.cart[cartKey] = (state.cart[cartKey] || 0) + 1;
+    invalidateCheckoutState(true);
     if(chosenVariant){
       if(!state.cartVariants) state.cartVariants = {};
       state.cartVariants[id] = chosenVariant;
@@ -1839,11 +1982,11 @@ async function action(el){
     const prod = products.find(p => p.id === id);
     if(!prod) return;
     const chosenVariant = el.dataset.variant || (state.selectedProduct === id && state.productVariant) || prod?.variants?.[0] || '';
+    const chosenListingId = el.dataset.listing ? Number(el.dataset.listing) : ((chosenVariant && prod.variant_listings?.[chosenVariant]) || prod.default_listing_id || null);
     if(getStockInfo(prod, chosenVariant).soldOut || prod.in_stock === false || prod.soldOut === true) return;
-    state.cart[id]=(state.cart[id]||0)+1;
-    state.pendingCheckoutOrder = null;
-    state.pendingCheckoutKey = null;
-    state.paymentNotice = null;
+    const cartKey = makeCartKey(id, chosenVariant, chosenListingId);
+    state.cart[cartKey] = (state.cart[cartKey] || 0) + 1;
+    invalidateCheckoutState(true);
     if(chosenVariant){
       if(!state.cartVariants) state.cartVariants = {};
       state.cartVariants[id] = chosenVariant;
@@ -1851,21 +1994,32 @@ async function action(el){
     persist();
     if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
     navigate('checkout');
+    ensureCheckoutReservation();
   }
   else if(a==='cart') navigate('cart');
-  else if(a==='cart-remove'){ delete state.cart[id]; if(state.cartVariants) delete state.cartVariants[id]; state.pendingCheckoutOrder=null; state.pendingCheckoutKey=null; state.paymentNotice=null; persist(); render(); }
+  else if(a==='cart-remove'){
+    delete state.cart[id];
+    const parsedRm = parseCartKey(id);
+    if(state.cartVariants) delete state.cartVariants[parsedRm.productId];
+    invalidateCheckoutState(true);
+    persist();
+    render();
+  }
   else if(a==='cart-qty'){
     state.cart[id] = Math.max(0,(state.cart[id]||0)+Number(el.dataset.delta));
-    if(!state.cart[id]){ delete state.cart[id]; if(state.cartVariants) delete state.cartVariants[id]; }
-    state.pendingCheckoutOrder = null;
-    state.pendingCheckoutKey = null;
-    state.paymentNotice = null;
+    if(!state.cart[id]){
+      delete state.cart[id];
+      const parsedQty = parseCartKey(id);
+      if(state.cartVariants) delete state.cartVariants[parsedQty.productId];
+    }
+    invalidateCheckoutState(true);
     persist();
     render();
   }
   else if(a==='checkout'){
     if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
     navigate('checkout');
+    ensureCheckoutReservation();
   }
   else if(a==='payment'){ state.checkoutPayment=id; state.paymentNotice=null; render(); }
   else if(a==='place-order'){
@@ -1877,18 +2031,18 @@ async function action(el){
       toast('Add a delivery address first');
       return;
     }
-    const addr = state.addresses[Number(document.getElementById('checkout-address')?.value || 0)] || state.addresses[0];
-    const items = products.filter(p => state.cart[p.id]).map(p => ({
-      id: p.id,
-      qty: state.cart[p.id]
-    }));
-    if(!items.length){
+    const selIdx = Number(document.getElementById('checkout-address')?.value ?? state.selectedCheckoutAddressIdx ?? 0);
+    state.selectedCheckoutAddressIdx = selIdx;
+    const addr = state.addresses[selIdx] || state.addresses[0];
+    const entries = getCartEntries();
+    if(!entries.length){
       toast('Your bag is empty or catalog data is unavailable.');
       return;
     }
     const isCod = state.checkoutPayment === 'Cash on delivery';
+    const itemsFingerprint = entries.map(e => ({ k: e.key, q: e.qty })).sort((a, b) => a.k.localeCompare(b.k));
     const fingerprint = JSON.stringify({
-      items,
+      items: itemsFingerprint,
       coupon: state.coupon || '',
       addr: (addr.label || '') + '|' + (addr.text || ''),
       mode: isCod ? 'cod' : 'online'
@@ -1898,32 +2052,47 @@ async function action(el){
     render();
     try {
       let order;
-      if (state.pendingCheckoutOrder && state.pendingCheckoutOrder.fingerprint === fingerprint) {
+      if (state.pendingCheckoutOrder && state.pendingCheckoutOrder.fingerprint === fingerprint && state.pendingCheckoutOrder.order?.status !== 'cancelled') {
         order = state.pendingCheckoutOrder.order;
       } else {
+        const resData = await ensureCheckoutReservation();
+        if (!resData || !resData.reservation_token) {
+          state.paymentNotice = {
+            type: 'error',
+            title: 'Inventory reservation failed',
+            message: (state.pendingReservation?.error || 'Could not reserve selected items from seller inventory.') + ' Your bag selection is preserved.'
+          };
+          toast(state.pendingReservation?.error || 'Could not reserve stock');
+          return;
+        }
         if (!state.pendingCheckoutKey || state.pendingCheckoutOrder?.fingerprint !== fingerprint) {
           state.pendingCheckoutKey = 'ord-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
+          state.pendingPaymentKey = 'pay-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
         }
-        order = await apiCreateOrder({
-          items,
+        order = await apiMultiVendorCheckout({
+          reservation_token: resData.reservation_token,
           address_label: addr.label,
           address_text: addr.text,
           payment_method: state.checkoutPayment,
-          coupon: state.coupon || null,
+          coupon_code: state.coupon || null,
           idempotency_key: state.pendingCheckoutKey
         });
         state.pendingCheckoutOrder = { fingerprint, order };
       }
 
       if (isCod) {
-        if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(order);
-        state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed.` });
+        try {
+          const freshOrders = await apiGetMyOrders();
+          state.orders = freshOrders;
+        } catch {
+          if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(order);
+        }
+        state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed (Cash on Delivery).` });
         state.cart = {};
         state.cartVariants = {};
         state.coupon = '';
-        state.pendingCheckoutOrder = null;
-        state.pendingCheckoutKey = null;
-        state.paymentNotice = null;
+        state.couponDiscount = 0;
+        invalidateCheckoutState(true);
         persist();
         navigate('order-success');
         return;
@@ -1941,7 +2110,10 @@ async function action(el){
         return;
       }
 
-      const payOrder = await apiCreatePaymentOrder(order.total, order.id);
+      if (!state.pendingPaymentKey) {
+        state.pendingPaymentKey = 'pay-' + order.id + '-' + Date.now();
+      }
+      const payOrder = await apiCreatePaymentOrder(order.total, order.id, null, state.pendingPaymentKey);
       let terminalOutcome = false;
       const rzp = new window.Razorpay({
         key: payOrder.key_id || import.meta.env?.VITE_RAZORPAY_KEY_ID,
@@ -1959,21 +2131,39 @@ async function action(el){
         handler: async function (response) {
           terminalOutcome = true;
           try {
-            await apiVerifyPayment({
+            const verifyRes = await apiVerifyPayment({
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               order_id: order.id
             });
-            const paidOrder = { ...order, payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
-            if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(paidOrder);
+            if (verifyRes?.payment_status === 'refunded_oos' || verifyRes?.payment_status === 'refund_pending_oos' || verifyRes?.success === false) {
+              state.paymentNotice = {
+                type: 'error',
+                title: 'Stock sold out after hold expired',
+                message: verifyRes.message || 'An automatic full refund has been initiated. Please review your bag before retrying.'
+              };
+              state.pendingCheckoutOrder = null;
+              state.pendingReservation = null;
+              state.checkoutBusy = false;
+              persist();
+              render();
+              toast('Order out of stock; full refund initiated.');
+              return;
+            }
+            try {
+              const freshOrders = await apiGetMyOrders();
+              state.orders = freshOrders;
+            } catch {
+              const paidOrder = { ...order, payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
+              if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(paidOrder);
+            }
             state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed & paid.` });
             state.cart = {};
             state.cartVariants = {};
             state.coupon = '';
-            state.pendingCheckoutOrder = null;
-            state.pendingCheckoutKey = null;
-            state.paymentNotice = null;
+            state.couponDiscount = 0;
+            invalidateCheckoutState(true);
             state.checkoutBusy = false;
             persist();
             navigate('order-success');
@@ -2038,11 +2228,23 @@ async function action(el){
   else if(a==='return-request'){
     const suborderId = el.dataset.suborder;
     const itemId = parseInt(el.dataset.item, 10);
+    const maxQty = parseInt(el.dataset.qty || '1', 10) || 1;
+    let retQty = 1;
+    if (maxQty > 1) {
+      const qStr = prompt(`How many units are you returning? (1 to ${maxQty})`, String(maxQty));
+      if (qStr === null) return;
+      const parsedQty = parseInt(qStr, 10);
+      if (!parsedQty || parsedQty < 1 || parsedQty > maxQty) {
+        toast(`Please enter a valid quantity between 1 and ${maxQty}`);
+        return;
+      }
+      retQty = parsedQty;
+    }
     const reason = prompt('Please specify reason for return (e.g. Damaged in transit, Defective formula, Wrong shade, Unopened return):');
     if(!reason || !reason.trim()) return;
     const explanation = prompt('Additional details / notes for the seller (optional):') || '';
     try {
-      await apiSubmitReturnRequest(suborderId, itemId, reason.trim(), explanation.trim());
+      await apiSubmitReturnRequest(suborderId, itemId, reason.trim(), explanation.trim(), '', retQty);
       toast('Return request submitted to the merchant for inspection & refund.');
       const myOrders = await apiGetMyOrders();
       state.orders = myOrders;
@@ -2109,6 +2311,8 @@ async function action(el){
   else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; render(); }
   else if(a==='partners'){
     if(!requireAuth({ view: 'partner' }, 'Sign in to access the Salon & Partner Portal')) return;
+    const roleMap = { seller: 'Product Seller', salon_owner: 'Salon Owner', professional: 'Professional' };
+    if (roleMap[state.user?.role]) state.partnerRole = roleMap[state.user.role];
     state.partnerTab='Overview';
     navigate('partner');
     loadPartnerData();
@@ -2257,10 +2461,10 @@ async function action(el){
     }
   }
   else if(a==='partner-return-approve'){
-    const restock = confirm('Approve return and issue customer refund?\n\nPress OK to restock item back into inventory, or Cancel to approve refund without restocking.');
+    const restock = confirm('Approve return and initiate customer refund?\n\nPress OK to restock item back into inventory, or Cancel to approve refund without restocking.');
     try {
-      await apiDecideSellerReturn(id, 'APPROVE', restock);
-      toast('Return approved! Refund processed to customer.');
+      const res = await apiDecideSellerReturn(id, 'APPROVE', restock);
+      toast(res?.status === 'REFUNDED' ? 'Return approved & gateway refund completed.' : `Return updated: ${res?.status || 'REFUND_PENDING'} (${res?.refund_status || 'PENDING'})`);
       await loadPartnerData();
     } catch(err) {
       toast(err.message || 'Failed to approve return');
@@ -2542,6 +2746,7 @@ function applyPostAuthNavigation(role) {
     if (resume.accountTab) state.accountTab = resume.accountTab;
     state.view = resume.view;
     if (resume.view === 'partner') loadPartnerData();
+    if (resume.view === 'checkout') ensureCheckoutReservation();
     return null;
   }
   state.view = state.experience ? 'landing' : 'onboarding';
@@ -2636,11 +2841,13 @@ document.addEventListener('submit', async e => {
       const val = await apiValidateCoupon(code, cartTotal());
       if(val.valid){
         state.coupon = val.code;
-        state.pendingCheckoutOrder = null;
-        state.pendingCheckoutKey = null;
-        state.paymentNotice = null;
+        state.couponDiscount = Number(val.discount || 0);
+        invalidateCheckoutState(false);
         toast(val.message);
       } else {
+        state.coupon = '';
+        state.couponDiscount = 0;
+        invalidateCheckoutState(false);
         toast(val.message || 'This coupon is not available');
       }
       persist();
@@ -2849,6 +3056,10 @@ document.addEventListener('change', async e => {
   if(e.target.id === 'shop-brand-select'){
     state.shopBrand = e.target.value || 'All';
     render();
+  }
+  if(e.target.id === 'checkout-address'){
+    state.selectedCheckoutAddressIdx = Number(e.target.value || 0);
+    invalidateCheckoutState(false);
   }
   if(e.target.classList.contains('admin-role-select')){
     const userId = Number(e.target.dataset.userId);

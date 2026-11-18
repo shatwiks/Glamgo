@@ -244,6 +244,11 @@ def seed_database(db: Session):
                 )
                 db.add(var)
             db.commit()
+            db.refresh(product)
+            from backend.app.services.commerce_service import CommerceService
+            CommerceService.ensure_product_listings(db, product)
+            CommerceService.sync_product_stock(db, product.id)
+            db.commit()
 
     # 6. Seed Default Coupon
     coupon = db.query(Coupon).filter(Coupon.code == "GLAM10").first()

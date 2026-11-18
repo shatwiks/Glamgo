@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Table, CheckConstraint
 )
 from sqlalchemy.orm import relationship
 from backend.app.core.database import Base
@@ -90,6 +90,9 @@ class SalonStaff(Base):
 
 class Product(Base):
     __tablename__ = "products"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="ck_products_stock_non_negative"),
+    )
 
     id = Column(String(50), primary_key=True, index=True)  # b1, b2, etc.
     seller_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
@@ -115,6 +118,9 @@ class Product(Base):
 
 class ProductVariant(Base):
     __tablename__ = "product_variants"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="ck_product_variants_stock_non_negative"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String(50), ForeignKey("products.id", ondelete="CASCADE"), nullable=False)

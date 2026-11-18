@@ -1,5 +1,6 @@
+import hmac
 from typing import Generator, Optional, List
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 import jwt
@@ -96,3 +97,43 @@ require_professional = RoleChecker([UserRole.PROFESSIONAL])
 require_salon_owner = RoleChecker([UserRole.SALON_OWNER])
 require_seller = RoleChecker([UserRole.SELLER])
 require_partner = RoleChecker([UserRole.PROFESSIONAL, UserRole.SALON_OWNER, UserRole.SELLER, UserRole.ADMIN])
+
+
+def require_maintenance_auth(
+    request: Request,
+    db: Session = Depends(get_db),
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> dict:
+    """
+    Authenticate scheduled maintenance callers using either a configured
+    `X-Maintenance-Token` service secret or an authenticated Admin Bearer JWT.
+    Never trusts URL paths or CORS headers as authorization.
+    """
+    service_secret = (settings.INTERNAL_MAINTENANCE_TOKEN or "").strip()
+    header_secret = (request.headers.get("X-Maintenance-Token") or "").strip()
+
+    if header_secret:
+        if service_secret and hmac.compare_digest(header_secret, service_secret):
+            return {"actor": "maintenance_service"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid maintenance service credentials.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if token:
+        if service_secret and hmac.compare_digest(token, service_secret):
+            return {"actor": "maintenance_service"}
+        user = get_current_user(db=db, token=token)
+        if user.role != UserRole.ADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Operation not permitted. Admin or maintenance service credentials required.",
+            )
+        return {"actor": f"admin:{user.id}"}
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Valid maintenance service credentials required.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )

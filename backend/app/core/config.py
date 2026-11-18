@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
 
+    # Internal Scheduled Maintenance Service Token (required in production)
+    INTERNAL_MAINTENANCE_TOKEN: str = ""
+
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

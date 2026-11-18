@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, CheckConstraint
 )
 from sqlalchemy.orm import relationship
 from backend.app.core.database import Base
@@ -38,6 +38,8 @@ class ReturnStatus(str, enum.Enum):
     APPROVED = "APPROVED"
     IN_TRANSIT = "IN_TRANSIT"
     INSPECTED = "INSPECTED"
+    REFUND_PENDING = "REFUND_PENDING"
+    REFUND_FAILED = "REFUND_FAILED"
     REFUNDED = "REFUNDED"
     REJECTED = "REJECTED"
 
@@ -59,10 +61,15 @@ class EscrowStatus(str, enum.Enum):
 
 class SellerListing(Base):
     __tablename__ = "seller_listings"
+    __table_args__ = (
+        CheckConstraint("stock >= 0", name="ck_seller_listings_stock_non_negative"),
+        CheckConstraint("price > 0", name="ck_seller_listings_price_positive"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(String(50), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
     seller_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_name = Column(String(100), default="", server_default="", nullable=False, index=True)
     sku = Column(String(100), nullable=False)
     price = Column(Float, nullable=False)
     compare_at_price = Column(Float, default=0.0)
@@ -82,11 +89,17 @@ class SellerListing(Base):
 
 class InventoryReservation(Base):
     __tablename__ = "inventory_reservations"
+    __table_args__ = (
+        CheckConstraint("qty > 0", name="ck_inventory_reservations_qty_positive"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     reservation_token = Column(String(64), nullable=False, index=True)
     listing_id = Column(Integer, ForeignKey("seller_listings.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    order_id = Column(String(50), ForeignKey("orders.id", ondelete="SET NULL"), nullable=True, index=True)
+    variant_name = Column(String(100), default="", server_default="", nullable=False)
+    quoted_unit_price = Column(Float, nullable=True)
     qty = Column(Integer, default=1, nullable=False)
     status = Column(Enum(ReservationStatus), default=ReservationStatus.PENDING, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False, index=True)
@@ -143,19 +156,27 @@ class Shipment(Base):
 
 class ReturnRequest(Base):
     __tablename__ = "return_requests"
+    __table_args__ = (
+        CheckConstraint("return_qty > 0", name="ck_return_requests_qty_positive"),
+    )
 
     id = Column(String(60), primary_key=True, index=True)  # e.g. RET-GG1234567-01
     suborder_id = Column(String(60), ForeignKey("suborders.id", ondelete="CASCADE"), nullable=False, index=True)
     order_item_id = Column(Integer, ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False)
     customer_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     seller_id = Column(Integer, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True)
+    return_qty = Column(Integer, default=1, nullable=False)
     reason = Column(String(255), nullable=False)
     detailed_explanation = Column(Text, nullable=True)
     evidence_image_url = Column(String(500), nullable=True)
     status = Column(Enum(ReturnStatus), default=ReturnStatus.REQUESTED, nullable=False, index=True)
     rejection_reason = Column(Text, nullable=True)
     restock_approved = Column(Boolean, default=False, nullable=False)
+    restocked_at = Column(DateTime, nullable=True)
     refund_amount = Column(Float, nullable=False)
+    refund_paise = Column(Integer, default=0, nullable=False)
+    gateway_refund_id = Column(String(100), nullable=True, index=True)
+    refund_status = Column(String(50), default="NONE", nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -192,6 +213,8 @@ class SellerEscrowRecord(Base):
     gross_amount = Column(Float, nullable=False)
     platform_fee = Column(Float, nullable=False)
     net_settlement = Column(Float, nullable=False)
+    refunded_amount = Column(Float, default=0.0, nullable=False)
+    reversed_commission = Column(Float, default=0.0, nullable=False)
     status = Column(Enum(EscrowStatus), default=EscrowStatus.HELD_IN_ESCROW, nullable=False, index=True)
     delivered_at = Column(DateTime, nullable=True)
     matures_at = Column(DateTime, nullable=True, index=True)

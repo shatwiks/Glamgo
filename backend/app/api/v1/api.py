@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
+from backend.app.api.deps import require_maintenance_auth
 from backend.app.api.v1 import (
     auth, users, services, professionals, salons, products,
     bookings, orders, partners, admin, payments, reviews
@@ -33,22 +34,28 @@ def catalog_product_offers(product_id: str, db: Session = Depends(get_db)):
 
 api_router.include_router(catalog_router, prefix="/catalog", tags=["Catalog"])
 
-# Internal background engine tasks
+# Internal maintenance engine tasks (explicitly authenticated via X-Maintenance-Token or Admin JWT)
 internal_router = APIRouter()
 
 
 @internal_router.post("/inventory/expire-reservations")
-def expire_reservations_task(db: Session = Depends(get_db)):
+def expire_reservations_task(
+    db: Session = Depends(get_db),
+    _auth: dict = Depends(require_maintenance_auth),
+):
     from backend.app.services.commerce_service import CommerceService
     count = CommerceService.expire_pending_reservations(db)
-    return {"status": "success", "expired_reservations_count": count}
+    return {"status": "success", "expired_reservations_count": count, "actor": _auth["actor"]}
 
 
 @internal_router.post("/escrow/mature")
-def mature_escrow_task(db: Session = Depends(get_db)):
+def mature_escrow_task(
+    db: Session = Depends(get_db),
+    _auth: dict = Depends(require_maintenance_auth),
+):
     from backend.app.services.commerce_service import CommerceService
     count = CommerceService.mature_escrow_records(db)
-    return {"status": "success", "matured_records_count": count}
+    return {"status": "success", "matured_records_count": count, "actor": _auth["actor"]}
 
 
 api_router.include_router(internal_router, prefix="/internal", tags=["Internal Maintenance Engine"])

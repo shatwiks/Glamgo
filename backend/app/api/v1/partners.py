@@ -1,7 +1,7 @@
 import time
 import json
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -23,13 +23,16 @@ from backend.app.models.booking import Booking
 from backend.app.models.order import Order, OrderItem
 from backend.app.models.payment import PaymentTransaction
 from backend.app.models.commerce import (
-    SellerListing, SubOrder, SubOrderStatus, Shipment, ReturnRequest, SellerEscrowRecord, EscrowStatus
+    SellerListing, SubOrder, SubOrderStatus, Shipment, ShipmentStatus,
+    ReturnRequest, SellerEscrowRecord, EscrowStatus, InventoryAuditLog, StockAction
 )
 from backend.app.schemas.commerce import (
     SellerListingCreate, SellerListingUpdate, SellerListingResponse,
     ShipmentCreate, ReturnDecisionRequest, ReturnRequestResponse, SellerFinancialsResponse
 )
-from backend.app.services.commerce_service import CommerceService
+from backend.app.services.commerce_service import (
+    CommerceService, ESCROW_MATURITY_DAYS, is_cod_payment_method
+)
 from backend.app.services.cache_service import cache_service
 from backend.app.schemas.partner import (
     PartnerProfileUpdate,
@@ -84,6 +87,21 @@ def _format_salon(s: Salon) -> dict:
 
 
 def _format_product(p: Product) -> dict:
+    active_listings = sorted(
+        [l for l in (getattr(p, "seller_listings", None) or []) if l.is_active],
+        key=lambda l: (0 if l.seller_id == p.seller_id else 1, float(l.price or 0.0), l.id),
+    )
+    default_listing_id = active_listings[0].id if active_listings else None
+    variant_listings = {}
+    for v in (p.variants or []):
+        matching = [l for l in active_listings if (l.variant_name or "").strip() == v.name]
+        if matching:
+            variant_listings[v.name] = matching[0].id
+        else:
+            unscoped = [l for l in active_listings if not (l.variant_name or "").strip()]
+            if unscoped:
+                variant_listings[v.name] = unscoped[0].id
+
     return {
         "id": p.id,
         "seller_id": p.seller_id,
@@ -99,7 +117,9 @@ def _format_product(p: Product) -> dict:
         "description": p.description,
         "ingredients": p.ingredients or "",
         "stock": p.stock,
-        "variants": [{"id": v.id, "name": v.name, "stock": v.stock} for v in p.variants] if p.variants else []
+        "variants": [{"id": v.id, "name": v.name, "stock": v.stock} for v in p.variants] if p.variants else [],
+        "default_listing_id": default_listing_id,
+        "variant_listings": variant_listings,
     }
 
 
@@ -835,6 +855,11 @@ def create_seller_product(
         db.commit()
         db.refresh(product)
 
+    CommerceService.ensure_product_listings(db, product)
+    CommerceService.sync_product_stock(db, product.id)
+    db.commit()
+    db.refresh(product)
+
     cache_service.invalidate_catalog()
     return _format_product(product)
 
@@ -875,6 +900,19 @@ def update_seller_product(
     if payload.ingredients is not None:
         product.ingredients = payload.ingredients.strip()
 
+    if payload.price is not None or payload.old is not None:
+        owner_seller_id = product.seller_id or user.id
+        canonical_listings = db.query(SellerListing).filter(
+            SellerListing.product_id == product.id,
+            SellerListing.seller_id == owner_seller_id,
+        ).all()
+        for l in canonical_listings:
+            if payload.price is not None:
+                l.price = float(payload.price)
+            if payload.old is not None:
+                l.compare_at_price = float(payload.old)
+
+    CommerceService.sync_product_stock(db, product.id)
     db.commit()
     db.refresh(product)
     cache_service.invalidate_catalog()
@@ -898,7 +936,43 @@ def update_seller_stock(
             detail="Forbidden: Product belongs to another seller."
         )
 
-    product.stock = max(0, int(payload.stock))
+    target_stock = max(0, int(payload.stock))
+    owner_seller_id = product.seller_id or user.id
+    listings = (
+        db.query(SellerListing)
+        .filter(SellerListing.product_id == product.id, SellerListing.seller_id == owner_seller_id)
+        .order_by(SellerListing.id.asc())
+        .with_for_update()
+        .all()
+    )
+    if not listings:
+        CommerceService.ensure_product_listings(db, product)
+        listings = (
+            db.query(SellerListing)
+            .filter(SellerListing.product_id == product.id, SellerListing.seller_id == owner_seller_id)
+            .order_by(SellerListing.id.asc())
+            .with_for_update()
+            .all()
+        )
+
+    for idx, l in enumerate(listings):
+        before = int(l.stock or 0)
+        after = target_stock if idx == 0 else 0
+        if before != after:
+            l.stock = after
+            db.add(InventoryAuditLog(
+                listing_id=l.id,
+                seller_id=l.seller_id,
+                action=StockAction.MANUAL_ADJUSTMENT,
+                quantity_delta=after - before,
+                balance_before=before,
+                balance_after=after,
+                reference_type="MANUAL",
+                reference_id=product.id,
+            ))
+
+    db.flush()
+    CommerceService.sync_product_stock(db, product.id)
 
     # Low-stock notification trigger
     if product.stock <= 5:
@@ -930,12 +1004,22 @@ def add_seller_variant(
             detail="Forbidden: Product belongs to another seller."
         )
 
+    v_name = payload.name.strip()
+    if not v_name:
+        raise HTTPException(status_code=400, detail="Variant name cannot be empty.")
+    if any((v.name or "").strip().lower() == v_name.lower() for v in (product.variants or [])):
+        raise HTTPException(status_code=400, detail=f"Variant '{v_name}' already exists.")
+
     variant = ProductVariant(
         product_id=product.id,
-        name=payload.name.strip(),
-        stock=int(payload.stock or 50)
+        name=v_name,
+        stock=max(0, int(payload.stock if payload.stock is not None else 50))
     )
     db.add(variant)
+    db.flush()
+    db.refresh(product)
+    CommerceService.ensure_product_listings(db, product)
+    CommerceService.sync_product_stock(db, product.id)
     db.commit()
     db.refresh(variant)
     cache_service.invalidate_catalog()
@@ -947,22 +1031,32 @@ def get_seller_orders(
     user: User = Depends(require_seller),
     db: Session = Depends(get_db)
 ):
-    # Orders containing this seller's products
-    orders = db.query(Order).join(OrderItem).join(Product).filter(
-        Product.seller_id == user.id
+    # Orders containing this seller's items or products
+    orders = db.query(Order).join(OrderItem).outerjoin(Product).filter(
+        or_(OrderItem.seller_id == user.id, Product.seller_id == user.id)
     ).order_by(Order.created_at.desc()).distinct().all()
 
     results = []
     for o in orders:
         seller_items = [
-            {"id": i.id, "product_id": i.product_id, "name": i.name, "qty": i.qty, "price": i.price}
-            for i in o.items if i.product and i.product.seller_id == user.id
+            {
+                "id": i.id,
+                "product_id": i.product_id,
+                "name": i.name,
+                "variant_name": i.variant_name or "",
+                "sku": i.sku or "",
+                "qty": i.qty,
+                "price": i.price,
+                "allocated_discount": i.allocated_discount or 0.0,
+            }
+            for i in o.items if (i.seller_id == user.id or (i.product and i.product.seller_id == user.id))
         ]
         results.append({
             "id": o.id,
             "date": o.date,
             "total": o.total,
             "status": o.status.value,
+            "payment_method": o.payment_method,
             "payment_status": o.payment_status,
             "address_text": o.address_text,
             "items": seller_items
@@ -977,12 +1071,15 @@ def update_seller_order_status(
     user: User = Depends(require_seller),
     db: Session = Depends(get_db)
 ):
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = db.query(Order).filter(Order.id == order_id).with_for_update().first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
-    # Check seller ownership of products in order
-    seller_items = [i for i in order.items if i.product and i.product.seller_id == user.id]
+    # Check seller ownership of products/suborders in order
+    seller_items = [
+        i for i in order.items
+        if (i.seller_id == user.id or (i.product and i.product.seller_id == user.id))
+    ]
     if user.role != UserRole.ADMIN and not seller_items:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -994,7 +1091,12 @@ def update_seller_order_status(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid order status '{payload.status}'.")
 
-    is_cod = (order.payment_method or "").strip().upper() in ("COD", "CASH ON DELIVERY", "CASH")
+    if order.status == OrderStatus.CANCELLED and new_status != OrderStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="Cannot modify a cancelled order.")
+    if order.status == OrderStatus.DELIVERED and new_status != OrderStatus.DELIVERED:
+        raise HTTPException(status_code=400, detail="Cannot regress a delivered order.")
+
+    is_cod = is_cod_payment_method(order.payment_method)
     if (
         new_status in (OrderStatus.PACKED, OrderStatus.IN_TRANSIT, OrderStatus.DELIVERED)
         and not is_cod
@@ -1005,7 +1107,40 @@ def update_seller_order_status(
             detail="Cannot fulfill an online order before payment is confirmed."
         )
 
-    order.status = new_status
+    now_utc = datetime.now(timezone.utc)
+    sub_query = db.query(SubOrder).filter(SubOrder.parent_order_id == order.id)
+    all_subs = sub_query.with_for_update().all()
+    if all_subs:
+        target_subs = all_subs if user.role == UserRole.ADMIN else [s for s in all_subs if s.seller_id == user.id]
+        status_map = {
+            OrderStatus.PLACED: SubOrderStatus.PLACED,
+            OrderStatus.PACKED: SubOrderStatus.PACKED,
+            OrderStatus.IN_TRANSIT: SubOrderStatus.IN_TRANSIT,
+            OrderStatus.DELIVERED: SubOrderStatus.DELIVERED,
+            OrderStatus.CANCELLED: SubOrderStatus.CANCELLED,
+        }
+        mapped_sub_status = status_map[new_status]
+        for sub in target_subs:
+            sub.status = mapped_sub_status
+            sub.updated_at = now_utc
+            if mapped_sub_status == SubOrderStatus.DELIVERED:
+                shipment = db.query(Shipment).filter(Shipment.suborder_id == sub.id).first()
+                if shipment:
+                    shipment.delivered_at = shipment.delivered_at or now_utc
+                    shipment.status = ShipmentStatus.DELIVERED
+                escrow = db.query(SellerEscrowRecord).filter(SellerEscrowRecord.suborder_id == sub.id).with_for_update().first()
+                if escrow and escrow.status == EscrowStatus.HELD_IN_ESCROW:
+                    if escrow.delivered_at is None:
+                        escrow.delivered_at = now_utc
+                    if escrow.matures_at is None:
+                        escrow.matures_at = now_utc + timedelta(days=ESCROW_MATURITY_DAYS)
+        db.flush()
+        CommerceService._rollup_parent_order_status(db, order.id)
+    else:
+        order.status = new_status
+
+    if is_cod and order.status == OrderStatus.DELIVERED and order.payment_status in ("pending", "cod_pending"):
+        order.payment_status = "cod_collected"
 
     # Dispatched tracking updates to customer
     db.add(Notification(
@@ -1019,6 +1154,7 @@ def update_seller_order_status(
     return {
         "id": order.id,
         "status": order.status.value,
+        "payment_status": order.payment_status,
         "date": order.date,
         "total": order.total
     }
@@ -1041,6 +1177,7 @@ def get_seller_listings(
             "product_id": l.product_id,
             "seller_id": l.seller_id,
             "seller_name": user.full_name,
+            "variant_name": l.variant_name or "",
             "sku": l.sku,
             "price": l.price,
             "compare_at_price": l.compare_at_price,
@@ -1066,6 +1203,7 @@ def create_seller_listing_endpoint(
         "product_id": listing.product_id,
         "seller_id": listing.seller_id,
         "seller_name": user.full_name,
+        "variant_name": listing.variant_name or "",
         "sku": listing.sku,
         "price": listing.price,
         "compare_at_price": listing.compare_at_price,
@@ -1091,6 +1229,7 @@ def update_seller_listing_endpoint(
         "product_id": listing.product_id,
         "seller_id": listing.seller_id,
         "seller_name": user.full_name,
+        "variant_name": listing.variant_name or "",
         "sku": listing.sku,
         "price": listing.price,
         "compare_at_price": listing.compare_at_price,
@@ -1117,6 +1256,7 @@ def get_seller_suborders(
 
     results = []
     for s in suborders:
+        parent = s.parent_order
         shipment_data = None
         if s.shipment:
             shipment_data = {
@@ -1133,6 +1273,10 @@ def get_seller_suborders(
             "parent_order_id": s.parent_order_id,
             "seller_id": s.seller_id,
             "seller_name": user.full_name,
+            "payment_method": parent.payment_method if parent else None,
+            "payment_status": parent.payment_status if parent else None,
+            "shipping_address_label": parent.address_label if parent else None,
+            "shipping_address_text": parent.address_text if parent else None,
             "subtotal": s.subtotal,
             "shipping_fee": s.shipping_fee,
             "discount": s.discount,
@@ -1143,8 +1287,12 @@ def get_seller_suborders(
                     "order_item_id": oi.id,
                     "product_id": oi.product_id,
                     "name": oi.name,
+                    "variant_name": oi.variant_name or "",
+                    "sku": oi.sku or "",
+                    "seller_name": oi.seller_name or user.full_name,
                     "qty": oi.qty,
-                    "price": oi.price
+                    "price": oi.price,
+                    "allocated_discount": oi.allocated_discount or 0.0,
                 }
                 for oi in s.items
             ],
@@ -1166,6 +1314,9 @@ def get_seller_suborder_detail(
     if user.role != UserRole.ADMIN and s.seller_id != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to another merchant's suborder")
 
+    parent = s.parent_order
+    seller_display_name = s.seller.full_name if s.seller else user.full_name
+
     shipment_data = None
     if s.shipment:
         shipment_data = {
@@ -1184,7 +1335,11 @@ def get_seller_suborder_detail(
         "suborder_id": s.id,
         "parent_order_id": s.parent_order_id,
         "seller_id": s.seller_id,
-        "seller_name": user.full_name,
+        "seller_name": seller_display_name,
+        "payment_method": parent.payment_method if parent else None,
+        "payment_status": parent.payment_status if parent else None,
+        "shipping_address_label": parent.address_label if parent else None,
+        "shipping_address_text": parent.address_text if parent else None,
         "subtotal": s.subtotal,
         "shipping_fee": s.shipping_fee,
         "discount": s.discount,
@@ -1195,8 +1350,12 @@ def get_seller_suborder_detail(
                 "order_item_id": oi.id,
                 "product_id": oi.product_id,
                 "name": oi.name,
+                "variant_name": oi.variant_name or "",
+                "sku": oi.sku or "",
+                "seller_name": oi.seller_name or seller_display_name,
                 "qty": oi.qty,
-                "price": oi.price
+                "price": oi.price,
+                "allocated_discount": oi.allocated_discount or 0.0,
             }
             for oi in s.items
         ],

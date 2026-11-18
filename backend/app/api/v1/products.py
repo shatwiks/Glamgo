@@ -13,6 +13,32 @@ router = APIRouter()
 
 
 def format_product(p: Product) -> dict:
+    variants = list(p.variants or [])
+    active_listings = sorted(
+        [l for l in (getattr(p, "seller_listings", None) or []) if l.is_active],
+        key=lambda l: (0 if l.seller_id == p.seller_id else 1, float(l.price or 0.0), l.id),
+    )
+    default_listing_id = active_listings[0].id if active_listings else None
+
+    variant_listings = {}
+    variant_stocks = {}
+    for v in variants:
+        matching = [l for l in active_listings if (l.variant_name or "").strip() == v.name]
+        if matching:
+            variant_listings[v.name] = matching[0].id
+            variant_stocks[v.name] = sum(max(0, int(l.stock or 0)) for l in matching)
+        else:
+            unscoped = [l for l in active_listings if not (l.variant_name or "").strip()]
+            if unscoped:
+                variant_listings[v.name] = unscoped[0].id
+            variant_stocks[v.name] = v.stock if v.stock is not None else 50
+
+    computed_stock = (
+        sum(max(0, int(l.stock or 0)) for l in active_listings)
+        if active_listings
+        else (p.stock if p.stock is not None else 100)
+    )
+
     return {
         "id": p.id,
         "brand": p.brand,
@@ -26,9 +52,11 @@ def format_product(p: Product) -> dict:
         "tag": p.tag or "",
         "description": p.description,
         "ingredients": p.ingredients or "",
-        "variants": [v.name for v in p.variants] if p.variants else [],
-        "stock": p.stock if p.stock is not None else 100,
-        "variant_stocks": {v.name: (v.stock if v.stock is not None else 50) for v in (p.variants or [])}
+        "variants": [v.name for v in variants],
+        "stock": computed_stock,
+        "variant_stocks": variant_stocks,
+        "default_listing_id": default_listing_id,
+        "variant_listings": variant_listings,
     }
 
 
@@ -69,7 +97,7 @@ def get_products(
     elif sort == "reviews":
         q = q.order_by(Product.reviews.desc())
 
-    products = q.options(selectinload(Product.variants)).all()
+    products = q.options(selectinload(Product.variants), selectinload(Product.seller_listings)).all()
     result = [format_product(p) for p in products]
     cache_service.set(cache_key, result, ttl=300)
     return result
@@ -83,7 +111,12 @@ def get_product_categories(db: Session = Depends(get_db)):
 
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(product_id: str, db: Session = Depends(get_db)):
-    product = db.query(Product).filter(Product.id == product_id).first()
+    product = (
+        db.query(Product)
+        .options(selectinload(Product.variants), selectinload(Product.seller_listings))
+        .filter(Product.id == product_id)
+        .first()
+    )
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
     return format_product(product)
@@ -118,6 +151,11 @@ def create_product(
     for v in prod_in.variants:
         variant = ProductVariant(product_id=product.id, name=v, stock=50)
         db.add(variant)
+    db.commit()
+    db.refresh(product)
+
+    CommerceService.ensure_product_listings(db, product)
+    CommerceService.sync_product_stock(db, product.id)
     db.commit()
     db.refresh(product)
 

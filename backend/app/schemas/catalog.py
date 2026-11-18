@@ -104,6 +104,8 @@ class ProductResponse(BaseModel):
     variants: List[str] = []
     stock: int = 100
     variant_stocks: Dict[str, int] = {}
+    default_listing_id: Optional[int] = None
+    variant_listings: Dict[str, int] = {}
 
     model_config = ConfigDict(from_attributes=True)
 

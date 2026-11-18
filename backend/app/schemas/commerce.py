@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ConfigDict
 class SellerListingBase(BaseModel):
     product_id: str
     sku: str
+    variant_name: str = ""
     price: float = Field(..., gt=0)
     compare_at_price: Optional[float] = 0.0
     stock: int = Field(default=0, ge=0)
@@ -23,6 +24,7 @@ class SellerListingCreate(SellerListingBase):
 
 class SellerListingUpdate(BaseModel):
     sku: Optional[str] = None
+    variant_name: Optional[str] = None
     price: Optional[float] = Field(None, gt=0)
     compare_at_price: Optional[float] = None
     stock: Optional[int] = Field(None, ge=0)
@@ -53,7 +55,9 @@ class ProductOffersResponse(BaseModel):
 # Milestone B & C: Cart, Reservation & Checkout
 # -------------------------------------------------------------
 class ReservationItem(BaseModel):
-    listing_id: int
+    listing_id: Optional[int] = None
+    product_id: Optional[str] = None
+    variant_name: Optional[str] = ""
     qty: int = Field(..., gt=0)
 
 
@@ -65,6 +69,8 @@ class SellerGroupedItem(BaseModel):
     listing_id: int
     product_id: str
     product_name: str
+    variant_name: str = ""
+    sku: str = ""
     qty: int
     unit_price: float
     line_total: float
@@ -94,6 +100,7 @@ class MultiVendorCheckoutRequest(BaseModel):
     address_text: str
     coupon_code: Optional[str] = None
     payment_method: Optional[str] = "Razorpay"
+    idempotency_key: Optional[str] = None
 
 
 class SubOrderSummary(BaseModel):
@@ -108,24 +115,22 @@ class SubOrderSummary(BaseModel):
     items_count: int
 
 
-class MultiVendorPaymentDetails(BaseModel):
-    gateway: str
-    razorpay_order_id: str
-    amount: float
-    currency: str
-    key_id: str
-
-
 class MultiVendorCheckoutResponse(BaseModel):
+    id: str
     order_id: str
     date: str
     status: str
+    payment_method: str
+    payment_status: str
     subtotal: float
     discount: float
     shipping: float
+    shipping_fee: float
     total: float
+    reservation_token: Optional[str] = None
+    address: Dict[str, Any] = {}
+    items: List[Dict[str, Any]] = []
     suborders: List[SubOrderSummary]
-    payment: MultiVendorPaymentDetails
 
 
 # -------------------------------------------------------------
@@ -156,11 +161,18 @@ class OrderItemDetail(BaseModel):
     order_item_id: int
     product_id: Optional[str] = None
     name: str
+    variant_name: str = ""
+    sku: str = ""
+    seller_name: str = ""
     qty: int
     price: float
+    allocated_discount: float = 0.0
     seller_listing_id: Optional[int] = None
     return_eligible: bool = False
     return_deadline: Optional[datetime] = None
+    return_status: Optional[str] = None
+    refund_status: Optional[str] = None
+    gateway_refund_id: Optional[str] = None
 
 
 class SubOrderDetailResponse(BaseModel):
@@ -186,6 +198,7 @@ class SubOrderDetailResponse(BaseModel):
 # -------------------------------------------------------------
 class ReturnRequestCreate(BaseModel):
     order_item_id: int
+    qty: Optional[int] = Field(None, gt=0)
     reason: str
     detailed_explanation: Optional[str] = None
     evidence_image_url: Optional[str] = None
@@ -195,6 +208,7 @@ class ReturnDecisionRequest(BaseModel):
     action: str = Field(..., pattern="^(APPROVE|REJECT)$")
     restock_inventory: bool = True
     rejection_reason: Optional[str] = None
+    cod_refund_confirmed: bool = True
 
 
 class ReturnRequestResponse(BaseModel):
@@ -203,13 +217,18 @@ class ReturnRequestResponse(BaseModel):
     order_item_id: int
     customer_id: int
     seller_id: int
+    return_qty: int = 1
     reason: str
     detailed_explanation: Optional[str] = None
     evidence_image_url: Optional[str] = None
     status: str
     rejection_reason: Optional[str] = None
     restock_approved: bool
+    restocked_at: Optional[datetime] = None
     refund_amount: float
+    refund_paise: int = 0
+    refund_status: str = "NONE"
+    gateway_refund_id: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
@@ -222,6 +241,8 @@ class ReturnRequestResponse(BaseModel):
 class EscrowBatchSummary(BaseModel):
     suborder_id: str
     net_amount: float
+    refunded_amount: float = 0.0
+    reversed_commission: float = 0.0
     status: str
     delivered_at: Optional[datetime] = None
     matures_at: Optional[datetime] = None

@@ -439,10 +439,15 @@ export async function apiGetAdminOrders() {
 }
 
 // Payments
-export async function apiCreatePaymentOrder(amount, orderId = null, bookingId = null) {
+export async function apiCreatePaymentOrder(amount, orderId = null, bookingId = null, idempotencyKey = null) {
   return await apiRequest('/payments/razorpay/create-order', {
     method: 'POST',
-    body: JSON.stringify({ amount, order_id: orderId, booking_id: bookingId }),
+    body: JSON.stringify({
+      amount,
+      order_id: orderId,
+      booking_id: bookingId,
+      idempotency_key: idempotencyKey || undefined,
+    }),
   });
 }
 
@@ -546,15 +551,19 @@ export async function apiDeliverSellerSuborder(suborderId) {
   });
 }
 
-export async function apiSubmitReturnRequest(suborderId, orderItemId, reason, detailedExplanation = '', evidenceImageUrl = '') {
+export async function apiSubmitReturnRequest(suborderId, orderItemId, reason, detailedExplanation = '', evidenceImageUrl = '', qty = null) {
+  const body = {
+    order_item_id: orderItemId,
+    reason,
+    detailed_explanation: detailedExplanation,
+    evidence_image_url: evidenceImageUrl,
+  };
+  if (qty !== null && qty !== undefined && Number(qty) > 0) {
+    body.qty = Number(qty);
+  }
   return await apiRequest(`/orders/suborders/${suborderId}/return`, {
     method: 'POST',
-    body: JSON.stringify({
-      order_item_id: orderItemId,
-      reason,
-      detailed_explanation: detailedExplanation,
-      evidence_image_url: evidenceImageUrl,
-    }),
+    body: JSON.stringify(body),
   });
 }
 

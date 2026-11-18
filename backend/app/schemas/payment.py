@@ -6,6 +6,7 @@ class PaymentOrderCreate(BaseModel):
     amount: Optional[float] = None
     order_id: Optional[str] = None
     booking_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 
 class PaymentOrderResponse(BaseModel):
@@ -28,3 +29,4 @@ class PaymentVerifyResponse(BaseModel):
     success: bool
     status: str
     message: str
+    payment_status: Optional[str] = None
