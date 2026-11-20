@@ -216,6 +216,8 @@ def seed_database(db: Session):
     for p_data in PRODUCTS_DATA:
         product = db.query(Product).filter(Product.id == p_data["id"]).first()
         if not product:
+            v_names = p_data.get("variants", [])
+            initial_prod_stock = (50 * len(v_names)) if v_names else 100
             product = Product(
                 id=p_data["id"],
                 seller_id=seller_user.id if seller_user else None,
@@ -230,7 +232,7 @@ def seed_database(db: Session):
                 tag=p_data["tag"],
                 description=p_data["description"],
                 ingredients=p_data["ingredients"],
-                stock=100,
+                stock=initial_prod_stock,
                 is_active=True
             )
             db.add(product)

@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 import redis
 from backend.app.core.config import settings
 
@@ -34,3 +34,24 @@ def check_redis_health() -> bool:
     except Exception as e:
         logger.warning("Redis health check failed: %s", e)
         return False
+
+
+def get_redis_status() -> Tuple[str, bool]:
+    """
+    Evaluate cache readiness according to configuration policy:
+      - If REDIS_URL is configured: ping must succeed -> ('healthy', True) else ('unhealthy', False).
+      - If REDIS_URL is intentionally blank:
+          - If REDIS_REQUIRED is True -> ('unhealthy', False)
+          - Otherwise intentional single-instance memory fallback -> ('fallback_memory', True).
+    """
+    redis_url = (getattr(settings, "REDIS_URL", None) or "").strip()
+    redis_required = bool(getattr(settings, "REDIS_REQUIRED", False))
+
+    if not redis_url:
+        if redis_required:
+            return "unhealthy", False
+        return "fallback_memory", True
+
+    if check_redis_health():
+        return "healthy", True
+    return "unhealthy", False

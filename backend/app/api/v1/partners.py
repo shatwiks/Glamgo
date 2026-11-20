@@ -830,6 +830,11 @@ def create_seller_product(
     db: Session = Depends(get_db)
 ):
     pid = f"b{int(time.time()*1000)}"
+    variants_clean = [v.strip() for v in (payload.variants or []) if v and v.strip()]
+    total_init_stock = max(
+        0,
+        int(payload.stock if payload.stock is not None else (50 * len(variants_clean) if variants_clean else 100))
+    )
     product = Product(
         id=pid,
         seller_id=user.id,
@@ -842,16 +847,17 @@ def create_seller_product(
         tag=payload.tag.strip() if payload.tag else "",
         description=payload.description.strip(),
         ingredients=payload.ingredients.strip() if payload.ingredients else None,
-        stock=int(payload.stock or 100),
+        stock=total_init_stock,
         is_active=True
     )
     db.add(product)
     db.commit()
     db.refresh(product)
 
-    if payload.variants:
-        for v in payload.variants:
-            db.add(ProductVariant(product_id=product.id, name=v.strip(), stock=50))
+    if variants_clean:
+        base_v, rem_v = divmod(total_init_stock, len(variants_clean))
+        for idx, v in enumerate(variants_clean):
+            db.add(ProductVariant(product_id=product.id, name=v, stock=base_v + (1 if idx < rem_v else 0)))
         db.commit()
         db.refresh(product)
 
@@ -1271,6 +1277,7 @@ def get_seller_suborders(
         results.append({
             "suborder_id": s.id,
             "parent_order_id": s.parent_order_id,
+            "parent_order_status": parent.status.value if parent else None,
             "seller_id": s.seller_id,
             "seller_name": user.full_name,
             "payment_method": parent.payment_method if parent else None,
@@ -1334,6 +1341,7 @@ def get_seller_suborder_detail(
     return {
         "suborder_id": s.id,
         "parent_order_id": s.parent_order_id,
+        "parent_order_status": parent.status.value if parent else None,
         "seller_id": s.seller_id,
         "seller_name": seller_display_name,
         "payment_method": parent.payment_method if parent else None,

@@ -20,7 +20,9 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL
-        value: "" # Built-in graceful in-memory fallback
+        value: "" # Empty uses in-memory fallback (valid only when WEB_CONCURRENCY=1)
+      - key: REDIS_REQUIRED
+        value: "false" # Set to "true" when scaling WEB_CONCURRENCY > 1 with managed Redis
       - key: SECRET_KEY
         generateValue: true
       - key: AUTO_MIGRATE

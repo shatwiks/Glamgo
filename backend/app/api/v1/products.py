@@ -31,12 +31,12 @@ def format_product(p: Product) -> dict:
             unscoped = [l for l in active_listings if not (l.variant_name or "").strip()]
             if unscoped:
                 variant_listings[v.name] = unscoped[0].id
-            variant_stocks[v.name] = v.stock if v.stock is not None else 50
+            variant_stocks[v.name] = max(0, int(v.stock or 0))
 
     computed_stock = (
         sum(max(0, int(l.stock or 0)) for l in active_listings)
         if active_listings
-        else (p.stock if p.stock is not None else 100)
+        else max(0, int(p.stock or 0))
     )
 
     return {
@@ -130,6 +130,8 @@ def create_product(
 ):
     import time
     pid = prod_in.id or f"b{int(time.time()*1000)}"
+    variants_list = [v.strip() for v in (prod_in.variants or []) if v and v.strip()]
+    initial_stock = (50 * len(variants_list)) if variants_list else 100
     product = Product(
         id=pid,
         seller_id=user.id,
@@ -142,13 +144,13 @@ def create_product(
         tag=prod_in.tag or "",
         description=prod_in.description,
         ingredients=prod_in.ingredients,
-        stock=100
+        stock=initial_stock
     )
     db.add(product)
     db.commit()
     db.refresh(product)
 
-    for v in prod_in.variants:
+    for v in variants_list:
         variant = ProductVariant(product_id=product.id, name=v, stock=50)
         db.add(variant)
     db.commit()

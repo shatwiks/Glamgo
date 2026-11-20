@@ -48,6 +48,8 @@ class OrderResponse(BaseModel):
     payment_status: str
     razorpay_order_id: Optional[str] = None
     reservation_token: Optional[str] = None
+    oos_refund_status: Optional[str] = None
+    oos_refund_id: Optional[str] = None
     address: Dict[str, Any]
     created_at: datetime
     suborders: Optional[List[Dict[str, Any]]] = None

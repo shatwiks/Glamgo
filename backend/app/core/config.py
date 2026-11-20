@@ -20,6 +20,7 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = "redis://127.0.0.1:6382/0"
+    REDIS_REQUIRED: bool = False
 
     # Payments (Razorpay) - loaded exclusively from environment variables / .env
     RAZORPAY_KEY_ID: str = ""

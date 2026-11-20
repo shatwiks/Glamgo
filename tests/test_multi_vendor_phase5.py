@@ -109,20 +109,35 @@ def _install_mock_gateway(monkeypatch):
             "captured": True,
         }
 
-    def create_refund(payment_id, payload=None):
+    def create_refund(payment_id, payload=None, headers=None, **kwargs):
         payload = payload or {}
         rid = f"rfnd_mv_{secrets.token_hex(6)}"
-        refunds_store[rid] = payload
-        return {
+        ref_obj = {
             "id": rid,
             "payment_id": payment_id,
             "amount": payload.get("amount", 0),
+            "receipt": payload.get("receipt"),
+            "notes": payload.get("notes", {}),
             "status": "processed",
         }
+        refunds_store[rid] = ref_obj
+        return ref_obj
+
+    def fetch_refund_id(payment_id, refund_id, **kwargs):
+        return refunds_store[refund_id]
+
+    def fetch_multiple_refund(payment_id, data=None, **kwargs):
+        items = [r for r in refunds_store.values() if r["payment_id"] == payment_id]
+        return {"entity": "collection", "count": len(items), "items": items}
 
     mock_client = SimpleNamespace(
         order=SimpleNamespace(create=create_order),
-        payment=SimpleNamespace(fetch=fetch_payment, refund=create_refund),
+        payment=SimpleNamespace(
+            fetch=fetch_payment,
+            refund=create_refund,
+            fetch_refund_id=fetch_refund_id,
+            fetch_multiple_refund=fetch_multiple_refund,
+        ),
     )
     monkeypatch.setattr("backend.app.api.v1.payments.get_razorpay_client", lambda: mock_client)
     return mock_client

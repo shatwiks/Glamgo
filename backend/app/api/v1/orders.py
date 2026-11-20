@@ -7,7 +7,7 @@ from backend.app.core.database import get_db
 from backend.app.api.deps import get_current_user
 from backend.app.models.user import User, Address
 from backend.app.models.order import Order, Coupon
-from backend.app.models.commerce import SubOrder, ReturnRequest
+from backend.app.models.commerce import SubOrder, ReturnRequest, RefundRecord
 from backend.app.schemas.order import (
     OrderCreate, OrderResponse, OrderItemResponse,
     CouponValidateRequest, CouponValidateResponse
@@ -80,6 +80,18 @@ def format_order(order: Order, db: Optional[Session] = None) -> dict:
                 ]
             })
 
+    oos_rec = None
+    if db is not None and order.payment_status in ("refund_pending_oos", "refunded_oos"):
+        oos_rec = (
+            db.query(RefundRecord)
+            .filter(
+                RefundRecord.order_id == order.id,
+                RefundRecord.refund_type == "OOS_AUTO",
+            )
+            .order_by(RefundRecord.id.desc())
+            .first()
+        )
+
     return {
         "id": order.id,
         "date": order.date,
@@ -106,6 +118,8 @@ def format_order(order: Order, db: Optional[Session] = None) -> dict:
         "payment_status": order.payment_status,
         "razorpay_order_id": order.razorpay_order_id,
         "reservation_token": order.reservation_token,
+        "oos_refund_status": oos_rec.status if oos_rec else None,
+        "oos_refund_id": oos_rec.provider_refund_id if oos_rec else None,
         "address": {
             "label": order.address_label,
             "text": order.address_text

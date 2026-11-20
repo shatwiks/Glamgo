@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from backend.app.core.config import settings
 from backend.app.core.database import get_db, engine
-from backend.app.core.redis_client import check_redis_health
+from backend.app.core.redis_client import check_redis_health, get_redis_status
 from backend.app.core.logging_config import (
     configure_structured_logging,
     CorrelationIdMiddleware,
@@ -93,32 +93,36 @@ def liveness_probe():
     return {"status": "alive", "app": settings.PROJECT_NAME}
 
 
+def _check_db_ping(db: Session) -> bool:
+    bind = getattr(db, "bind", None)
+    if bind is not None:
+        with bind.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return True
+    db.execute(text("SELECT 1"))
+    return True
+
+
 @app.get("/health/ready", tags=["Health"])
 def readiness_probe(response: Response, db: Session = Depends(get_db)):
-    """Readiness probe: validates all underlying infrastructure dependencies (DB, Redis)."""
+    """Readiness probe: validates required DB and Redis dependencies per REDIS_REQUIRED policy."""
     db_ok = False
     try:
-        db.execute(text("SELECT 1"))
-        db_ok = True
+        db_ok = _check_db_ping(db)
     except Exception as e:
         logger.warning("Readiness probe DB check failed: %s", e)
         db_ok = False
 
-    redis_ok = False
-    try:
-        redis_ok = check_redis_health()
-    except Exception as e:
-        logger.warning("Readiness probe Redis check failed: %s", e)
-        redis_ok = False
-
-    is_ready = db_ok and redis_ok
+    cache_status, cache_ready = get_redis_status()
+    is_ready = db_ok and cache_ready
     if not is_ready:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
 
     return {
         "status": "ready" if is_ready else "degraded",
         "database": "healthy" if db_ok else "unhealthy",
-        "cache": "healthy" if redis_ok else "unhealthy"
+        "cache": cache_status,
+        "redis_required": bool(settings.REDIS_REQUIRED),
     }
 
 
@@ -126,18 +130,18 @@ def readiness_probe(response: Response, db: Session = Depends(get_db)):
 def health_check(response: Response, db: Session = Depends(get_db)):
     """Unified health endpoint (backward-compatible with earlier phases)."""
     try:
-        db.execute(text("SELECT 1"))
+        _check_db_ping(db)
         db_status = "healthy"
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
 
-    redis_ok = check_redis_health()
+    cache_status, _ = get_redis_status()
 
     return {
         "status": "online",
         "app": settings.PROJECT_NAME,
         "database": db_status,
-        "cache": "healthy" if redis_ok else "degraded"
+        "cache": cache_status if cache_status != "unhealthy" else "degraded",
     }
 
 

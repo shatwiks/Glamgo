@@ -30,3 +30,6 @@ class PaymentVerifyResponse(BaseModel):
     status: str
     message: str
     payment_status: Optional[str] = None
+    order_status: Optional[str] = None
+    refund_status: Optional[str] = None
+    refund_id: Optional[str] = None

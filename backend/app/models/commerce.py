@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import enum
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, CheckConstraint
+    Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, Enum, CheckConstraint, Index, text
 )
 from sqlalchemy.orm import relationship
 from backend.app.core.database import Base
@@ -177,6 +177,7 @@ class ReturnRequest(Base):
     refund_paise = Column(Integer, default=0, nullable=False)
     gateway_refund_id = Column(String(100), nullable=True, index=True)
     refund_status = Column(String(50), default="NONE", nullable=False)
+    refunded_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -184,6 +185,84 @@ class ReturnRequest(Base):
     order_item = relationship("OrderItem")
     customer = relationship("User", foreign_keys=[customer_id])
     seller = relationship("User", foreign_keys=[seller_id])
+    refund_record = relationship("RefundRecord", back_populates="return_request", uselist=False)
+
+
+class RefundRecord(Base):
+    __tablename__ = "refund_records"
+    __table_args__ = (
+        CheckConstraint("amount_paise > 0", name="ck_refund_records_amount_positive"),
+        Index("uq_refund_records_logical_key", "logical_key", unique=True),
+        Index("uq_refund_records_idempotency_key", "idempotency_key", unique=True),
+        Index("uq_refund_records_receipt", "receipt", unique=True),
+        Index(
+            "uq_refund_records_return_request_id",
+            "return_request_id",
+            unique=True,
+            postgresql_where=text("return_request_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_refund_records_provider_refund_id",
+            "provider_refund_id",
+            unique=True,
+            postgresql_where=text("provider_refund_id IS NOT NULL"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    logical_key = Column(String(120), nullable=False)
+    idempotency_key = Column(String(80), nullable=False)
+    receipt = Column(String(40), nullable=False)
+    refund_type = Column(String(30), nullable=False)  # 'RETURN' | 'OOS_AUTO'
+    order_id = Column(String(50), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    suborder_id = Column(String(60), ForeignKey("suborders.id", ondelete="SET NULL"), nullable=True, index=True)
+    return_request_id = Column(String(60), ForeignKey("return_requests.id", ondelete="SET NULL"), nullable=True)
+    payment_transaction_id = Column(Integer, ForeignKey("payment_transactions.id", ondelete="SET NULL"), nullable=True, index=True)
+    captured_payment_id = Column(String(100), nullable=True, index=True)
+    amount_paise = Column(Integer, nullable=False)
+    currency = Column(String(10), default="INR", server_default="INR", nullable=False)
+    payload_json = Column(Text, nullable=True)
+    provider_refund_id = Column(String(100), nullable=True)
+    status = Column(String(40), default="INITIATED", server_default="INITIATED", nullable=False, index=True)
+    attempt_count = Column(Integer, default=0, server_default="0", nullable=False)
+    max_attempts = Column(Integer, default=5, server_default="5", nullable=False)
+    last_error = Column(Text, nullable=True)
+    dispatch_started_at = Column(DateTime, nullable=True)
+    next_retry_at = Column(DateTime, nullable=True, index=True)
+    accounting_applied_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)
+
+    return_request = relationship("ReturnRequest", back_populates="refund_record")
+    accounting_entry = relationship("RefundAccountingEntry", back_populates="refund_record", uselist=False)
+
+
+class RefundAccountingEntry(Base):
+    __tablename__ = "refund_accounting_entries"
+    __table_args__ = (
+        CheckConstraint("refund_paise > 0", name="ck_refund_accounting_amount_positive"),
+        Index("uq_refund_accounting_refund_record_id", "refund_record_id", unique=True),
+        Index(
+            "uq_refund_accounting_provider_refund_id",
+            "provider_refund_id",
+            unique=True,
+            postgresql_where=text("provider_refund_id IS NOT NULL"),
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    refund_record_id = Column(Integer, ForeignKey("refund_records.id", ondelete="RESTRICT"), nullable=False)
+    provider_refund_id = Column(String(100), nullable=True)
+    order_id = Column(String(50), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    suborder_id = Column(String(60), ForeignKey("suborders.id", ondelete="SET NULL"), nullable=True, index=True)
+    escrow_record_id = Column(Integer, ForeignKey("seller_escrow_records.id", ondelete="SET NULL"), nullable=True, index=True)
+    refund_paise = Column(Integer, nullable=False)
+    commission_reversal_paise = Column(Integer, default=0, server_default="0", nullable=False)
+    seller_deduction_paise = Column(Integer, default=0, server_default="0", nullable=False)
+    applied_via = Column(String(40), nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    refund_record = relationship("RefundRecord", back_populates="accounting_entry")
 
 
 class InventoryAuditLog(Base):

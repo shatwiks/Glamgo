@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.api.deps import require_maintenance_auth
@@ -56,6 +56,17 @@ def mature_escrow_task(
     from backend.app.services.commerce_service import CommerceService
     count = CommerceService.mature_escrow_records(db)
     return {"status": "success", "matured_records_count": count, "actor": _auth["actor"]}
+
+
+@internal_router.post("/refunds/recover")
+def recover_refunds_task(
+    dry_run: bool = Query(False),
+    db: Session = Depends(get_db),
+    _auth: dict = Depends(require_maintenance_auth),
+):
+    from backend.app.services.refund_service import RefundService
+    summary = RefundService.recover_pending_refunds(db, dry_run=dry_run)
+    return {"status": "success", "actor": _auth["actor"], **summary}
 
 
 api_router.include_router(internal_router, prefix="/internal", tags=["Internal Maintenance Engine"])
