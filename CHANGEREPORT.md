@@ -1,3 +1,26 @@
+# Change Report
+
+## Prompt Entry #5 — 2026-11-21 03:58 IST — Admin Panel Redesign
+**Objective:** Redesign the full admin panel to look better and be easier to use while keeping the existing GlamGo colour theme. References: Stripe Dashboard, Linear, Shopify Admin.
+
+### Files changed
+- `src/app.js`
+  - Rewrote `adminPage()`. The sidebar is now grouped into Overview, Operations, Catalog and Governance, with live counts, a pending badge, an admin profile card, and Partner Portal / Exit links.
+  - Added a sticky top bar. Its title and subtitle change with the active tab, and it shows a "Synced" time, a Refresh button (`admin-refresh`), a "Review N Pending" button and an Operational status pill.
+  - Overview: KPI cards now show the real take rate. **Bug fix:** the cards read `avg_booking_value`/`avg_order_value`, but the backend sends `average_booking_value`/`average_order_value`, so both averages always showed ?0. Also added a segmented GMV split bar with percentages per vertical, clickable roster pills (`admin-jump-users`) and redesigned Pending Applications / Recent Audit feeds.
+  - Added instant search and filter pills to Moderation, Users, Bookings, Orders, Services, Products and Audit Trail, with counts on each pill. One shared input handler keeps the caret position. Status badges now get a colour from each row's status. Audit metadata shows as chips instead of raw JSON.
+  - New state fields: `adminDraftSearch`, `adminBookingFilter/Search`, `adminOrderFilter/Search`, `adminCatalogSearch`, `adminAuditSearch`, `adminLastSynced`. `loadAdminData()` now records the sync time.
+  - Fixed a leftover `apiGetAuditLogs(50, 0)` call in the approve-draft handler. It is now `apiGetAuditLogs(null, 50, 0)`.
+- `styles.css`: replaced the `.admin-*` block. Same ivory/cream/espresso/champagne/terracotta palette and Cormorant + Manrope type. Added a sticky sidebar and top bar, rounded cards, tabular numbers, the GMV bar, pills and search boxes, and better tables, badges and empty states. Responsive breakpoints at 1180, 960 and 560px. Removed the 78px offset, because the admin view renders no site header.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7).
+- `impeccable detect` ? 1 existing warning (`cream-palette` on the page background, which is the brand colour and was kept on purpose). No `dark-glow` warnings.
+- Playwright run, logged in as the seeded local admin, against the Vite dev server and a local backend:
+  - KPI cards: GMV ?34,504; commission ?5,175.6 (15.0%); 6 bookings, avg ?1,165.67; 10 orders, avg ?2,751.
+  - All 8 tabs rendered with the correct top-bar title. Row counts: users 16, bookings 6, orders 10, services 8, products 7, audit 2, moderation 0 (queue empty).
+  - User search "admin" ? 1 row, and the input kept focus. Refresh updated the "Synced" time.
+  - No horizontal overflow at 1440, 768 and 390px. 0 console errors, 0 page errors, 0 failed requests.
 # GlamGo Change Report (`CHANGEREPORT.md`)
 
 > **Standing Workflow Policy:** Every prompt that modifies the repository appends a structured entry to `CHANGEREPORT.md` detailing every modified/added file, why it changed, and verified checks before pushing changes to GitHub.

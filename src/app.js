@@ -220,8 +220,16 @@ const defaults = {
   adminOrders: [],
   adminTab: 'overview',
   adminDraftFilter: 'ALL',
+  adminDraftSearch: '',
   adminUserFilter: 'ALL',
-  adminUserSearch: ''
+  adminUserSearch: '',
+  adminBookingFilter: 'ALL',
+  adminBookingSearch: '',
+  adminOrderFilter: 'ALL',
+  adminOrderSearch: '',
+  adminCatalogSearch: '',
+  adminAuditSearch: '',
+  adminLastSynced: ''
 };
 
 let saved = {};
@@ -266,8 +274,16 @@ const state = {
   adminOrders: [],
   adminTab: 'overview',
   adminDraftFilter: 'ALL',
+  adminDraftSearch: '',
   adminUserFilter: 'ALL',
   adminUserSearch: '',
+  adminBookingFilter: 'ALL',
+  adminBookingSearch: '',
+  adminOrderFilter: 'ALL',
+  adminOrderSearch: '',
+  adminCatalogSearch: '',
+  adminAuditSearch: '',
+  adminLastSynced: '',
   selectedDraftId: null,
   reviews: [],
   catalogFeedsLoading: {
@@ -1762,6 +1778,7 @@ async function loadAdminData(){
     if(logs.status === 'fulfilled') state.adminAuditLogs = logs.value;
     if(bookings.status === 'fulfilled') state.adminBookings = bookings.value;
     if(orders.status === 'fulfilled') state.adminOrders = orders.value;
+    state.adminLastSynced = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     render();
   } catch(err) {
     console.warn('[Admin] Live sync notice:', err);
@@ -1770,50 +1787,104 @@ async function loadAdminData(){
 
 function adminPage(){
   if(state.user?.role !== 'admin'){
-    return '<div class="admin-shell"><main class="admin-main"><div class="admin-panel"><h2>Access Restricted</h2><p>Administrator privileges are required to view this command centre.</p><button class="btn btn-primary" data-action="landing">Return to GlamGo Store</button></div></main></div>';
+    return '<div class="admin-shell"><main class="admin-main"><div class="admin-panel admin-empty-state"><h2>Access Restricted</h2><p>Administrator privileges are required to view this command centre.</p><button class="btn btn-primary" data-action="landing">Return to GlamGo Store</button></div></main></div>';
   }
 
   const tab = state.adminTab || 'overview';
-  const pendingCount = (state.adminDrafts || []).filter(d => d.status === 'PENDING').length;
+  const allDrafts = state.adminDrafts || [];
+  const allUsers = state.adminUsers || [];
+  const allBookings = state.adminBookings || [];
+  const allOrders = state.adminOrders || [];
+  const allLogs = state.adminAuditLogs || [];
+  const pendingCount = allDrafts.filter(d => d.status === 'PENDING').length;
 
-  const sidebar = '<aside class="admin-sidebar">' +
+  const initials = (str) => {
+    const parts = String(str || 'GA').trim().split(/\s+/).filter(Boolean);
+    return ((parts[0]?.[0] || '') + (parts[1]?.[0] || parts[0]?.[1] || '')).toUpperCase() || 'GA';
+  };
+
+  const statusTone = (status) => {
+    const s = String(status || '').toLowerCase();
+    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail')) return 'rejected';
+    if(s.includes('pend') || s.includes('progress') || s.includes('process') || s.includes('hold')) return 'pending';
+    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('paid')) return 'approved';
+    return 'info';
+  };
+
+  const formatAuditAction = (action) => String(action || 'EVENT').replace(/_/g, ' ');
+
+  const formatAuditMeta = (details) => {
+    if(!details || typeof details !== 'object') return '<span class="admin-muted">—</span>';
+    const entries = Object.entries(details).filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if(!entries.length) return '<span class="admin-muted">—</span>';
+    return '<div class="admin-meta-chips">' + entries.slice(0, 4).map(([k, v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v);
+      return '<span class="admin-meta-chip"><b>' + esc(k.replace(/_/g, ' ')) + ':</b> ' + esc(val.length > 34 ? val.slice(0, 34) + '…' : val) + '</span>';
+    }).join('') + '</div>';
+  };
+
+  const TAB_META = {
+    overview: { title: 'Executive Overview', subtitle: 'Platform GMV, vertical revenue mix, pending approvals, and governance signals.' },
+    moderation: { title: 'Partner Moderation', subtitle: 'Verify and approve incoming salon owners, beauty specialists, and product sellers.' },
+    users: { title: 'User Governance', subtitle: 'Manage customer, partner, and administrator roles and account access.' },
+    bookings: { title: 'Global Bookings', subtitle: 'Monitor doorstep beauty rituals and in-parlour salon appointments.' },
+    orders: { title: 'Global Orders', subtitle: 'Track beauty e-commerce checkouts, payment states, and fulfillment.' },
+    services: { title: 'Service Catalog', subtitle: 'Curated doorstep treatments and salon service listings across GlamGo.' },
+    products: { title: 'Product Inventory', subtitle: 'Active beauty retail catalogue, brands, and pricing.' },
+    'audit-logs': { title: 'Audit Trail', subtitle: 'Immutable record of administrative actions, targets, and client IPs.' }
+  };
+  const currentMeta = TAB_META[tab] || TAB_META.overview;
+
+  const navBtn = (id, ico, label, count, alertCount) =>
+    '<button class="admin-nav-item ' + (tab === id ? 'active' : '') + '" data-action="admin-tab" data-id="' + id + '">' +
+      icon(ico, 15) +
+      '<span class="admin-nav-label">' + label + '</span>' +
+      (alertCount > 0
+        ? '<span class="admin-nav-badge">' + alertCount + '</span>'
+        : (typeof count === 'number' ? '<span class="admin-nav-count">' + count + '</span>' : '')) +
+    '</button>';
+
+  const sidebar = '<aside class="admin-sidebar" aria-label="Admin navigation">' +
     '<div class="admin-sidebar-brand">' +
-      '<a class="wordmark light" href="#" data-action="landing" style="text-decoration:none">GLAMGO<span>✦</span></a>' +
-      '<h3>Command Centre</h3>' +
-      '<span>PLATFORM GOVERNANCE</span>' +
+      '<a class="admin-brand-link" href="#landing" data-action="landing">' +
+        '<span class="admin-brand-word">GLAMGO</span><span class="admin-brand-dot" aria-hidden="true"></span>' +
+      '</a>' +
+      '<div class="admin-brand-sub">Command Centre</div>' +
     '</div>' +
-    '<button class="admin-nav-item '+(tab==='overview'?'active':'')+'" data-action="admin-tab" data-id="overview">' +
-      icon('grid', 16) + '<span>Executive Overview</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='moderation'?'active':'')+'" data-action="admin-tab" data-id="moderation">' +
-      icon('shield', 16) + '<span>Partner Moderation</span>' +
-      (pendingCount > 0 ? '<span class="admin-nav-badge">'+pendingCount+'</span>' : '') +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='users'?'active':'')+'" data-action="admin-tab" data-id="users">' +
-      icon('user', 16) + '<span>User Governance</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='bookings'?'active':'')+'" data-action="admin-tab" data-id="bookings">' +
-      icon('calendar', 16) + '<span>Global Bookings</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='orders'?'active':'')+'" data-action="admin-tab" data-id="orders">' +
-      icon('bag', 16) + '<span>Global Orders</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='services'?'active':'')+'" data-action="admin-tab" data-id="services">' +
-      icon('spark', 16) + '<span>Service Catalog</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='products'?'active':'')+'" data-action="admin-tab" data-id="products">' +
-      icon('truck', 16) + '<span>Product Inventory</span>' +
-    '</button>' +
-    '<button class="admin-nav-item '+(tab==='audit-logs'?'active':'')+'" data-action="admin-tab" data-id="audit-logs">' +
-      icon('clock', 16) + '<span>Audit Trail</span>' +
-    '</button>' +
-    '<div style="margin-top:auto;padding-top:20px;border-top:1px solid rgba(255,255,255,0.1)">' +
-      '<button class="admin-nav-item" data-action="partners">' +
-        icon('spark', 16) + '<span>Salon & Partner Portal</span>' +
-      '</button>' +
-      '<button class="admin-nav-item" data-action="landing">' +
-        icon('arrow', 16) + '<span>Exit to Store</span>' +
-      '</button>' +
+    '<nav class="admin-nav-groups">' +
+      '<div class="admin-nav-group">' +
+        '<div class="admin-nav-group-label">Overview</div>' +
+        navBtn('overview', 'grid', 'Executive Overview', null, 0) +
+      '</div>' +
+      '<div class="admin-nav-group">' +
+        '<div class="admin-nav-group-label">Operations</div>' +
+        navBtn('moderation', 'shield', 'Partner Moderation', allDrafts.length, pendingCount) +
+        navBtn('bookings', 'calendar', 'Global Bookings', allBookings.length, 0) +
+        navBtn('orders', 'bag', 'Global Orders', allOrders.length, 0) +
+      '</div>' +
+      '<div class="admin-nav-group">' +
+        '<div class="admin-nav-group-label">Catalog</div>' +
+        navBtn('services', 'spark', 'Service Catalog', services.length, 0) +
+        navBtn('products', 'truck', 'Product Inventory', products.length, 0) +
+      '</div>' +
+      '<div class="admin-nav-group">' +
+        '<div class="admin-nav-group-label">Governance</div>' +
+        navBtn('users', 'user', 'User Governance', allUsers.length, 0) +
+        navBtn('audit-logs', 'clock', 'Audit Trail', allLogs.length, 0) +
+      '</div>' +
+    '</nav>' +
+    '<div class="admin-sidebar-footer">' +
+      '<div class="admin-profile-card">' +
+        '<div class="admin-avatar">' + esc(initials(state.user.name)) + '</div>' +
+        '<div class="admin-profile-meta">' +
+          '<strong>' + esc(state.user.name) + '</strong>' +
+          '<span>' + esc(state.user.email) + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="admin-footer-links">' +
+        '<button class="admin-nav-item" data-action="partners">' + icon('spark', 15) + '<span class="admin-nav-label">Partner Portal</span></button>' +
+        '<button class="admin-nav-item" data-action="landing">' + icon('arrow', 15) + '<span class="admin-nav-label">Exit to Store</span></button>' +
+      '</div>' +
     '</div>' +
   '</aside>';
 
@@ -1832,177 +1903,397 @@ function adminPage(){
       services_gmv: 0,
       salons_gmv: 0,
       ecommerce_gmv: 0,
-      avg_booking_value: 0,
-      avg_order_value: 0
+      average_booking_value: 0,
+      average_order_value: 0
     };
 
-    const pendingDrafts = (state.adminDrafts || []).filter(d => d.status === 'PENDING').slice(0, 4);
-    const recentLogs = (state.adminAuditLogs || []).slice(0, 4);
+    const avgBookingVal = stats.average_booking_value ?? stats.avg_booking_value ?? 0;
+    const avgOrderVal = stats.average_order_value ?? stats.avg_order_value ?? 0;
+    const gmvTotal = Number(stats.gross_merchandise_value || 0);
+    const servicesGmv = Number(stats.services_gmv || 0);
+    const salonsGmv = Number(stats.salons_gmv || 0);
+    const ecomGmv = Number(stats.ecommerce_gmv || 0);
+    const splitSum = servicesGmv + salonsGmv + ecomGmv;
+    const pct = (v) => splitSum > 0 ? Math.round((v / splitSum) * 100) : 0;
+    const svcPct = pct(servicesGmv);
+    const salPct = pct(salonsGmv);
+    const ecoPct = splitSum > 0 ? Math.max(0, 100 - svcPct - salPct) : 0;
+    const totalTx = (stats.total_bookings || 0) + (stats.total_orders || 0);
+    const takeRate = gmvTotal > 0 ? ((Number(stats.platform_commission || 0) / gmvTotal) * 100).toFixed(1) : '15.0';
 
-    mainContent = '<div class="admin-kpi-grid">' +
-      '<div class="admin-kpi-card"><span>TOTAL GMV</span><strong>'+money(stats.gross_merchandise_value || 0)+'</strong><small>Platform Gross Merchandise Value</small></div>' +
-      '<div class="admin-kpi-card"><span>COMMISSION (15%)</span><strong>'+money(stats.platform_commission || 0)+'</strong><small>Net Platform Revenue</small></div>' +
-      '<div class="admin-kpi-card"><span>TOTAL BOOKINGS</span><strong>'+(stats.total_bookings || 0)+'</strong><small>Avg '+money(stats.avg_booking_value || 0)+'/booking</small></div>' +
-      '<div class="admin-kpi-card"><span>TOTAL ORDERS</span><strong>'+(stats.total_orders || 0)+'</strong><small>Avg '+money(stats.avg_order_value || 0)+'/order</small></div>' +
-    '</div>' +
-    '<div class="admin-panel">' +
-      '<div class="admin-panel-head">' +
-        '<h2>Vertical GMV Contribution</h2>' +
-        '<span class="admin-status-pulse"><i></i> Live Platform Metrics</span>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:20px;margin-bottom:20px">' +
-        '<div style="background:var(--ivory);padding:20px;border:1px solid var(--border)">' +
-          '<span style="font-size:10px;font-weight:800;letter-spacing:0.1em;color:var(--muted)">AT-HOME SERVICES</span>' +
-          '<h3 style="font-family:var(--serif);font-size:28px;margin:8px 0 4px">'+money(stats.services_gmv || 0)+'</h3>' +
-          '<small style="color:var(--muted)">Doorstep treatments</small>' +
-        '</div>' +
-        '<div style="background:var(--ivory);padding:20px;border:1px solid var(--border)">' +
-          '<span style="font-size:10px;font-weight:800;letter-spacing:0.1em;color:var(--muted)">SALON APPOINTMENTS</span>' +
-          '<h3 style="font-family:var(--serif);font-size:28px;margin:8px 0 4px">'+money(stats.salons_gmv || 0)+'</h3>' +
-          '<small style="color:var(--muted)">In-parlour bookings</small>' +
-        '</div>' +
-        '<div style="background:var(--ivory);padding:20px;border:1px solid var(--border)">' +
-          '<span style="font-size:10px;font-weight:800;letter-spacing:0.1em;color:var(--muted)">BEAUTY E-COMMERCE</span>' +
-          '<h3 style="font-family:var(--serif);font-size:28px;margin:8px 0 4px">'+money(stats.ecommerce_gmv || 0)+'</h3>' +
-          '<small style="color:var(--muted)">Beauty retail store sales</small>' +
-        '</div>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:15px;padding-top:15px;border-top:1px solid var(--border)">' +
-        '<div><small style="font-weight:700">Customers:</small> <strong>'+(stats.customers_count || 0)+'</strong></div>' +
-        '<div><small style="font-weight:700">Professionals:</small> <strong>'+(stats.professionals_count || 0)+'</strong></div>' +
-        '<div><small style="font-weight:700">Salons:</small> <strong>'+(stats.salons_count || 0)+'</strong></div>' +
-        '<div><small style="font-weight:700">Product Sellers:</small> <strong>'+(stats.sellers_count || 0)+'</strong></div>' +
-      '</div>' +
-    '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px">' +
-      '<div class="admin-panel">' +
-        '<div class="admin-panel-head">' +
-          '<h2>Pending Applications</h2>' +
-          '<button class="btn btn-outline btn-sm" data-action="admin-tab" data-id="moderation">View all</button>' +
-        '</div>' +
-        (pendingDrafts.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Applicant</th><th>Role</th><th>Listing</th><th>Action</th></tr></thead><tbody>' +
-          pendingDrafts.map(d => '<tr><td><strong>'+esc(d.applicant_name||d.user_id)+'</strong><br><small>'+esc(d.applicant_email||'')+'</small></td><td><span class="badge badge-info">'+esc(d.role)+'</span></td><td>'+esc(d.name)+'<br><small>'+money(d.price)+'</small></td><td><div class="admin-actions"><button class="btn btn-success btn-sm" data-action="admin-approve-draft" data-id="'+d.id+'">Approve</button><button class="btn btn-danger btn-sm" data-action="admin-reject-draft" data-id="'+d.id+'">Reject</button></div></td></tr>').join('') +
-        '</tbody></table></div>' : '<p style="color:var(--muted);padding:10px 0">No pending partner applications.</p>') +
-      '</div>' +
-      '<div class="admin-panel">' +
-        '<div class="admin-panel-head">' +
-          '<h2>Recent Audit Events</h2>' +
-          '<button class="btn btn-outline btn-sm" data-action="admin-tab" data-id="audit-logs">View all</button>' +
-        '</div>' +
-        (recentLogs.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Action</th><th>Target</th><th>Time</th></tr></thead><tbody>' +
-          recentLogs.map(l => '<tr><td><span class="badge badge-info">'+esc(l.action)+'</span></td><td>'+esc(l.target_type)+' #'+esc(l.target_id||'-')+'</td><td><small>'+new Date(l.created_at).toLocaleTimeString()+'</small></td></tr>').join('') +
-        '</tbody></table></div>' : '<p style="color:var(--muted);padding:10px 0">No audit logs recorded yet.</p>') +
-      '</div>' +
-    '</div>';
-  } else if(tab === 'moderation'){
-    const filter = state.adminDraftFilter || 'ALL';
-    let drafts = state.adminDrafts || [];
-    if(filter !== 'ALL') drafts = drafts.filter(d => d.status === filter);
+    const pendingDrafts = allDrafts.filter(d => d.status === 'PENDING').slice(0, 5);
+    const recentLogs = allLogs.slice(0, 5);
 
-    mainContent = '<div class="admin-panel">' +
+    mainContent = '<section class="admin-kpi-grid" aria-label="Key metrics">' +
+      '<div class="admin-kpi-card admin-kpi-featured">' +
+        '<div class="admin-kpi-top"><span>Total GMV</span><span class="admin-kpi-tag">Gross</span></div>' +
+        '<strong class="admin-num">' + money(gmvTotal) + '</strong>' +
+        '<small>' + totalTx + ' total bookings & retail orders</small>' +
+      '</div>' +
+      '<div class="admin-kpi-card">' +
+        '<div class="admin-kpi-top"><span>Platform Commission</span><span class="admin-kpi-tag">' + takeRate + '%</span></div>' +
+        '<strong class="admin-num">' + money(stats.platform_commission || 0) + '</strong>' +
+        '<small>Net platform revenue</small>' +
+      '</div>' +
+      '<div class="admin-kpi-card">' +
+        '<div class="admin-kpi-top"><span>Total Bookings</span><span class="admin-kpi-tag">Services</span></div>' +
+        '<strong class="admin-num">' + (stats.total_bookings || 0) + '</strong>' +
+        '<small>Avg ' + money(avgBookingVal) + ' / booking</small>' +
+      '</div>' +
+      '<div class="admin-kpi-card">' +
+        '<div class="admin-kpi-top"><span>Total Orders</span><span class="admin-kpi-tag">Retail</span></div>' +
+        '<strong class="admin-num">' + (stats.total_orders || 0) + '</strong>' +
+        '<small>Avg ' + money(avgOrderVal) + ' / order</small>' +
+      '</div>' +
+    '</section>' +
+
+    '<section class="admin-panel">' +
       '<div class="admin-panel-head">' +
         '<div>' +
-          '<h2>Partner Onboarding Moderation Queue</h2>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Review and verify applications submitted by beauty professionals, salons, and product sellers.</p>' +
+          '<h2>Vertical GMV Contribution</h2>' +
+          '<p class="admin-panel-sub">Revenue distribution across doorstep services, salon parlours, and beauty retail.</p>' +
         '</div>' +
-        '<div class="admin-actions">' +
-          ['ALL','PENDING','APPROVED','REJECTED'].map(f => '<button class="btn btn-sm '+(filter===f?'btn-primary':'btn-outline')+'" data-action="admin-draft-filter" data-id="'+f+'">'+f+'</button>').join('') +
+        '<span class="admin-metric-pill">' + money(splitSum || gmvTotal) + ' combined</span>' +
+      '</div>' +
+      '<div class="admin-gmv-bar" role="img" aria-label="GMV split: At-home ' + svcPct + '%, Salons ' + salPct + '%, E-commerce ' + ecoPct + '%">' +
+        (splitSum > 0
+          ? '<span class="admin-gmv-seg seg-home" style="width:' + svcPct + '%"></span>' +
+            '<span class="admin-gmv-seg seg-salon" style="width:' + salPct + '%"></span>' +
+            '<span class="admin-gmv-seg seg-shop" style="width:' + ecoPct + '%"></span>'
+          : '<span class="admin-gmv-seg seg-empty" style="width:100%"></span>') +
+      '</div>' +
+      '<div class="admin-vertical-grid">' +
+        '<div class="admin-vertical-card">' +
+          '<div class="admin-vertical-head"><i class="admin-dot dot-home"></i><span>At-Home Services</span><b class="admin-num">' + svcPct + '%</b></div>' +
+          '<strong class="admin-num">' + money(servicesGmv) + '</strong>' +
+          '<small>Doorstep rituals & specialists</small>' +
+        '</div>' +
+        '<div class="admin-vertical-card">' +
+          '<div class="admin-vertical-head"><i class="admin-dot dot-salon"></i><span>Salon Appointments</span><b class="admin-num">' + salPct + '%</b></div>' +
+          '<strong class="admin-num">' + money(salonsGmv) + '</strong>' +
+          '<small>In-parlour chair bookings</small>' +
+        '</div>' +
+        '<div class="admin-vertical-card">' +
+          '<div class="admin-vertical-head"><i class="admin-dot dot-shop"></i><span>Beauty E-Commerce</span><b class="admin-num">' + ecoPct + '%</b></div>' +
+          '<strong class="admin-num">' + money(ecomGmv) + '</strong>' +
+          '<small>Multi-vendor retail store</small>' +
         '</div>' +
       '</div>' +
-      (drafts.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Applicant</th><th>Role</th><th>Listing Title</th><th>Price</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead><tbody>' +
-        drafts.map(d => '<tr><td>#'+d.id+'</td><td><strong>'+esc(d.applicant_name||d.user_id)+'</strong><br><small>'+esc(d.applicant_email||'')+'</small></td><td><span class="badge badge-info">'+esc(d.role)+'</span></td><td><strong>'+esc(d.name)+'</strong><br><small style="color:var(--muted)">'+esc(d.description||'').slice(0,40)+'...</small></td><td><strong>'+money(d.price)+'</strong></td><td><span class="badge badge-'+d.status.toLowerCase()+'">'+esc(d.status)+'</span>'+(d.rejection_reason?'<br><small style="color:#721c24">Note: '+esc(d.rejection_reason)+'</small>':'')+'</td><td><small>'+new Date(d.created_at).toLocaleDateString()+'</small></td><td>'+(d.status==='PENDING'?'<div class="admin-actions"><button class="btn btn-success btn-sm" data-action="admin-approve-draft" data-id="'+d.id+'">Approve</button><button class="btn btn-danger btn-sm" data-action="admin-reject-draft" data-id="'+d.id+'">Reject</button></div>':'<small style="color:var(--muted)">Moderated by #'+esc(d.reviewed_by||'Admin')+'</small>')+'</td></tr>').join('') +
-      '</tbody></table></div>' : '<div style="padding:40px;text-align:center;color:var(--muted)"><p>No partner applications in "'+filter+'" status.</p></div>') +
+      '<div class="admin-roster-strip">' +
+        '<button class="admin-roster-item" data-action="admin-jump-users" data-id="CUSTOMER"><span>Customers</span><strong class="admin-num">' + (stats.customers_count || 0) + '</strong></button>' +
+        '<button class="admin-roster-item" data-action="admin-jump-users" data-id="PROFESSIONAL"><span>Professionals</span><strong class="admin-num">' + (stats.professionals_count || 0) + '</strong></button>' +
+        '<button class="admin-roster-item" data-action="admin-jump-users" data-id="SALON_OWNER"><span>Salons</span><strong class="admin-num">' + (stats.salons_count || 0) + '</strong></button>' +
+        '<button class="admin-roster-item" data-action="admin-jump-users" data-id="SELLER"><span>Product Sellers</span><strong class="admin-num">' + (stats.sellers_count || 0) + '</strong></button>' +
+      '</div>' +
+    '</section>' +
+
+    '<section class="admin-split-grid">' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head">' +
+          '<div>' +
+            '<h2>Pending Applications</h2>' +
+            '<p class="admin-panel-sub">' + (pendingCount ? pendingCount + ' awaiting moderation review' : 'Queue is clear') + '</p>' +
+          '</div>' +
+          '<button class="btn btn-outline btn-sm" data-action="admin-tab" data-id="moderation">View queue</button>' +
+        '</div>' +
+        (pendingDrafts.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Applicant</th><th>Role</th><th>Listing</th><th>Action</th></tr></thead><tbody>' +
+          pendingDrafts.map(d => '<tr>' +
+            '<td><div class="admin-cell-user"><span class="admin-mini-avatar">' + esc(initials(d.applicant_name || ('U' + d.user_id))) + '</span><div><strong>' + esc(d.applicant_name || ('User #' + d.user_id)) + '</strong><small>' + esc(d.applicant_email || '') + '</small></div></div></td>' +
+            '<td><span class="badge badge-info">' + esc(d.role) + '</span></td>' +
+            '<td><strong>' + esc(d.name) + '</strong><br><small class="admin-num">' + money(d.price) + '</small></td>' +
+            '<td><div class="admin-actions"><button class="btn btn-success btn-sm" data-action="admin-approve-draft" data-id="' + d.id + '">Approve</button><button class="btn btn-danger btn-sm" data-action="admin-reject-draft" data-id="' + d.id + '">Reject</button></div></td>' +
+          '</tr>').join('') +
+        '</tbody></table></div>' : '<div class="admin-empty-inline">All partner applications have been reviewed.</div>') +
+      '</div>' +
+      '<div class="admin-panel">' +
+        '<div class="admin-panel-head">' +
+          '<div>' +
+            '<h2>Recent Audit Events</h2>' +
+            '<p class="admin-panel-sub">Latest administrative actions across GlamGo</p>' +
+          '</div>' +
+          '<button class="btn btn-outline btn-sm" data-action="admin-tab" data-id="audit-logs">Full ledger</button>' +
+        '</div>' +
+        (recentLogs.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Action</th><th>Target</th><th>Time</th></tr></thead><tbody>' +
+          recentLogs.map(l => '<tr>' +
+            '<td><span class="badge badge-info">' + esc(formatAuditAction(l.action)) + '</span></td>' +
+            '<td><strong>' + esc(l.target_type) + '</strong> <span class="admin-muted">#' + esc(l.target_id || '-') + '</span></td>' +
+            '<td><small class="admin-num">' + new Date(l.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + '</small></td>' +
+          '</tr>').join('') +
+        '</tbody></table></div>' : '<div class="admin-empty-inline">No audit events recorded yet.</div>') +
+      '</div>' +
+    '</section>';
+
+  } else if(tab === 'moderation'){
+    const filter = state.adminDraftFilter || 'ALL';
+    const q = (state.adminDraftSearch || '').toLowerCase().trim();
+    const counts = {
+      ALL: allDrafts.length,
+      PENDING: allDrafts.filter(d => d.status === 'PENDING').length,
+      APPROVED: allDrafts.filter(d => d.status === 'APPROVED').length,
+      REJECTED: allDrafts.filter(d => d.status === 'REJECTED').length
+    };
+    let drafts = allDrafts;
+    if(filter !== 'ALL') drafts = drafts.filter(d => d.status === filter);
+    if(q) drafts = drafts.filter(d =>
+      (d.applicant_name || '').toLowerCase().includes(q) ||
+      (d.applicant_email || '').toLowerCase().includes(q) ||
+      (d.name || '').toLowerCase().includes(q) ||
+      (d.role || '').toLowerCase().includes(q)
+    );
+
+    mainContent = '<div class="admin-panel">' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          ['ALL','PENDING','APPROVED','REJECTED'].map(f =>
+            '<button class="admin-pill ' + (filter === f ? 'active' : '') + '" data-action="admin-draft-filter" data-id="' + f + '">' + f + ' <span>' + counts[f] + '</span></button>'
+          ).join('') +
+        '</div>' +
+        '<div class="admin-search-box">' +
+          '<input id="admin-draft-search" value="' + esc(state.adminDraftSearch || '') + '" placeholder="Search applicant, listing, or role…" autocomplete="off">' +
+          '<span class="admin-result-count">' + drafts.length + ' shown</span>' +
+        '</div>' +
+      '</div>' +
+      (drafts.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Applicant</th><th>Role</th><th>Listing</th><th>Price</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead><tbody>' +
+        drafts.map(d => '<tr>' +
+          '<td class="admin-num admin-muted">#' + d.id + '</td>' +
+          '<td><div class="admin-cell-user"><span class="admin-mini-avatar">' + esc(initials(d.applicant_name || ('U' + d.user_id))) + '</span><div><strong>' + esc(d.applicant_name || ('User #' + d.user_id)) + '</strong><small>' + esc(d.applicant_email || '') + '</small></div></div></td>' +
+          '<td><span class="badge badge-info">' + esc(d.role) + '</span></td>' +
+          '<td><strong>' + esc(d.name) + '</strong><br><small class="admin-muted">' + esc((d.description || '').slice(0, 48)) + ((d.description || '').length > 48 ? '…' : '') + '</small></td>' +
+          '<td class="admin-num"><strong>' + money(d.price) + '</strong></td>' +
+          '<td><span class="badge badge-' + statusTone(d.status) + '">' + esc(d.status) + '</span>' + (d.rejection_reason ? '<br><small class="admin-reject-note">Note: ' + esc(d.rejection_reason) + '</small>' : '') + '</td>' +
+          '<td class="admin-num"><small>' + new Date(d.created_at).toLocaleDateString() + '</small></td>' +
+          '<td>' + (d.status === 'PENDING'
+            ? '<div class="admin-actions"><button class="btn btn-success btn-sm" data-action="admin-approve-draft" data-id="' + d.id + '">Approve</button><button class="btn btn-danger btn-sm" data-action="admin-reject-draft" data-id="' + d.id + '">Reject</button></div>'
+            : '<small class="admin-muted">Reviewed by #' + esc(d.reviewed_by || 'Admin') + '</small>') + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No partner applications match this filter.</div>') +
     '</div>';
+
   } else if(tab === 'users'){
     const q = (state.adminUserSearch || '').toLowerCase().trim();
     const filter = state.adminUserFilter || 'ALL';
-    let users = state.adminUsers || [];
+    const roleCounts = { ALL: allUsers.length };
+    ['CUSTOMER','PROFESSIONAL','SALON_OWNER','SELLER','ADMIN'].forEach(r => {
+      roleCounts[r] = allUsers.filter(u => (u.role || '').toUpperCase() === r).length;
+    });
+    let users = allUsers;
     if(filter !== 'ALL') users = users.filter(u => (u.role || '').toLowerCase() === filter.toLowerCase());
-    if(q) users = users.filter(u => (u.name||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q));
+    if(q) users = users.filter(u =>
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.email || '').toLowerCase().includes(q) ||
+      (u.phone || '').toLowerCase().includes(q)
+    );
 
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head">' +
-        '<div>' +
-          '<h2>User Governance & Role Management</h2>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Search accounts, manage role permissions, and toggle access states.</p>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          ['ALL','CUSTOMER','PROFESSIONAL','SALON_OWNER','SELLER','ADMIN'].map(f =>
+            '<button class="admin-pill ' + (filter === f ? 'active' : '') + '" data-action="admin-user-filter" data-id="' + f + '">' + f.replace('_', ' ') + ' <span>' + (roleCounts[f] || 0) + '</span></button>'
+          ).join('') +
         '</div>' +
-        '<div class="admin-actions">' +
-          ['ALL','CUSTOMER','PROFESSIONAL','SALON_OWNER','SELLER','ADMIN'].map(f => '<button class="btn btn-sm '+(filter===f?'btn-primary':'btn-outline')+'" data-action="admin-user-filter" data-id="'+f+'">'+f+'</button>').join('') +
+        '<div class="admin-search-box">' +
+          '<input id="admin-user-search" value="' + esc(state.adminUserSearch || '') + '" placeholder="Search by name, email, or phone…" autocomplete="off">' +
+          '<span class="admin-result-count">' + users.length + ' accounts</span>' +
         '</div>' +
       '</div>' +
-      '<div class="admin-filter-bar">' +
-        '<input id="admin-user-search" value="'+esc(state.adminUserSearch || '')+'" placeholder="Search by name or email..." autocomplete="off">' +
-        '<span style="font-size:11px;color:var(--muted);margin-left:auto">Displaying '+users.length+' accounts</span>' +
-      '</div>' +
-      (users.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name & Contact</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
-        users.map(u => '<tr><td>#'+u.id+'</td><td><strong>'+esc(u.name)+'</strong>'+(u.id===state.user.id?' <span class="badge badge-info">(You)</span>':'')+'<br><small>'+esc(u.email)+' · '+esc(u.phone||'N/A')+'</small></td><td><select class="admin-role-select" data-user-id="'+u.id+'" '+(u.id===state.user.id?'disabled':'')+'><option value="customer" '+(u.role==='customer'?'selected':'')+'>Customer</option><option value="professional" '+(u.role==='professional'?'selected':'')+'>Professional</option><option value="salon_owner" '+(u.role==='salon_owner'?'selected':'')+'>Salon Owner</option><option value="seller" '+(u.role==='seller'?'selected':'')+'>Product Seller</option><option value="admin" '+(u.role==='admin'?'selected':'')+'>Platform Admin</option></select></td><td><span class="badge badge-'+(u.is_active?'active':'suspended')+'">'+(u.is_active?'Active':'Suspended')+'</span></td><td>'+(u.id===state.user.id?'<small style="color:var(--muted)">Self-protection active</small>':'<button class="btn btn-sm '+(u.is_active?'btn-danger':'btn-success')+'" data-action="admin-toggle-user" data-id="'+u.id+'">'+(u.is_active?'Suspend Account':'Reactivate')+'</button>')+'</td></tr>').join('') +
-      '</tbody></table></div>' : '<div style="padding:40px;text-align:center;color:var(--muted)"><p>No user accounts found matching query.</p></div>') +
+      (users.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Account</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
+        users.map(u => '<tr>' +
+          '<td class="admin-num admin-muted">#' + u.id + '</td>' +
+          '<td><div class="admin-cell-user"><span class="admin-mini-avatar">' + esc(initials(u.name)) + '</span><div><strong>' + esc(u.name) + (u.id === state.user.id ? ' <span class="badge badge-info">You</span>' : '') + '</strong><small>' + esc(u.email) + ' · ' + esc(u.phone || 'N/A') + '</small></div></div></td>' +
+          '<td><select class="admin-role-select" data-user-id="' + u.id + '" ' + (u.id === state.user.id ? 'disabled' : '') + '>' +
+            '<option value="customer" ' + (u.role === 'customer' ? 'selected' : '') + '>Customer</option>' +
+            '<option value="professional" ' + (u.role === 'professional' ? 'selected' : '') + '>Professional</option>' +
+            '<option value="salon_owner" ' + (u.role === 'salon_owner' ? 'selected' : '') + '>Salon Owner</option>' +
+            '<option value="seller" ' + (u.role === 'seller' ? 'selected' : '') + '>Product Seller</option>' +
+            '<option value="admin" ' + (u.role === 'admin' ? 'selected' : '') + '>Platform Admin</option>' +
+          '</select></td>' +
+          '<td><span class="badge badge-' + (u.is_active ? 'active' : 'suspended') + '">' + (u.is_active ? 'Active' : 'Suspended') + '</span></td>' +
+          '<td>' + (u.id === state.user.id
+            ? '<small class="admin-muted">Self-protection active</small>'
+            : '<button class="btn btn-sm ' + (u.is_active ? 'btn-danger' : 'btn-success') + '" data-action="admin-toggle-user" data-id="' + u.id + '">' + (u.is_active ? 'Suspend' : 'Reactivate') + '</button>') + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No user accounts match your search.</div>') +
     '</div>';
+
   } else if(tab === 'bookings'){
-    const bList = state.adminBookings || [];
+    const filter = state.adminBookingFilter || 'ALL';
+    const q = (state.adminBookingSearch || '').toLowerCase().trim();
+    let bList = allBookings;
+    if(filter === 'HOME') bList = bList.filter(b => String(b.type || '').toLowerCase().includes('home'));
+    else if(filter === 'SALON') bList = bList.filter(b => String(b.type || '').toLowerCase().includes('salon'));
+    else if(filter === 'COMPLETED') bList = bList.filter(b => String(b.status || '').toLowerCase().includes('complet'));
+    else if(filter === 'CANCELLED') bList = bList.filter(b => String(b.status || '').toLowerCase().includes('cancel'));
+    if(q) bList = bList.filter(b =>
+      String(b.id).includes(q) ||
+      (b.title || '').toLowerCase().includes(q) ||
+      (b.customer_name || '').toLowerCase().includes(q) ||
+      (b.customer_email || '').toLowerCase().includes(q) ||
+      (b.location || '').toLowerCase().includes(q)
+    );
+
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head">' +
-        '<div><h2>Global Platform Bookings</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">All at-home treatments and salon appointments across the platform.</p></div>' +
-        '<span class="admin-status-pulse"><i></i> '+bList.length+' Bookings</span>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          ['ALL','HOME','SALON','COMPLETED','CANCELLED'].map(f =>
+            '<button class="admin-pill ' + (filter === f ? 'active' : '') + '" data-action="admin-booking-filter" data-id="' + f + '">' + f + '</button>'
+          ).join('') +
+        '</div>' +
+        '<div class="admin-search-box">' +
+          '<input id="admin-booking-search" value="' + esc(state.adminBookingSearch || '') + '" placeholder="Search booking ID, service, customer, or location…" autocomplete="off">' +
+          '<span class="admin-result-count">' + bList.length + ' bookings</span>' +
+        '</div>' +
       '</div>' +
-      (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Service / Title</th><th>Customer</th><th>Type</th><th>Date & Time</th><th>Location</th><th>Price</th><th>Status</th></tr></thead><tbody>' +
-        bList.map(b => '<tr><td>#'+b.id+'</td><td><strong>'+esc(b.title)+'</strong></td><td>'+(b.customer_name ? '<strong>'+esc(b.customer_name)+'</strong><br><small style="color:var(--muted)">'+esc(b.customer_email || ('User #'+b.customer_id))+'</small>' : 'User #'+(b.customer_id||'-'))+'</td><td><span class="badge badge-info">'+esc(b.type)+'</span></td><td>'+formatDate(b.date)+' · '+esc(b.time)+'</td><td><small>'+esc(b.location)+'</small></td><td><strong>'+money(b.price)+'</strong></td><td><span class="badge badge-approved">'+esc(b.status||'Confirmed')+'</span></td></tr>').join('') +
-      '</tbody></table></div>' : '<p style="color:var(--muted);padding:20px">No bookings recorded in database.</p>') +
+      (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Service</th><th>Customer</th><th>Type</th><th>Schedule</th><th>Location</th><th>Price</th><th>Status</th></tr></thead><tbody>' +
+        bList.map(b => '<tr>' +
+          '<td class="admin-num admin-muted">#' + b.id + '</td>' +
+          '<td><strong>' + esc(b.title) + '</strong></td>' +
+          '<td>' + (b.customer_name ? '<strong>' + esc(b.customer_name) + '</strong><br><small class="admin-muted">' + esc(b.customer_email || ('User #' + b.customer_id)) + '</small>' : 'User #' + (b.customer_id || '-')) + '</td>' +
+          '<td><span class="badge badge-info">' + esc(b.type) + '</span></td>' +
+          '<td class="admin-num">' + formatDate(b.date) + ' · ' + esc(b.time) + '</td>' +
+          '<td><small>' + esc(b.location) + '</small></td>' +
+          '<td class="admin-num"><strong>' + money(b.price) + '</strong></td>' +
+          '<td><span class="badge badge-' + statusTone(b.status) + '">' + esc(b.status || 'Confirmed') + '</span></td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No bookings match your current filter.</div>') +
     '</div>';
+
   } else if(tab === 'orders'){
-    const oList = state.adminOrders || [];
+    const filter = state.adminOrderFilter || 'ALL';
+    const q = (state.adminOrderSearch || '').toLowerCase().trim();
+    let oList = allOrders;
+    if(filter !== 'ALL') oList = oList.filter(o => String(o.status || '').toUpperCase().includes(filter));
+    if(q) oList = oList.filter(o =>
+      String(o.id || '').toLowerCase().includes(q) ||
+      (o.customer_name || '').toLowerCase().includes(q) ||
+      (o.customer_email || '').toLowerCase().includes(q) ||
+      (o.address_text || '').toLowerCase().includes(q)
+    );
+
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head">' +
-        '<div><h2>Global E-Commerce Orders</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Beauty retail store purchases and shipment status.</p></div>' +
-        '<span class="admin-status-pulse"><i></i> '+oList.length+' Orders</span>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          ['ALL','PLACED','DELIVERED','CANCELLED'].map(f =>
+            '<button class="admin-pill ' + (filter === f ? 'active' : '') + '" data-action="admin-order-filter" data-id="' + f + '">' + f + '</button>'
+          ).join('') +
+        '</div>' +
+        '<div class="admin-search-box">' +
+          '<input id="admin-order-search" value="' + esc(state.adminOrderSearch || '') + '" placeholder="Search order ID, customer, or address…" autocomplete="off">' +
+          '<span class="admin-result-count">' + oList.length + ' orders</span>' +
+        '</div>' +
       '</div>' +
-      (oList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total Amount</th><th>Payment</th><th>Address</th><th>Status</th></tr></thead><tbody>' +
+      (oList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Order ID</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Address</th><th>Status</th></tr></thead><tbody>' +
         oList.map(o => {
           const custHtml = o.customer_name
-            ? '<strong>'+esc(o.customer_name)+'</strong><br><small style="color:var(--muted)">'+esc(o.customer_email || ('User #'+(o.customer_id || o.user_id || '')))+'</small>'
-            : 'User #'+(o.customer_id || o.user_id || '-');
+            ? '<strong>' + esc(o.customer_name) + '</strong><br><small class="admin-muted">' + esc(o.customer_email || ('User #' + (o.customer_id || o.user_id || ''))) + '</small>'
+            : 'User #' + (o.customer_id || o.user_id || '-');
           const itemsHtml = (o.items && o.items.length)
-            ? o.items.map(i=>esc(i.name)+' × '+i.qty).join(', ')
-            : (o.items_count ? o.items_count + ' items' : '-');
-          return '<tr><td><strong>'+esc(o.id)+'</strong></td><td>'+custHtml+'</td><td>'+itemsHtml+'</td><td><strong>'+money(o.total)+'</strong></td><td>'+esc(o.payment_method||'UPI')+'</td><td><small>'+esc(o.address_label||'')+(o.address_text ? ' — '+esc(o.address_text) : '')+'</small></td><td><span class="badge badge-approved">'+esc(o.status||'Placed')+'</span></td></tr>';
+            ? o.items.map(i => esc(i.name) + ' × ' + i.qty).join(', ')
+            : (o.items_count ? o.items_count + ' items' : '—');
+          const payMeta = o.payment_status ? ' · ' + esc(formatOrderPaymentStatusLabel(o.payment_status)) : '';
+          return '<tr>' +
+            '<td class="admin-num"><strong>' + esc(o.id) + '</strong></td>' +
+            '<td>' + custHtml + '</td>' +
+            '<td><small>' + itemsHtml + '</small></td>' +
+            '<td class="admin-num"><strong>' + money(o.total) + '</strong></td>' +
+            '<td><span class="badge badge-info">' + esc(o.payment_method || 'UPI') + '</span><small class="admin-muted">' + payMeta + '</small></td>' +
+            '<td><small>' + esc(o.address_label || '') + (o.address_text ? ' — ' + esc(o.address_text) : '') + '</small></td>' +
+            '<td><span class="badge badge-' + statusTone(o.status) + '">' + esc(o.status || 'Placed') + '</span></td>' +
+          '</tr>';
         }).join('') +
-      '</tbody></table></div>' : '<p style="color:var(--muted);padding:20px">No orders recorded in database.</p>') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No orders match your current filter.</div>') +
     '</div>';
+
   } else if(tab === 'services'){
+    const q = (state.adminCatalogSearch || '').toLowerCase().trim();
+    const sList = q ? services.filter(s => (s.name || '').toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q)) : services;
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head"><div><h2>Services Catalog</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Platform doorstep and salon treatments.</p></div><span class="badge badge-info">'+services.length+' Services</span></div>' +
-      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Duration</th><th>Price</th><th>Rating</th></tr></thead><tbody>' +
-        services.map(s => '<tr><td>'+s.id+'</td><td><strong>'+esc(s.name)+'</strong></td><td><span class="badge badge-info">'+esc(s.category)+'</span></td><td>'+esc(s.duration)+'</td><td><strong>'+money(s.price)+'</strong></td><td>'+s.rating+' ★ ('+s.reviews+')</td></tr>').join('') +
-      '</tbody></table></div>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-search-box admin-search-wide">' +
+          '<input id="admin-catalog-search" value="' + esc(state.adminCatalogSearch || '') + '" placeholder="Filter services by name or category…" autocomplete="off">' +
+          '<span class="admin-result-count">' + sList.length + ' of ' + services.length + ' services</span>' +
+        '</div>' +
+      '</div>' +
+      (sList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Service</th><th>Category</th><th>Duration</th><th>Price</th><th>Rating</th></tr></thead><tbody>' +
+        sList.map(s => '<tr>' +
+          '<td class="admin-num admin-muted">#' + s.id + '</td>' +
+          '<td><strong>' + esc(s.name) + '</strong></td>' +
+          '<td><span class="badge badge-info">' + esc(s.category) + '</span></td>' +
+          '<td>' + esc(s.duration) + '</td>' +
+          '<td class="admin-num"><strong>' + money(s.price) + '</strong></td>' +
+          '<td class="admin-num">' + s.rating + ' ★ <small class="admin-muted">(' + s.reviews + ')</small></td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No services match your search.</div>') +
     '</div>';
+
   } else if(tab === 'products'){
+    const q = (state.adminCatalogSearch || '').toLowerCase().trim();
+    const pList = q ? products.filter(p => (p.name || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q)) : products;
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head"><div><h2>Product Inventory</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Beauty store retail inventory.</p></div><span class="badge badge-info">'+products.length+' Products</span></div>' +
-      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Brand</th><th>Product Name</th><th>Category</th><th>Price</th><th>Tag</th></tr></thead><tbody>' +
-        products.map(p => '<tr><td>'+p.id+'</td><td><strong>'+esc(p.brand)+'</strong></td><td>'+esc(p.name)+'</td><td><span class="badge badge-info">'+esc(p.category)+'</span></td><td><strong>'+money(p.price)+'</strong></td><td>'+(p.tag?'<span class="badge badge-approved">'+esc(p.tag)+'</span>':'-')+'</td></tr>').join('') +
-      '</tbody></table></div>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-search-box admin-search-wide">' +
+          '<input id="admin-catalog-search" value="' + esc(state.adminCatalogSearch || '') + '" placeholder="Filter products by brand, name, or category…" autocomplete="off">' +
+          '<span class="admin-result-count">' + pList.length + ' of ' + products.length + ' products</span>' +
+        '</div>' +
+      '</div>' +
+      (pList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Brand</th><th>Product Name</th><th>Category</th><th>Price</th><th>Tag</th></tr></thead><tbody>' +
+        pList.map(p => '<tr>' +
+          '<td class="admin-num admin-muted">#' + p.id + '</td>' +
+          '<td><strong>' + esc(p.brand) + '</strong></td>' +
+          '<td>' + esc(p.name) + '</td>' +
+          '<td><span class="badge badge-info">' + esc(p.category) + '</span></td>' +
+          '<td class="admin-num"><strong>' + money(p.price) + '</strong></td>' +
+          '<td>' + (p.tag ? '<span class="badge badge-approved">' + esc(p.tag) + '</span>' : '<span class="admin-muted">—</span>') + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No products match your search.</div>') +
     '</div>';
+
   } else if(tab === 'audit-logs'){
-    const logs = state.adminAuditLogs || [];
+    const q = (state.adminAuditSearch || '').toLowerCase().trim();
+    const logs = q ? allLogs.filter(l =>
+      (l.action || '').toLowerCase().includes(q) ||
+      (l.admin_name || '').toLowerCase().includes(q) ||
+      (l.admin_email || '').toLowerCase().includes(q) ||
+      (l.target_type || '').toLowerCase().includes(q) ||
+      JSON.stringify(l.details || {}).toLowerCase().includes(q)
+    ) : allLogs;
+
     mainContent = '<div class="admin-panel">' +
-      '<div class="admin-panel-head"><div><h2>Immutable Administrative Audit Trail</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Permanent ledger of all administrative events, actor identities, IP addresses, and metadata.</p></div><span class="admin-status-pulse"><i></i> '+logs.length+' Events Logged</span></div>' +
-      (logs.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Timestamp</th><th>Admin Actor</th><th>Action</th><th>Target</th><th>Client IP</th><th>Event Metadata</th></tr></thead><tbody>' +
-        logs.map(l => '<tr><td><small>'+new Date(l.created_at).toLocaleString()+'</small></td><td><strong>'+esc(l.admin_name||('Admin #'+l.admin_id))+'</strong><br><small>'+esc(l.admin_email||'')+'</small></td><td><span class="badge badge-info">'+esc(l.action)+'</span></td><td>'+esc(l.target_type)+' #'+esc(l.target_id||'-')+'</td><td><code>'+esc(l.ip_address||'127.0.0.1')+'</code></td><td><pre style="margin:0;font-size:10px;font-family:monospace;max-width:240px;overflow-x:auto">'+esc(JSON.stringify(l.details||{}))+'</pre></td></tr>').join('') +
-      '</tbody></table></div>' : '<p style="color:var(--muted);padding:20px">No audit events recorded yet.</p>') +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-search-box admin-search-wide">' +
+          '<input id="admin-audit-search" value="' + esc(state.adminAuditSearch || '') + '" placeholder="Search action, admin actor, target, or metadata…" autocomplete="off">' +
+          '<span class="admin-result-count">' + logs.length + ' events</span>' +
+        '</div>' +
+      '</div>' +
+      (logs.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Timestamp</th><th>Admin Actor</th><th>Action</th><th>Target</th><th>Client IP</th><th>Metadata</th></tr></thead><tbody>' +
+        logs.map(l => '<tr>' +
+          '<td class="admin-num"><small>' + new Date(l.created_at).toLocaleString() + '</small></td>' +
+          '<td><strong>' + esc(l.admin_name || ('Admin #' + l.admin_id)) + '</strong><br><small class="admin-muted">' + esc(l.admin_email || '') + '</small></td>' +
+          '<td><span class="badge badge-info">' + esc(formatAuditAction(l.action)) + '</span></td>' +
+          '<td><strong>' + esc(l.target_type) + '</strong> <span class="admin-muted">#' + esc(l.target_id || '-') + '</span></td>' +
+          '<td><code class="admin-ip">' + esc(l.ip_address || '127.0.0.1') + '</code></td>' +
+          '<td>' + formatAuditMeta(l.details) + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No audit events match your search.</div>') +
     '</div>';
   }
 
   return '<div class="admin-shell">' +
     sidebar +
     '<main class="admin-main">' +
-      '<div class="admin-header">' +
-        '<div>' +
-          '<h1>Command Centre.</h1>' +
-          '<p>Active Administrator: <strong>'+esc(state.user.name)+'</strong> ('+esc(state.user.email)+') · System Status: Operational</p>' +
+      '<header class="admin-topbar">' +
+        '<div class="admin-topbar-title">' +
+          '<h1>' + esc(currentMeta.title) + '</h1>' +
+          '<p>' + esc(currentMeta.subtitle) + (state.adminLastSynced ? ' · Synced ' + esc(state.adminLastSynced) : '') + '</p>' +
         '</div>' +
-        '<div class="admin-status-pulse"><i></i> Platform Live</div>' +
-      '</div>' +
-      mainContent +
+        '<div class="admin-topbar-actions">' +
+          (pendingCount > 0 && tab !== 'moderation'
+            ? '<button class="btn btn-sm admin-pending-cta" data-action="admin-tab" data-id="moderation">Review ' + pendingCount + ' Pending</button>'
+            : '') +
+          '<button class="btn btn-outline btn-sm admin-refresh-btn" data-action="admin-refresh" title="Refresh live metrics">Refresh</button>' +
+          '<div class="admin-status-pulse"><i></i> Operational</div>' +
+        '</div>' +
+      '</header>' +
+      '<div class="admin-content">' + mainContent + '</div>' +
     '</main>' +
   '</div>';
 }
@@ -2883,6 +3174,16 @@ async function action(el){
     state.adminTab = id;
     render();
   }
+  else if(a==='admin-refresh'){
+    await loadAdminData();
+    toast('Admin telemetry refreshed');
+  }
+  else if(a==='admin-jump-users'){
+    state.adminTab = 'users';
+    state.adminUserFilter = id || 'ALL';
+    state.adminUserSearch = '';
+    render();
+  }
   else if(a==='admin-draft-filter'){
     state.adminDraftFilter = id;
     render();
@@ -2891,13 +3192,21 @@ async function action(el){
     state.adminUserFilter = id;
     render();
   }
+  else if(a==='admin-booking-filter'){
+    state.adminBookingFilter = id;
+    render();
+  }
+  else if(a==='admin-order-filter'){
+    state.adminOrderFilter = id;
+    render();
+  }
   else if(a==='admin-approve-draft'){
     try {
       const res = await apiApprovePartnerDraft(Number(id));
       const idx = (state.adminDrafts || []).findIndex(d => d.id === Number(id));
       if (idx !== -1) state.adminDrafts[idx] = res;
       toast('Partner application approved & user promoted!');
-      const [uRes, aRes] = await Promise.allSettled([apiGetAdminUsers(), apiGetAuditLogs(50, 0)]);
+      const [uRes, aRes] = await Promise.allSettled([apiGetAdminUsers(), apiGetAuditLogs(null, 50, 0)]);
       if (uRes.status === 'fulfilled') state.adminUsers = uRes.value;
       if (aRes.status === 'fulfilled') state.adminAuditLogs = aRes.value;
       render();
@@ -3425,11 +3734,20 @@ document.addEventListener('input', e => {
     input?.focus();
     input?.setSelectionRange(focus, focus);
   }
-  if(e.target.id === 'admin-user-search'){
-    state.adminUserSearch = e.target.value;
+  const adminSearchMap = {
+    'admin-user-search': 'adminUserSearch',
+    'admin-draft-search': 'adminDraftSearch',
+    'admin-booking-search': 'adminBookingSearch',
+    'admin-order-search': 'adminOrderSearch',
+    'admin-catalog-search': 'adminCatalogSearch',
+    'admin-audit-search': 'adminAuditSearch'
+  };
+  if(adminSearchMap[e.target.id]){
+    const targetId = e.target.id;
+    state[adminSearchMap[targetId]] = e.target.value;
     const focus = e.target.selectionStart;
     render();
-    const input = document.getElementById('admin-user-search');
+    const input = document.getElementById(targetId);
     input?.focus();
     input?.setSelectionRange(focus, focus);
   }
