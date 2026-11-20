@@ -4,6 +4,32 @@
 
 ---
 
+## Prompt Entry #4 — `2026-11-21T03:30:00+05:30`: Full-Site Playwright Audit, Unified Customer + Business Landing & Cross-Portal Fixes
+
+**Branch:** `fix/commerce-review-remediation` (`origin/fix/commerce-review-remediation`; `main` and `master` remain untouched at `54ba3db`)  
+**Objectives:**
+- Crawl the full live GlamGo application across customer, salon owner, product seller, and admin portals with Playwright, `/design-taste-frontend`, and `/impeccable`.
+- Document product truth in `PRODUCT.md` and build an everything-in-one flagship landing gateway serving everyday consumers alongside Salon Owners, Product Sellers, and Independent Specialists, plus resolve bugs exposed during the crawl.
+
+### Files Created / Modified
+- **[PRODUCT.md](PRODUCT.md)** *(new)* — Captured confirmed platform scope, user roles, positioning, workflow facts (`T+7` settlement, multi-variant `SellerListing` stock ledgers, guest browsing), constraints, and warm editorial identity commitments (`#F7F4EF`, `#EFEAE1`, `#1E1C1A`, `#C5A059`, `#B86B52`).
+- **[src/app.js](src/app.js):**
+  - Rebuilt `onboarding()` into an everything-in-one flagship gateway fitting all 3 consumer cards and the `For Salon Owners & Product Sellers` jump bar cleanly inside Screen 1 (`1440×900`, `jumpBottom = 877px`), followed by grounded sections for Salon Owners (paired with live salon schedule data), Product Sellers (dark contrast band with live variant stock ledger & `T+7` escrow rows), and Independent Specialists with an interactive 3-role workflow explorer (`showcaseRolesData`, `showcase-partner-tab`).
+  - Added `/partners` / `#partners` routing (`pendingOnboardingScroll`), `partners-apply` role pre-selection, and partner-aware `auth()` copy (`Open your <Role> studio`).
+  - Fixed `init()` async session hydration for `#partner`, `#salon`, and `#admin` deep links, scoped `loadPartnerData()` requests by `partnerRoleFromUser(state.user?.role)` (eliminating `403` bursts when consumers open Partner Studio), replaced consumer subnav in Partner Studio with role workspace navigation, removed slop wording and the Product Seller `"schedule"` mismatch in `partnerPage()`, omitted section eyebrows cleanly per `craft-floor.md`, deduplicated `salonDetail()` gallery images, and fixed `apiGetAuditLogs(null, 50, 0)` (eliminating `422` errors on `#admin`).
+- **[styles.css](styles.css):**
+  - Added layout & component rules for the unified onboarding header nav, above-the-fold consumer grid + partner gateway bar, `.partner-band` (cream/dark/ivory sections), `.studio-card`, `.ledger-panel`, `.role-explorer`, `tabular-nums`, and mobile/tablet responsive breakpoints (`<= 1023px`, `<= 700px`).
+  - Moved `.toast` notifications to bottom-right (`bottom: 24px`) on desktop and above mobile bottom nav (`bottom: 72px`) on narrow viewports so top header controls remain unobstructed.
+  - Replaced zero-offset green `box-shadow` glow on `.admin-status-pulse i` with a crisp flat status ring.
+
+### Verification Summary (Observed After Final Edit)
+- **Production Bundle Build (`npm run build`):** Succeeded in `661ms` (`dist/index.html` `2.01 kB`, `dist/assets/index-BYPZZUDp.css` `100.10 kB`, `dist/assets/index-DHM5aYQj.js` `197.58 kB`).
+- **Impeccable Detector (`impeccable.cmd detect --json index.html styles.css src/app.js`):** Zero `dark-glow` warnings; remaining notice is only the user-confirmed warm cream brand ground (`#F7F4EF`).
+- **Playwright Multi-Role Verification (`crawl_roles.mjs`):** Exited `0` across unified landing (`cardsMaxBottom = 742.31px`, `jumpBottom = 877px`, `imgsBroken = 0`, mobile `390px` `scrollWidth = 390`), `salon@glamgo.com` `/#partner` reload (`Salon Owner Studio`), `seller@glamgo.com` `/#partner` reload (`Product Seller Studio`), `aanya@example.com` `/#partner` (`Registration`), `admin@glamgo.com` `/#admin` (`Command Centre.` with live audit logs), and signed-out Partner click — **zero** console errors across all checks.
+- **Full Viewport & `copy-lint` Check (`verify_browser_full.mjs`):** Exited `0` with `0` console errors, `0` page errors, `0` failed requests, `0` broken images, `0` horizontal overflow across `1440×900`, `1024×768`, `768×1024`, `390×844`, and `320×700` on `onboarding`, `home`, `salon`, and `shop`, and `0` `copy-lint` `FAIL`s across all 4 rendered pages (`GET /api/v1/orders/my` `200`).
+
+---
+
 ## Prompt Entry #3 — `2026-11-21T02:50:00+05:30`: Commerce Review Remediation, Release Hardening & Landing Experience Redesign
 
 **Base Commit:** `54ba3db` (`fix/commerce-hardening` / `master`)  

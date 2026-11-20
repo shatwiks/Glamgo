@@ -195,6 +195,7 @@ const defaults = {
   cartVariants:{},
   partnerProfiles:{},
   partnerDrafts:[],
+  showcasePartnerRole:'Salon Owner',
   availability:['Mon','Tue','Wed','Thu','Fri'],
   partnerOverview: null,
   partnerProProfile: null,
@@ -419,6 +420,7 @@ const PUBLIC_EXPERIENCE_ROUTES = {
   '/salons': 'salon'
 };
 const routeHashForExperience = id => '#' + (id === 'salon' ? 'salons' : id);
+let pendingOnboardingScroll = null;
 function applyRouteFromLocation() {
   const hash = window.location.hash;
   const path = window.location.pathname;
@@ -429,8 +431,14 @@ function applyRouteFromLocation() {
     state.activeNav = 'landing';
     return true;
   }
+  if (hash === '#partners' || path === '/partners') {
+    state.view = 'onboarding';
+    pendingOnboardingScroll = 'partner-showcase';
+    return true;
+  }
   if (hash === '#onboarding' || path === '/onboarding') {
     state.view = 'onboarding';
+    pendingOnboardingScroll = null;
     return true;
   }
   const prodMatch = (hash || '').match(/^#product\/([^/?#]+)$/) || (path || '').match(/^\/product\/([^/?#]+)$/);
@@ -461,7 +469,7 @@ const setExperience = id => { state.experience = id; state.view = 'landing'; sta
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
 const image = (src, alt, cls='') => '<img class="'+cls+'" src="'+src+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
-const sectionHead = (eyebrow,title,sub='',action='') => '<div class="section-head"><div><p class="eyebrow">'+eyebrow+'</p><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
+const sectionHead = (_eyebrow,title,sub='',action='') => '<div class="section-head"><div><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
 const rating = (value,count) => '<span class="rating">'+icon('star',14)+' '+value+' <span>('+count+')</span></span>';
 const empty = (symbol,title,text,action='') => '<div class="empty-state"><div class="empty-symbol">'+icon(symbol,28)+'</div><h3>'+title+'</h3><p>'+text+'</p>'+action+'</div>';
 const catalogLoadingState = label => '<div class="catalog-loading-panel"><p>Curating live '+esc(label)+'...</p></div>';
@@ -676,16 +684,180 @@ const getCatalogMinPrice = (items, fallback) => {
   return prices.length ? Math.min(...prices) : fallback;
 };
 
+const showcaseRolesData = {
+  'Salon Owner': {
+    title: 'Salon Owner Studio',
+    summary: 'Publish live service menus, assign chair stylists, manage branches, and confirm studio appointments from one calendar.',
+    modules: ['Salon profile & hours', 'Branches & locations', 'Service catalogue', 'Staff management', 'Appointments calendar', 'Revenue analytics']
+  },
+  'Product Seller': {
+    title: 'Product Seller Studio',
+    summary: 'List multi-variant SKUs on canonical stock ledgers, fulfill split suborders, handle customer returns, and track T+7 payouts.',
+    modules: ['Marketplace listings', 'Product & variant SKUs', 'Inventory & stock ledger', 'Orders & fulfillment', 'Returns & restocking', 'Escrow & settlement (T+7)']
+  },
+  'Professional': {
+    title: 'Independent Specialist Studio',
+    summary: 'Set home-visit treatment availability across 7 weekly days, confirm bookings, and track completed session earnings.',
+    modules: ['Identity verification', 'Profile management', 'Services & pricing', 'Weekly availability', 'Booking requests', 'Recorded earnings']
+  }
+};
+
 function onboarding(){
-  const minPrice = getCatalogMinPrice(services, 799);
+  const minPrice = getCatalogMinPrice(services, 299);
   const serviceCount = services.length || 8;
-  const salonCount = salons.length || 6;
+  const salonCount = salons.length || 3;
   const productCount = products.length || 7;
-  return '<div class="onboarding"><a class="skip-link" href="#top-choices">Skip to experiences</a><div class="onboard-top gg-wrap"><a class="wordmark" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a><div class="onboard-top-right"><span class="onboard-fact">'+esc(state.location)+' · From '+money(minPrice)+'</span>'+button((state.signedIn?'My account ':'Sign in ')+icon('user',17),'account','btn-text')+'</div></div><main id="top-choices" class="onboard-main gg-wrap"'+heroEnterAttr('onboarding')+'><div class="onboard-intro"><p class="eyebrow line-eyebrow">GLAMGO BEAUTY MARKETPLACE</p><h1 class="enter-line">Book beauty care at home, in salons, or online</h1><p class="onboard-lead">One account for '+serviceCount+' home treatments starting at '+money(minPrice)+', '+salonCount+' nearby salons, and '+productCount+' skincare essentials.</p></div><div class="experience-grid">'+experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><span class="eyebrow">'+x.eyebrow+'</span><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',17)+'</span></div></button>').join('')+'</div></main><div class="onboard-bottom gg-wrap"><span>ONE ACCOUNT ACROSS ALL THREE PORTALS</span><button class="btn-text" data-action="partners">Salon & Partner Portal '+icon('arrow',15)+'</button></div></div>';
+  const sampleSalon = salons[0] || { name: 'The Ivory Room Studio', area: state.location, hours: '09:00–21:00', rating: '4.9', reviews: 312, services: ['Hair','Skin','Nails'] };
+  const sampleProd = products[0] || { name: 'The Daily Renewal Serum', brand: 'LUMIÈRE', price: 1890, variants: ['50 ml', '30 ml'], variant_stocks: { '50 ml': 18, '30 ml': 12 } };
+  const activeRole = state.showcasePartnerRole || 'Salon Owner';
+  const roleInfo = showcaseRolesData[activeRole] || showcaseRolesData['Salon Owner'];
+  const variantsList = Array.isArray(sampleProd.variants) && sampleProd.variants.length ? sampleProd.variants.slice(0, 2) : ['50 ml', '30 ml'];
+
+  return '<div class="onboarding-page">' +
+    '<section class="onboarding-first" aria-labelledby="onboard-hero-h">' +
+      '<a class="skip-link" href="#top-choices">Skip to marketplace</a>' +
+      '<header class="onboard-top gg-wrap">' +
+        '<a class="wordmark" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a>' +
+        '<nav class="onboard-nav" aria-label="Audience navigation">' +
+          '<button type="button" data-action="experience" data-id="home">At-home care</button>' +
+          '<button type="button" data-action="experience" data-id="salon">Salons</button>' +
+          '<button type="button" data-action="experience" data-id="shop">Beauty store</button>' +
+          '<button type="button" data-action="scroll-onboard" data-target="partner-showcase">Salon owners</button>' +
+          '<button type="button" data-action="scroll-onboard" data-target="partners-seller">Product sellers</button>' +
+        '</nav>' +
+        '<div class="onboard-top-right">' +
+          '<span class="onboard-fact">'+esc(state.location)+' · From '+money(minPrice)+'</span>' +
+          '<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Studio</button>' +
+          button((state.signedIn?'My account ':'Sign in ')+icon('user',17),'account','btn-text') +
+        '</div>' +
+      '</header>' +
+      '<main id="top-choices" class="onboard-main gg-wrap"'+heroEnterAttr('onboarding')+'>' +
+        '<div class="onboard-intro">' +
+          '<h1 id="onboard-hero-h" class="enter-line">Beauty bookings, skincare orders, and partner studios</h1>' +
+          '<p class="onboard-lead">'+serviceCount+' home treatments starting at '+money(minPrice)+', '+salonCount+' partner salons in '+esc(state.location)+', '+productCount+' multi-variant products, plus calendars and T+7 escrow tools for businesses.</p>' +
+        '</div>' +
+        '<div class="experience-grid">' +
+          experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',17)+'</span></div></button>').join('') +
+        '</div>' +
+      '</main>' +
+      '<div class="onboard-bottom gg-wrap">' +
+        '<span>Running a salon, studio chair, or skincare brand? Compare workflows for owners, sellers, and stylists.</span>' +
+        '<div class="onboard-bottom-actions">' +
+          '<button type="button" class="onboard-partner-jump" data-action="scroll-onboard" data-target="partner-showcase">For Salon Owners & Product Sellers '+icon('arrow',16)+'</button>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="partner-band cream-band" id="partner-showcase" aria-labelledby="partner-salon-h">' +
+      '<div class="gg-wrap split-pair">' +
+        '<div class="partner-copy">' +
+          '<h2 id="partner-salon-h">Fill salon chairs and manage every branch from one calendar</h2>' +
+          '<p class="partner-lead">Publish treatment menus with upfront pricing, assign stylists by specialty, set weekly opening hours, and track studio bookings in real time.</p>' +
+          '<ul class="partner-list">' +
+            '<li>'+icon('check',17)+'<span><strong>Branches & staff roster:</strong> Link stylists across Hair, Skin, Nails, Makeup, and Spa so guests pick their expert.</span></li>' +
+            '<li>'+icon('check',17)+'<span><strong>30-minute slot control:</strong> Toggle open weekly working days and confirm or complete client bookings without double-booking.</span></li>' +
+            '<li>'+icon('check',17)+'<span><strong>Verified directory presence:</strong> Surface studio reviews, starting rates, and distance to shoppers in '+esc(state.location)+'.</span></li>' +
+          '</ul>' +
+          '<div class="partner-actions">' +
+            '<button class="btn btn-primary" data-action="partners-apply" data-role="Salon Owner">Open Salon Owner Studio '+icon('arrow',17)+'</button>' +
+            '<button class="btn btn-outline" data-action="experience" data-id="salon">Browse partner salons</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="studio-preview">' +
+          '<div class="studio-preview-photo">'+image(SALON_IMG,'Sunlight streaming through mirrors and styling chairs in a partner salon')+'</div>' +
+          '<div class="studio-card">' +
+            '<div class="studio-card-head"><div><strong>'+esc(sampleSalon.name)+'</strong><span>'+esc(sampleSalon.area)+' · Open daily '+esc(sampleSalon.hours)+'</span></div><span class="studio-pill">'+esc(sampleSalon.rating)+' ★ ('+esc(sampleSalon.reviews)+')</span></div>' +
+            '<div class="studio-rows">' +
+              '<div class="studio-row"><span>Disciplines active</span><b>'+esc((sampleSalon.services||[]).join(' · '))+'</b></div>' +
+              '<div class="studio-row"><span>Booking actions</span><b>Confirm · Complete · Cancel</b></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="partner-band dark-band" id="partners-seller" aria-labelledby="partner-seller-h">' +
+      '<div class="gg-wrap split-pair">' +
+        '<div class="ledger-panel">' +
+          '<div class="ledger-head"><strong>'+esc(sampleProd.name)+'</strong><span>Canonical Inventory &amp; T+7 Escrow</span></div>' +
+          variantsList.map(v => {
+            const qty = sampleProd.variant_stocks?.[v] ?? 15;
+            return '<div class="ledger-row"><div><strong>'+esc(sampleProd.brand)+' · '+esc(v)+'</strong><small>Locked per seller offer at checkout</small></div><span class="ledger-val">'+qty+' units</span><span class="ledger-tag">'+(qty>0?'IN STOCK':'SOLD OUT')+'</span></div>';
+          }).join('') +
+          '<div class="ledger-row"><div><strong>Suborder fulfillment</strong><small>Independent per-seller shipping package</small></div><span class="ledger-val">Pack → Ship</span><span class="ledger-tag">VERIFIED</span></div>' +
+          '<div class="ledger-row"><div><strong>Post-delivery escrow settlement</strong><small>Blocks maturity if a return request stays open</small></div><span class="ledger-val">T+7 days</span><span class="ledger-tag">SETTLED</span></div>' +
+        '</div>' +
+        '<div class="partner-copy">' +
+          '<h2 id="partner-seller-h">List product variants once and ship directly to buyers</h2>' +
+          '<p class="partner-lead">Attach stock and pricing to master catalog products by size or shade, fulfill multi-vendor suborders per package, and track return-aligned payouts.</p>' +
+          '<ul class="partner-list">' +
+            '<li>'+icon('check',17)+'<span><strong>Zero overselling at checkout:</strong> Atomic row locks hold selected variant stock for active buyers before payment capture.</span></li>' +
+            '<li>'+icon('check',17)+'<span><strong>Independent pack &amp; ship pipeline:</strong> Fulfill only your brand packages with explicit paid/COD verification gates.</span></li>' +
+            '<li>'+icon('check',17)+'<span><strong>Safe returns &amp; T+7 settlement ledger:</strong> Approve or reject requests with idempotent gateway refunds and restock guards.</span></li>' +
+          '</ul>' +
+          '<div class="partner-actions">' +
+            '<button class="btn btn-invert" data-action="partners-apply" data-role="Product Seller">Open Product Seller Studio '+icon('arrow',17)+'</button>' +
+            '<button class="btn btn-dark-ghost" data-action="experience" data-id="shop">Visit beauty store</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="partner-band ivory-band" id="partners-pro" aria-labelledby="partner-pro-h">' +
+      '<div class="gg-wrap split-pair">' +
+        '<div class="partner-copy">' +
+          '<h2 id="partner-pro-h">Take at-home visits and preview every partner workspace</h2>' +
+          '<p class="partner-lead">Independent stylists, aestheticians, and makeup artists link treatments from '+money(minPrice)+', manage 7-day schedules, and review completed session earnings.</p>' +
+          '<ul class="partner-list">' +
+            '<li>'+icon('check',17)+'<span><strong>Verified practitioner profile:</strong> Surface years of experience, specialty, and verified client ratings before booking.</span></li>' +
+            '<li>'+icon('check',17)+'<span><strong>Flexible weekly hours:</strong> Switch working days on or off with instant slot generation between 09:00 and 19:00.</span></li>' +
+          '</ul>' +
+          '<div class="partner-actions">' +
+            '<button class="btn btn-primary" data-action="partners-apply" data-role="Professional">Join as Specialist '+icon('arrow',17)+'</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="role-explorer" id="partner-role-explorer">' +
+          '<div class="role-tabs" role="tablist" aria-label="Partner role workflows">' +
+            ['Salon Owner','Product Seller','Professional'].map(r => '<button type="button" role="tab" aria-selected="'+(r===activeRole?'true':'false')+'" class="role-tab-btn'+(r===activeRole?' active':'')+'" data-action="showcase-partner-tab" data-role="'+r+'">'+r+'</button>').join('') +
+          '</div>' +
+          '<h3>'+esc(roleInfo.title)+'</h3>' +
+          '<p>'+esc(roleInfo.summary)+'</p>' +
+          '<div class="role-modules">' +
+            roleInfo.modules.map(m => '<div class="role-module"><span>'+esc(m)+'</span>'+icon('check',15)+'</div>').join('') +
+          '</div>' +
+          '<button class="btn btn-outline full" data-action="partners-apply" data-role="'+esc(activeRole)+'">Launch '+esc(activeRole)+' Studio '+icon('arrow',16)+'</button>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<footer class="footer closing">' +
+      '<div class="closing-cta gg-wrap">' +
+        '<div><h2>Start as a shopper or open your studio today</h2><p>Move directly between home treatments, nearby salons, the skincare store, and studio operations.</p></div>' +
+        '<div class="partner-actions">' +
+          '<button class="btn btn-invert btn-xl" data-action="experience" data-id="home">Explore services '+icon('arrow',18)+'</button>' +
+          '<button class="btn btn-dark-ghost btn-xl" data-action="partners-apply" data-role="Salon Owner">Apply as Partner '+icon('arrow',18)+'</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="footer-grid gg-wrap">' +
+        '<div><a class="wordmark light" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a><p>At-home beauty visits, local salons, skincare shopping, and partner software.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div>' +
+        '<div><h3>For Shoppers</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div>' +
+        '<div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">Salon Owner Studio</button><button data-action="partners-apply" data-role="Product Seller">Product Seller Studio</button><button data-action="partners-apply" data-role="Professional">Specialist Studio</button></div>' +
+        '<div><h3>Account</h3><button data-action="account">Sign in / My account</button><button data-action="partners">Open Partner Portal</button></div>' +
+      '</div>' +
+      '<div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Editorial treatment and salon imagery sourced under Unsplash License; product stills hosted locally.</p></details></div>' +
+    '</footer>' +
+  '</div>';
 }
 
 function auth(){
-  return '<div class="auth-layout"><div class="auth-image">'+image(HOME_IMG,'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">'+brandMark+'<span>GLAMGO</span></a><h1>Beauty bookings and essentials</h1><p>Sign in once for home visits, salon slots, and store orders.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">SIGN IN OR REGISTER</p><h2>'+(state.authMode==='signup'?'Create your account':'Welcome back')+'</h2><p>Access saved addresses, live order tracking, and upcoming appointments.</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p><p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
+  const isPartnerAuth = pendingAuthResume?.view === 'partner';
+  const partnerRoleLabel = pendingAuthResume?.partnerRole || state.partnerRole || 'Partner';
+  const leftTitle = isPartnerAuth ? ('Open your '+partnerRoleLabel+' studio') : 'Beauty bookings and essentials';
+  const leftSub = isPartnerAuth ? 'Manage salon schedules, multi-variant inventory, split suborders, and T+7 settlements.' : 'Sign in once for home visits, salon slots, and store orders.';
+  const rightHeading = state.authMode==='signup'
+    ? (isPartnerAuth ? 'Create your partner account' : 'Create your account')
+    : (isPartnerAuth ? 'Sign in to Partner Studio' : 'Welcome back');
+  const rightCopy = isPartnerAuth
+    ? 'Sign in or create an account to access your '+partnerRoleLabel+' application and workspace.'
+    : 'Access saved addresses, live order tracking, and upcoming appointments.';
+  const leftImg = isPartnerAuth ? SALON_IMG : HOME_IMG;
+  return '<div class="auth-layout"><div class="auth-image">'+image(leftImg,isPartnerAuth?'Partner salon studio interior':'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">'+brandMark+'<span>GLAMGO</span></a><h1>'+leftTitle+'</h1><p>'+leftSub+'</p></div></div><div class="auth-panel"><div class="auth-box"><h2>'+rightHeading+'</h2><p>'+rightCopy+'</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p><p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing</button></p></div></div></div>';
 }
 
 function header(){
@@ -696,8 +868,19 @@ function header(){
     : '<button class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',15)+'</button>';
   const activeKey = getActiveSubnavKey();
   const navBtn = (act, label, key, extraAttrs='') => '<button data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
-  const subTag = state.experience==='shop' ? 'Free shipping over '+money(1500) : 'Serving '+esc(state.location);
-  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap"><a class="wordmark" href="#" data-action="landing">'+brandMark+'<span>GLAMGO</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-inner gg-wrap"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Treatments','popular','data-target="popular"')+navBtn('scroll','Specialists','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Salons','landing')+navBtn('scroll','Near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','Appointments','account-bookings'):navBtn('shop-all','Store','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('shop-collection','Best sellers','bestsellers','data-collection="BESTSELLER" data-target="bestsellers"')+navBtn('shop-collection','New arrivals','new-arrivals','data-collection="NEW" data-target="bestsellers"'))+'</div><span class="subnav-tag">'+subTag+'</span></div></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  const isPartnerView = state.view === 'partner';
+  const subTag = isPartnerView
+    ? ('Partner workspace · '+(state.partnerRole || 'Studio'))
+    : (state.experience==='shop' ? 'Free shipping over '+money(1500) : 'Serving '+esc(state.location));
+  const subnavLinksHtml = isPartnerView
+    ? '<button data-action="landing">← Consumer Storefront</button>' +
+      roles.map(r => '<button data-action="partner-role" data-id="'+r+'" class="'+(state.partnerRole===r?'active':'')+'">'+r+'</button>').join('')
+    : (state.experience==='home'
+        ? navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Treatments','popular','data-target="popular"')+navBtn('scroll','Specialists','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"')
+        : state.experience==='salon'
+          ? navBtn('landing','Salons','landing')+navBtn('scroll','Near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','Appointments','account-bookings')
+          : navBtn('shop-all','Store','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('shop-collection','Best sellers','bestsellers','data-collection="BESTSELLER" data-target="bestsellers"')+navBtn('shop-collection','New arrivals','new-arrivals','data-collection="NEW" data-target="bestsellers"'));
+  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap"><a class="wordmark" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-inner gg-wrap"><div class="subnav-links">'+subnavLinksHtml+'</div><span class="subnav-tag">'+subTag+'</span></div></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -767,7 +950,8 @@ function salonDetail(){
     return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button>'+(state.catalogFeedsLoading.salons?catalogLoadingState('salon details'):catalogUnavailableState('Salon details'))+'</main>';
   }
   const staffList = (s.staff && s.staff.length) ? s.staff : professionals.slice(0, 2);
-  return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(images.salon2,'Salon styling space')+image(images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>Map preview</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
+  const galleryExtras = [SALON_IMG, images.salon2, images.salon3, images.spa].filter(u => u && u !== s.img);
+  return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(galleryExtras[0]||images.salon2,'Salon styling space')+image(galleryExtras[1]||images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>Map preview</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
 }
 
 function productCard(p){
@@ -1058,17 +1242,26 @@ function trackingPage(){
   return '<main class="tracking-page"><button class="back-link" data-action="orders">← Back to orders</button><div class="page-heading"><p class="eyebrow">ORDER '+esc(o.id)+' · '+esc(String(o.status||'placed').toUpperCase())+'</p><h1>Your order journey.</h1><p>Placed '+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(o.payment_method||'')+' ('+esc(formatOrderPaymentStatusLabel(o.payment_status))+')</p></div>'+statusBannerHtml+'<div class="tracking-card"><div class="tracking-steps">'+[['Order placed','Your order is confirmed and being prepared.'],['Packed with care','Our seller is preparing your beauty essentials.'],['On its way','You will receive a delivery update here.'],['Delivered','Enjoy your new favourites.']].map((x,i)=>'<div class="'+(i<=activeStepIdx?'active':'')+'"><span>'+icon(i<=activeStepIdx?'check':'bag',17)+'</span><div><strong>'+x[0]+'</strong><p>'+x[1]+'</p></div></div>').join('')+'</div><div class="tracking-items">'+(packagesHtml || ('<h3>In this order</h3>'+(o.items||[]).map(i=>'<p>'+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty+'</p>').join('')))+'<p style="margin-top:16px;"><strong>Delivery address</strong><br>'+esc(o.address?.text||state.addresses[0]?.text||'')+'</p></div></div></main>';
 }
 
+const partnerRoleFromUser = r => ({ seller: 'Product Seller', salon_owner: 'Salon Owner', professional: 'Professional' }[r] || null);
+
 async function loadPartnerData(){
+  if (!state.signedIn) return;
   const role = state.partnerRole;
+  const userPartnerRole = partnerRoleFromUser(state.user?.role);
+  const canQueryRoleApi = state.user?.role === 'admin' || userPartnerRole === role;
   try {
-    const [overviewRes, draftsRes, finRes] = await Promise.allSettled([
-      apiGetPartnerOverview(role),
-      apiGetPartnerDrafts(role),
-      apiGetPartnerFinancials()
-    ]);
-    if(overviewRes.status === 'fulfilled') state.partnerOverview = overviewRes.value;
-    if(draftsRes.status === 'fulfilled') state.partnerDrafts = draftsRes.value;
-    if(finRes.status === 'fulfilled') state.partnerFinancials = finRes.value;
+    const baseCalls = [apiGetPartnerDrafts(role)];
+    if (canQueryRoleApi) {
+      baseCalls.push(apiGetPartnerOverview(role), apiGetPartnerFinancials());
+    }
+    const baseRes = await Promise.allSettled(baseCalls);
+    if(baseRes[0]?.status === 'fulfilled') state.partnerDrafts = baseRes[0].value;
+    if(baseRes[1]?.status === 'fulfilled') state.partnerOverview = baseRes[1].value;
+    if(baseRes[2]?.status === 'fulfilled') state.partnerFinancials = baseRes[2].value;
+    if (!canQueryRoleApi) {
+      render();
+      return;
+    }
 
     if(role === 'Professional'){
       const [proRes, srvRes, bRes] = await Promise.allSettled([
@@ -1131,13 +1324,23 @@ function partnerPage(){
 
   let body = '';
 
+  const roleDesc = role === 'Product Seller'
+    ? 'Manage variant SKUs, inventory ledgers, suborder packing, return requests, and T+7 escrow payouts.'
+    : role === 'Salon Owner'
+      ? 'Manage salon branches, treatment catalogues, staff assignments, appointments, and reviews.'
+      : 'Manage your at-home treatments, weekly booking calendar, client requests, and earnings.';
+  const isRoleMatched = state.user?.role === 'admin' || partnerRoleFromUser(state.user?.role) === role;
+
   if(tab === 'Overview'){
-    body = '<div class="dashboard-metrics">'+metrics.map(x=>'<div><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')+'</div>' +
+    body = (!isRoleMatched ? '<div class="payment-notice payment-notice-warn" style="margin-bottom:18px"><strong>Partner Application Required</strong><p>You are currently signed in as a consumer or viewing a different role. Submit an application in Registration below to activate your '+esc(role)+' workspace.</p></div>' : '') +
+      '<div class="dashboard-metrics">'+metrics.map(x=>'<div><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')+'</div>' +
       '<div class="dashboard-panel">' +
-        '<h3>'+role+' Operations Command</h3>' +
-        '<p>Manage your luxury '+role.toLowerCase()+' presence, schedule, and client relationships.</p>' +
+        '<h3>'+role+' Workspace</h3>' +
+        '<p>'+roleDesc+'</p>' +
         '<div class="dashboard-actions">' +
-          tabs.slice(1, 5).map(t => '<button data-action="partner-tab" data-id="'+t+'">'+t+' '+icon('arrow',16)+'</button>').join('') +
+          (!isRoleMatched
+            ? '<button data-action="partner-tab" data-id="Registration">Submit '+role+' application '+icon('arrow',16)+'</button>'
+            : tabs.slice(1, 5).map(t => '<button data-action="partner-tab" data-id="'+t+'">'+t+' '+icon('arrow',16)+'</button>').join('')) +
         '</div>' +
       '</div>';
   } else if(tab.toLowerCase().includes('registration') || tab === 'Partner application'){
@@ -1519,9 +1722,8 @@ function partnerPage(){
     '<div class="partner-top">' +
       '<button class="back-link" data-action="landing">← Back to GlamGo</button>' +
       '<div>' +
-        '<p class="eyebrow">GLAMGO PARTNER STUDIO</p>' +
-        '<h1>Operational <em>Command.</em></h1>' +
-        '<p>Empowering luxury beauty businesses, independent artists, and curated brand sellers.</p>' +
+        '<h1>'+esc(role)+' Studio</h1>' +
+        '<p>'+roleDesc+'</p>' +
       '</div>' +
     '</div>' +
     '<div class="role-picker">' +
@@ -1550,7 +1752,7 @@ async function loadAdminData(){
       apiGetAdminStats(),
       apiGetAdminUsers(),
       apiGetAdminDrafts(),
-      apiGetAuditLogs(50, 0),
+      apiGetAuditLogs(null, 50, 0),
       apiGetAdminBookings(),
       apiGetAdminOrders()
     ]);
@@ -1910,8 +2112,37 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
-  if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); }
+  if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='guest-browse'){ pendingAuthResume=null; state.view=state.experience?'landing':'onboarding'; render(); }
+  else if(a==='scroll-onboard'){
+    const targetId = el.dataset.target;
+    if(state.view !== 'onboarding'){
+      state.view = 'onboarding';
+      render();
+      setTimeout(()=>document.getElementById(targetId)?.scrollIntoView({behavior:'smooth'}),60);
+    } else {
+      document.getElementById(targetId)?.scrollIntoView({behavior:'smooth'});
+    }
+  }
+  else if(a==='showcase-partner-tab'){
+    state.showcasePartnerRole = el.dataset.role || 'Salon Owner';
+    render();
+  }
+  else if(a==='partners-apply'){
+    const chosenRole = el.dataset.role || 'Salon Owner';
+    state.partnerRole = chosenRole;
+    if(!requireAuth({ view: 'partner', partnerRole: chosenRole }, 'Sign in or create an account to open your '+chosenRole+' Studio')) return;
+    const mapped = partnerRoleFromUser(state.user?.role);
+    if(mapped && mapped === chosenRole){
+      state.partnerTab = 'Overview';
+    } else if(state.user?.role === 'admin'){
+      state.partnerTab = 'Overview';
+    } else {
+      state.partnerTab = 'Registration';
+    }
+    navigate('partner');
+    loadPartnerData();
+  }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
   else if(a==='switch-toggle'){
@@ -2443,10 +2674,17 @@ async function action(el){
   }
   else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; render(); }
   else if(a==='partners'){
-    if(!requireAuth({ view: 'partner' }, 'Sign in to access the Salon & Partner Portal')) return;
-    const roleMap = { seller: 'Product Seller', salon_owner: 'Salon Owner', professional: 'Professional' };
-    if (roleMap[state.user?.role]) state.partnerRole = roleMap[state.user.role];
-    state.partnerTab='Overview';
+    const chosenRole = state.partnerRole || 'Salon Owner';
+    if(!requireAuth({ view: 'partner', partnerRole: chosenRole }, 'Sign in to access your Partner Studio')) return;
+    const mapped = partnerRoleFromUser(state.user?.role);
+    if (mapped) {
+      state.partnerRole = mapped;
+      state.partnerTab = 'Overview';
+    } else if (state.user?.role === 'admin') {
+      state.partnerTab = 'Overview';
+    } else {
+      state.partnerTab = 'Registration';
+    }
     navigate('partner');
     loadPartnerData();
   }
@@ -2679,7 +2917,7 @@ async function action(el){
       if (idx !== -1) state.adminUsers[idx] = updated;
       toast(`User status updated: ${updated.is_active ? 'Active' : 'Suspended'}`);
       try {
-        state.adminAuditLogs = await apiGetAuditLogs(50, 0);
+        state.adminAuditLogs = await apiGetAuditLogs(null, 50, 0);
       } catch {}
       render();
     } catch (err) {
@@ -2881,7 +3119,20 @@ function applyPostAuthNavigation(role) {
   if (resume?.view) {
     if (resume.accountTab) state.accountTab = resume.accountTab;
     state.view = resume.view;
-    if (resume.view === 'partner') loadPartnerData();
+    if (resume.view === 'partner') {
+      const mapped = partnerRoleFromUser(role);
+      if (mapped) {
+        state.partnerRole = mapped;
+        state.partnerTab = 'Overview';
+      } else if (role === 'admin') {
+        state.partnerRole = resume.partnerRole || state.partnerRole || 'Salon Owner';
+        state.partnerTab = 'Overview';
+      } else {
+        state.partnerRole = resume.partnerRole || state.partnerRole || 'Salon Owner';
+        state.partnerTab = 'Registration';
+      }
+      loadPartnerData();
+    }
     if (resume.view === 'checkout') ensureCheckoutReservation();
     return null;
   }
@@ -3156,7 +3407,7 @@ document.addEventListener('submit', async e => {
       state.selectedDraftId = null;
       toast('Partner application rejected');
       try {
-        state.adminAuditLogs = await apiGetAuditLogs(50, 0);
+        state.adminAuditLogs = await apiGetAuditLogs(null, 50, 0);
       } catch {}
       render();
     } catch (err) {
@@ -3206,7 +3457,7 @@ document.addEventListener('change', async e => {
       if (idx !== -1) state.adminUsers[idx] = res;
       toast(`User role updated to ${newRole}`);
       try {
-        state.adminAuditLogs = await apiGetAuditLogs(50, 0);
+        state.adminAuditLogs = await apiGetAuditLogs(null, 50, 0);
       } catch {}
       render();
     } catch (err) {
@@ -3268,7 +3519,13 @@ window.addEventListener('scroll', () => {
 window.addEventListener('hashchange', () => {
   if(applyRouteFromLocation()){
     render();
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    if (pendingOnboardingScroll) {
+      const targetId = pendingOnboardingScroll;
+      pendingOnboardingScroll = null;
+      requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth' }));
+    } else {
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    }
     return;
   }
   if(window.location.hash === '#admin'){
@@ -3279,11 +3536,12 @@ window.addEventListener('hashchange', () => {
     } else {
       toast('Unauthorized access. Administrator privileges required.');
     }
-  } else if(window.location.hash === '#salon' || window.location.hash === '#partner' || window.location.hash === '#partners'){
-    if(!requireAuth({ view: 'partner' }, 'Sign in to access the Salon & Partner Portal')) return;
+  } else if(window.location.hash === '#salon' || window.location.hash === '#partner'){
+    const targetRole = window.location.hash === '#salon' ? 'Salon Owner' : (partnerRoleFromUser(state.user?.role) || state.partnerRole || 'Salon Owner');
+    if(!requireAuth({ view: 'partner', partnerRole: targetRole }, 'Sign in to access your Partner Studio')) return;
     state.view = 'partner';
-    state.partnerRole = window.location.hash === '#salon' ? 'Salon Owner' : (state.partnerRole || 'Salon Owner');
-    state.partnerTab = 'Overview';
+    state.partnerRole = partnerRoleFromUser(state.user?.role) || targetRole;
+    state.partnerTab = (state.user?.role === 'customer') ? 'Registration' : 'Overview';
     render();
     loadPartnerData();
   }
@@ -3314,22 +3572,35 @@ document.addEventListener('keydown', e => {
 
 // Initial boot and background live sync
 async function init() {
+  const initialHash = window.location.hash;
+  const initialPath = window.location.pathname;
   const matchedRoute = applyRouteFromLocation();
-  if(window.location.hash === '#admin' && state.user?.role === 'admin' && state.signedIn){
+  if(initialHash === '#admin' && state.user?.role === 'admin' && state.signedIn){
     state.view = 'admin';
-  } else if((window.location.hash === '#salon' || window.location.hash === '#partner' || window.location.hash === '#partners') && state.signedIn){
+  } else if((initialHash === '#salon' || initialHash === '#partner') && state.signedIn){
     state.view = 'partner';
-    state.partnerRole = window.location.hash === '#salon' ? 'Salon Owner' : 'Salon Owner';
-    state.partnerTab = 'Overview';
+    state.partnerRole = initialHash === '#salon' ? 'Salon Owner' : (partnerRoleFromUser(state.user?.role) || state.partnerRole || 'Salon Owner');
+    state.partnerTab = state.user?.role === 'customer' ? 'Registration' : 'Overview';
     loadPartnerData();
   }
   render();
   if (matchedRoute) {
-    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    if (pendingOnboardingScroll) {
+      const targetId = pendingOnboardingScroll;
+      pendingOnboardingScroll = null;
+      requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: 'instant' }));
+    } else {
+      requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+    }
   }
   try {
     const hydrateSession = async () => {
-      if (!tokenStorage.get()) return;
+      if (!tokenStorage.get()) {
+        if ((initialHash === '#salon' || initialHash === '#partner') && state.view !== 'auth') {
+          requireAuth({ view: 'partner', partnerRole: initialHash === '#salon' ? 'Salon Owner' : 'Salon Owner' }, 'Sign in to access your Partner Studio');
+        }
+        return;
+      }
       try {
         const me = await apiGetMe();
         state.user = { id: me.id, name: me.name, email: me.email, phone: me.phone, role: me.role };
@@ -3347,10 +3618,17 @@ async function init() {
         if(myR.status === 'fulfilled') state.reviews = myR.value;
 
         if(me.role === 'admin'){
-          if(window.location.hash === '#admin' || window.location.pathname === '/admin'){
+          if(initialHash === '#admin' || initialPath === '/admin'){
             state.view = 'admin';
           }
           await loadAdminData();
+        }
+        if(initialHash === '#partner' || initialHash === '#salon'){
+          const mapped = partnerRoleFromUser(me.role);
+          state.view = 'partner';
+          state.partnerRole = initialHash === '#salon' ? 'Salon Owner' : (mapped || state.partnerRole || 'Salon Owner');
+          state.partnerTab = (mapped || me.role === 'admin') ? 'Overview' : 'Registration';
+          await loadPartnerData();
         }
       } catch {
         tokenStorage.remove();
