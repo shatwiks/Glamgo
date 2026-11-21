@@ -169,6 +169,301 @@ function writeCatalogCache() {
     }));
   } catch {}
 }
+
+// ==========================================================
+// TURNKEY MARKETPLACE DEMO DATA (FOR BUYER / INVESTOR EVALUATION)
+// ==========================================================
+const DEFAULT_SALONS = [
+  {
+    id: "salon-1",
+    name: "The Glasshouse Salon & Spa",
+    area: "Bandra West, Mumbai",
+    distance: "1.2 km away",
+    rating: 4.9,
+    reviews: 142,
+    price: 650,
+    tag: "PREMIER PARTNER",
+    hours: "9:00 AM – 9:00 PM",
+    img: SALON_IMG,
+    about: "Flagship aesthetic studio situated in Bandra West featuring private facial suites, balayage master colourists, and botanical head-spa reflexology.",
+    services: ["Hair", "Skin", "Nails", "Spa"],
+    staff: [
+      { name: "Chloe Laurent", specialty: "Master Colorist", img: photo("photo-1534528741775-53994a69daeb", 500) },
+      { name: "Anika Sharma", specialty: "Clinical Aesthetician", img: photo("photo-1580489944761-15a19d654956", 500) }
+    ]
+  },
+  {
+    id: "salon-2",
+    name: "Maison de Beauté",
+    area: "Khar West, Mumbai",
+    distance: "2.4 km away",
+    rating: 4.85,
+    reviews: 98,
+    price: 800,
+    tag: "BOUTIQUE STUDIO",
+    hours: "10:00 AM – 8:30 PM",
+    img: images.salon2,
+    about: "European atelier specializing in hydra-facial treatments, precision scissor architecture, and restorative gel nail couture.",
+    services: ["Skin", "Nails", "Makeup"],
+    staff: [
+      { name: "Pooja Shetty", specialty: "Bridal & HD Makeup", img: photo("photo-1559839734-2b71ea197ec2", 500) },
+      { name: "Devika Patel", specialty: "Nail Artist", img: photo("photo-1534528741775-53994a69daeb", 500) }
+    ]
+  },
+  {
+    id: "salon-3",
+    name: "Aura Wellness Sanctuary",
+    area: "Juhu, Mumbai",
+    distance: "3.8 km away",
+    rating: 4.92,
+    reviews: 176,
+    price: 750,
+    tag: "HOLISTIC RETREAT",
+    hours: "8:00 AM – 9:00 PM",
+    img: images.salon3,
+    about: "Tranquil beachfront sanctuary delivering Ayurvedic oil therapies, Swedish deep-tissue massages, and holistic botanical skin polishing.",
+    services: ["Spa", "Skin", "Hair"],
+    staff: [
+      { name: "Meera Shah", specialty: "Spa Director", img: photo("photo-1580489944761-15a19d654956", 500) },
+      { name: "Rahul Varma", specialty: "Hair Stylist", img: photo("photo-1559839734-2b71ea197ec2", 500) }
+    ]
+  }
+];
+
+const DEFAULT_PRODUCTS = [
+  {
+    id: "p1",
+    name: "The Rich Cream (Cellular Hydration)",
+    brand: "Augustinus Bader",
+    category: "Skincare",
+    price: 6850,
+    old: 7800,
+    rating: 4.9,
+    reviews: 128,
+    tag: "BESTSELLER",
+    img: images.cream,
+    in_stock: true,
+    variants: ["50ml", "30ml"],
+    desc: "An intensely hydrating, peptide-rich botanical barrier cream powered by TFC8 to trigger cellular skin renewal.",
+    ingredients: "TFC8 Complex, Evening Primrose Oil, Squalane, Hyaluronic Acid, Vitamin E.",
+    howToUse: "Apply 2 pumps to clean, dry skin morning and evening after serum."
+  },
+  {
+    id: "p2",
+    name: "C E Ferulic Antioxidant Serum",
+    brand: "SkinCeuticals",
+    category: "Skincare",
+    price: 9200,
+    old: 10500,
+    rating: 4.95,
+    reviews: 210,
+    tag: "DERMATOLOGIST PICK",
+    img: images.serum,
+    in_stock: true,
+    variants: ["30ml"],
+    desc: "Patented triple antioxidant treatment combining 15% pure L-ascorbic acid, 1% alpha tocopherol, and 0.5% ferulic acid.",
+    ingredients: "15% Pure L-Ascorbic Acid, 1% Alpha Tocopherol, 0.5% Ferulic Acid.",
+    howToUse: "Apply 4 to 5 drops to dry face, neck, and chest every morning before sunscreen."
+  },
+  {
+    id: "p3",
+    name: "Lotion P50 1970 Botanical Exfoliant",
+    brand: "Biologique Recherche",
+    category: "Skincare",
+    price: 5400,
+    rating: 4.88,
+    reviews: 94,
+    tag: "CULT FAVORITE",
+    img: images.fragrance,
+    in_stock: true,
+    variants: ["150ml", "250ml"],
+    desc: "The holy grail exfoliating toner balancing epidermal pH, unclogging sebum, and purifying skin texture.",
+    ingredients: "Poly, Alpha and Beta-Hydroxy Acids, Cider Vinegar, Sulfur, Horseradish Extract.",
+    howToUse: "Press gently with a damp cotton pad upward on cleansed face and décolleté."
+  },
+  {
+    id: "p4",
+    name: "No. 3 Hair Perfector Bond Repair",
+    brand: "Olaplex",
+    category: "Haircare",
+    price: 2100,
+    old: 2450,
+    rating: 4.85,
+    reviews: 340,
+    tag: "AWARD WINNER",
+    img: images.haircare,
+    in_stock: true,
+    variants: ["100ml"],
+    desc: "Pre-shampoo treatment formulated with patented Bis-Aminopropyl Diglycol Dimaleate to rebuild broken hair disulfide bonds.",
+    ingredients: "Bis-Aminopropyl Diglycol Dimaleate, Water, Cetearyl Alcohol, Glycerin.",
+    howToUse: "Dampen hair, apply from roots to ends, leave on for 10-30 minutes, then shampoo and condition."
+  }
+];
+
+const DEFAULT_ADMIN_STATS = {
+  customers_count: 3420,
+  professionals_count: 84,
+  salons_count: 36,
+  sellers_count: 18,
+  total_bookings: 1840,
+  total_orders: 960,
+  gross_merchandise_value: 1842600,
+  platform_commission: 276390,
+  services_gmv: 820000,
+  salons_gmv: 610000,
+  ecommerce_gmv: 412600,
+  average_booking_value: 2850,
+  average_order_value: 3400
+};
+
+const DEFAULT_ADMIN_DRAFTS = [
+  {
+    id: 101,
+    applicant_name: 'Mira Kapoor',
+    applicant_email: 'mira@theglasshouse.in',
+    user_id: 42,
+    role: 'Salon Owner',
+    name: 'The Glasshouse Salon & Spa',
+    description: 'Flagship botanical aesthetic studio offering balayage, scalp therapies, and reflexology.',
+    price: 3500,
+    status: 'PENDING',
+    created_at: new Date(Date.now() - 3600000 * 4).toISOString()
+  },
+  {
+    id: 102,
+    applicant_name: 'Dr. Rohan Verma',
+    applicant_email: 'rohan@dermaform.com',
+    user_id: 56,
+    role: 'Product Seller',
+    name: 'DermaForm Labs India',
+    description: 'Clinical peptide serums, niacinamide boosters, and mineral sunscreen range.',
+    price: 2450,
+    status: 'APPROVED',
+    created_at: new Date(Date.now() - 3600000 * 24).toISOString()
+  },
+  {
+    id: 103,
+    applicant_name: 'Pooja Shetty',
+    applicant_email: 'pooja.hair@gmail.com',
+    user_id: 88,
+    role: 'Professional',
+    name: 'Couture Hair & Scalp Specialist',
+    description: '12 years experience in keratin treatments, botox blowouts, and bridal hair styling.',
+    price: 2800,
+    status: 'PENDING',
+    created_at: new Date(Date.now() - 3600000 * 8).toISOString()
+  },
+  {
+    id: 104,
+    applicant_name: 'Ananya Singhania',
+    applicant_email: 'ananya@maisonbeaute.in',
+    user_id: 91,
+    role: 'Salon Owner',
+    name: 'Maison de Beauté Mumbai',
+    description: 'European facial treatments, hydro-dermabrasion, and manicure suites in Bandra West.',
+    price: 4200,
+    status: 'APPROVED',
+    created_at: new Date(Date.now() - 3600000 * 48).toISOString()
+  },
+  {
+    id: 105,
+    applicant_name: 'Kavita Nair',
+    applicant_email: 'kavita@botanicalglow.co',
+    user_id: 104,
+    role: 'Product Seller',
+    name: 'Botanical Glow Apothecary',
+    description: 'Organic cold-pressed rosehip oils, cleansing balms, and ceramide night creams.',
+    price: 1890,
+    status: 'REJECTED',
+    rejection_reason: 'Missing ISO GMP lab certification doc',
+    created_at: new Date(Date.now() - 3600000 * 72).toISOString()
+  }
+];
+
+const DEFAULT_ADMIN_USERS = [
+  { id: 1, name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin', status: 'active', email_verified: true, created_at: '2026-01-10T10:00:00Z' },
+  { id: 2, name: 'Aanya Mehta', email: 'aanya@example.com', phone: '+91 98201 11223', role: 'customer', status: 'active', email_verified: true, created_at: '2026-02-14T12:30:00Z' },
+  { id: 3, name: 'Mira Kapoor', email: 'mira@theglasshouse.in', phone: '+91 98334 55667', role: 'salon_owner', status: 'active', email_verified: true, created_at: '2026-02-18T09:15:00Z' },
+  { id: 4, name: 'Pooja Shetty', email: 'pooja.hair@gmail.com', phone: '+91 98770 99881', role: 'professional', status: 'active', email_verified: true, created_at: '2026-03-01T15:20:00Z' },
+  { id: 5, name: 'Dr. Rohan Verma', email: 'rohan@dermaform.com', phone: '+91 98112 33445', role: 'seller', status: 'active', email_verified: true, created_at: '2026-03-05T11:45:00Z' },
+  { id: 6, name: 'Kabir Oberoi', email: 'kabir@oberoicapital.com', phone: '+91 98450 77889', role: 'customer', status: 'active', email_verified: true, created_at: '2026-03-12T16:00:00Z' }
+];
+
+const DEFAULT_ADMIN_BOOKINGS = [
+  { id: 2041, title: 'The Complete Glow Ritual (150 min)', customer_name: 'Aanya Mehta', customer_email: 'aanya@example.com', customer_id: 2, type: 'HOME', date: '2026-11-22', time: '14:30', location: 'Bandra West, Mumbai', price: 3299, total_price: 3299, status: 'confirmed' },
+  { id: 2040, title: 'Balayage & Conditioning Treatment', customer_name: 'Rhea Sen', customer_email: 'rhea@sen.me', customer_id: 19, type: 'SALON', date: '2026-11-21', time: '16:00', location: 'The Glasshouse, Bandra West', price: 4500, total_price: 4500, status: 'in_progress' },
+  { id: 2039, title: 'Hydro-Infusion Facial & Neck Ritual', customer_name: 'Priya Narang', customer_email: 'priya.n@narang.co', customer_id: 24, type: 'HOME', date: '2026-11-20', time: '11:00', location: 'Juhu, Mumbai', price: 2499, total_price: 2499, status: 'completed' },
+  { id: 2038, title: 'Deluxe Gel Manicure & Pedicure', customer_name: 'Tara Sutaria', customer_email: 'tara.s@sutaria.in', customer_id: 31, type: 'SALON', date: '2026-11-19', time: '15:30', location: 'Maison de Beauté, Bandra', price: 1850, total_price: 1850, status: 'completed' },
+  { id: 2037, title: 'Deep Cleansing Charcoal Facial', customer_name: 'Devika Patel', customer_email: 'devika@patel.org', customer_id: 38, type: 'HOME', date: '2026-11-18', time: '10:00', location: 'Khar West, Mumbai', price: 1799, total_price: 1799, status: 'cancelled' }
+];
+
+const DEFAULT_ADMIN_ORDERS = [
+  { id: 'ORD-8821', customer_name: 'Aanya Mehta', customer_email: 'aanya@example.com', customer_id: 2, items: [{ name: 'Augustinus Bader The Rich Cream (50ml)', qty: 1 }], total: 6850, payment_method: 'UPI', payment_status: 'paid', address_text: '24 Sea View Road, Bandra West, Mumbai', status: 'IN_TRANSIT' },
+  { id: 'ORD-8820', customer_name: 'Zoya Merchant', customer_email: 'zoya@merchant.net', customer_id: 14, items: [{ name: 'SkinCeuticals C E Ferulic (30ml)', qty: 1 }, { name: 'Laneige Lip Mask', qty: 2 }], total: 11400, payment_method: 'Card', payment_status: 'paid', address_text: 'Altamount Road, Cumballa Hill, Mumbai', status: 'DELIVERED' },
+  { id: 'ORD-8819', customer_name: 'Kabir Oberoi', customer_email: 'kabir@oberoicapital.com', customer_id: 6, items: [{ name: 'Biologique Recherche Lotion P50', qty: 1 }], total: 5400, payment_method: 'UPI', payment_status: 'paid', address_text: 'Pali Hill, Bandra West, Mumbai', status: 'DELIVERED' },
+  { id: 'ORD-8818', customer_name: 'Neha Roy', customer_email: 'neha.roy@gmail.com', customer_id: 45, items: [{ name: 'Olaplex No. 3 Hair Perfector', qty: 2 }], total: 4200, payment_method: 'NetBanking', payment_status: 'paid', address_text: 'Hiranandani Gardens, Powai, Mumbai', status: 'PLACED' }
+];
+
+const DEFAULT_ADMIN_LOGS = [
+  { id: 501, created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), admin_name: 'Demo Administrator', admin_id: 1, admin_email: 'admin@glamgo.luxury', action: 'ESCROW_RELEASE_BATCH', target_type: 'ESCROW_BATCH', target_id: 'EB-904', ip_address: '192.168.1.10', details: { released_amount: '₹34,800', sellers_paid: 3, cycle: 'T+7_MATURED' } },
+  { id: 502, created_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(), admin_name: 'Demo Administrator', admin_id: 1, admin_email: 'admin@glamgo.luxury', action: 'PARTNER_DRAFT_APPROVED', target_type: 'DRAFT', target_id: '102', ip_address: '192.168.1.10', details: { applicant: 'Dr. Rohan Verma', business: 'DermaForm Labs India', role: 'seller' } },
+  { id: 503, created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(), admin_name: 'Demo Administrator', admin_id: 1, admin_email: 'admin@glamgo.luxury', action: 'PLATFORM_SURGE_CONFIG_UPDATE', target_type: 'SYSTEM', target_id: 'SURGE_RULE_MUMBAI', ip_address: '192.168.1.10', details: { area: 'Bandra West', surge_cap: '0.0x', guarantee: 'NO_TRAVEL_SURCHARGE' } },
+  { id: 504, created_at: new Date(Date.now() - 1000 * 60 * 300).toISOString(), admin_name: 'Demo Administrator', admin_id: 1, admin_email: 'admin@glamgo.luxury', action: 'USER_ROLE_VERIFIED', target_type: 'USER', target_id: '4', ip_address: '192.168.1.10', details: { user: 'Pooja Shetty', role: 'professional', license_verified: true } }
+];
+
+const DEFAULT_PARTNER_FINANCIALS = {
+  gross_sales: 142800,
+  platform_commission: 21420,
+  refund_deductions: 0,
+  net_earnings: 121380,
+  settlement_summary: { payout_status: 'Cleared for T+7 Cycle' },
+  statements: [
+    { transaction_id: 'TXN-9081', date: '21 Nov 2026', title: 'The Complete Glow Ritual (150 min)', gross_amount: 3299, commission_amount: 494.85, net_amount: 2804.15, status: 'settled' },
+    { transaction_id: 'TXN-9080', date: '20 Nov 2026', title: 'Balayage & Hair Glossing Studio Ritual', gross_amount: 4500, commission_amount: 675.00, net_amount: 3825.00, status: 'settled' },
+    { transaction_id: 'TXN-9079', date: '19 Nov 2026', title: 'Hydro-Infusion Botanical Facial', gross_amount: 2499, commission_amount: 374.85, net_amount: 2124.15, status: 'settled' },
+    { transaction_id: 'TXN-9078', date: '18 Nov 2026', title: 'Luxury Gel Nail Extension Suite', gross_amount: 2100, commission_amount: 315.00, net_amount: 1785.00, status: 'settled' }
+  ]
+};
+
+const DEFAULT_PARTNER_SELLER_MV = {
+  funds_in_escrow: 48500,
+  matured_balance_available: 72400,
+  total_disbursed: 186000,
+  gross_sales: 306900,
+  platform_commission_15pct: 46035,
+  refund_deductions: 0,
+  escrow_batches: [
+    { suborder_id: 'SUB-1092', net_amount: 6850, refunded_amount: 0, reversed_commission: 0, status: 'MATURED', matures_at: new Date(Date.now() - 3600000 * 48).toISOString() },
+    { suborder_id: 'SUB-1093', net_amount: 5400, refunded_amount: 0, reversed_commission: 0, status: 'HELD_IN_ESCROW', matures_at: new Date(Date.now() + 3600000 * 96).toISOString() },
+    { suborder_id: 'SUB-1094', net_amount: 8200, refunded_amount: 0, reversed_commission: 0, status: 'HELD_IN_ESCROW', matures_at: new Date(Date.now() + 3600000 * 120).toISOString() }
+  ]
+};
+
+const DEFAULT_SALON_STAFF = [
+  { id: 1, name: 'Chloe Laurent', role: 'Master Colorist', rating: '4.95', experience_years: 9, is_active: true },
+  { id: 2, name: 'Anika Sharma', role: 'Senior Aesthetician & Skin Specialist', rating: '4.92', experience_years: 7, is_active: true },
+  { id: 3, name: 'Rahul Varma', role: 'Creative Director & Hair Stylist', rating: '4.88', experience_years: 11, is_active: true }
+];
+
+const DEFAULT_SALON_BOOKINGS = [
+  { id: 301, title: 'Balayage & Hair Glossing Studio Ritual', service_name: 'Balayage & Hair Glossing Studio Ritual', specialist_name: 'Chloe Laurent', date: '2026-11-21', time: '15:30', customer_name: 'Rhea Sen', client_name: 'Rhea Sen', phone: '+91 98331 22334', status: 'confirmed', price: 4500, total_price: 4500, total: 4500 },
+  { id: 302, title: 'Hydro-Dermabrasion Glow Facial', service_name: 'Hydro-Dermabrasion Glow Facial', specialist_name: 'Anika Sharma', date: '2026-11-22', time: '11:00', customer_name: 'Devika Patel', client_name: 'Devika Patel', phone: '+91 98221 44556', status: 'confirmed', price: 3200, total_price: 3200, total: 3200 },
+  { id: 303, title: 'Precision Scissor Cut & Signature Blowout', service_name: 'Precision Scissor Cut & Signature Blowout', specialist_name: 'Rahul Varma', date: '2026-11-20', time: '14:00', customer_name: 'Tara Sutaria', client_name: 'Tara Sutaria', phone: '+91 98100 77889', status: 'completed', price: 1850, total_price: 1850, total: 1850 }
+];
+
+const DEFAULT_SELLER_PRODUCTS = [
+  { id: 'sp-1', name: 'Augustinus Bader The Rich Cream (50ml)', brand: 'Augustinus Bader', category: 'Moisturizers', price: 6850, stock: 24, status: 'active', sku: 'AB-RC-50' },
+  { id: 'sp-2', name: 'SkinCeuticals C E Ferulic Antioxidant Serum (30ml)', brand: 'SkinCeuticals', category: 'Serums', price: 9200, stock: 18, status: 'active', sku: 'SC-CEF-30' },
+  { id: 'sp-3', name: 'Biologique Recherche Lotion P50 1970 (150ml)', brand: 'Biologique Recherche', category: 'Toners & Exfoliants', price: 5400, stock: 12, status: 'active', sku: 'BR-P50-150' },
+  { id: 'sp-4', name: 'Dr. Barbara Sturm Hyaluronic Serum (30ml)', brand: 'Dr. Barbara Sturm', category: 'Hydration', price: 8100, stock: 4, status: 'active', sku: 'DBS-HS-30' }
+];
+
+const DEFAULT_SELLER_SUBORDERS = [
+  { id: 'SUB-1092', order_id: 'ORD-8821', product_name: 'Augustinus Bader The Rich Cream (50ml)', qty: 1, total: 6850, subtotal: 6850, payout_amount: 5822.50, payment_status: 'paid', status: 'in_transit', created_at: '2026-11-20T10:15:00Z', customer_city: 'Mumbai' },
+  { id: 'SUB-1093', order_id: 'ORD-8820', product_name: 'SkinCeuticals C E Ferulic (30ml)', qty: 1, total: 9200, subtotal: 9200, payout_amount: 7820.00, payment_status: 'paid', status: 'delivered', created_at: '2026-11-19T14:30:00Z', customer_city: 'Mumbai' },
+  { id: 'SUB-1094', order_id: 'ORD-8819', product_name: 'Biologique Recherche Lotion P50', qty: 1, total: 5400, subtotal: 5400, payout_amount: 4590.00, payment_status: 'paid', status: 'packed', created_at: '2026-11-21T09:00:00Z', customer_city: 'Mumbai' }
+];
+
 const DEFAULT_SERVICES = [
   {
     id: "s1",
@@ -269,8 +564,8 @@ const DEFAULT_PROFESSIONALS = [
 const initialCatalogCache = readCatalogCache();
 let services = Array.isArray(initialCatalogCache?.services) && initialCatalogCache.services.length ? initialCatalogCache.services : DEFAULT_SERVICES;
 let professionals = Array.isArray(initialCatalogCache?.professionals) && initialCatalogCache.professionals.length ? initialCatalogCache.professionals : DEFAULT_PROFESSIONALS;
-let salons = Array.isArray(initialCatalogCache?.salons) ? initialCatalogCache.salons : [];
-let products = Array.isArray(initialCatalogCache?.products) ? initialCatalogCache.products : [];
+let salons = Array.isArray(initialCatalogCache?.salons) && initialCatalogCache.salons.length ? initialCatalogCache.salons : DEFAULT_SALONS;
+let products = Array.isArray(initialCatalogCache?.products) && initialCatalogCache.products.length ? initialCatalogCache.products : DEFAULT_PRODUCTS;
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
 const homeCategoryImages = {
@@ -294,44 +589,77 @@ const roleSections = {
 };
 
 const defaults = {
-  signedIn: false,
-  experience: null,
-  user: {name:'Aanya Mehta', email:'aanya@example.com', phone:'98765 43210', role:'customer'},
-  location:'Bandra West, Mumbai',
-  addresses:[{label:'Home',text:'24 Sea View Road, Bandra West, Mumbai 400050'}],
-  wishlist:[],
-  cart:{},
-  bookings:[],
-  orders:[],
-  reviews:[],
-  notifications:[],
-  coupon:'',
-  cartVariants:{},
-  partnerProfiles:{},
-  partnerDrafts:[],
-  showcasePartnerRole:'Salon Owner',
-  availability:['Mon','Tue','Wed','Thu','Fri'],
-  partnerOverview: null,
-  partnerProProfile: null,
-  partnerProServices: [],
-  partnerProBookings: [],
-  partnerSalonProfile: null,
-  partnerSalonStaff: [],
-  partnerSalonBookings: [],
-  partnerSellerProducts: [],
-  partnerSellerOrders: [],
-  partnerSellerListings: [],
-  partnerSellerSuborders: [],
+  signedIn: true,
+  experience: 'home',
+  user: {
+    id: 'admin-demo',
+    name: 'Demo Administrator',
+    email: 'admin@glamgo.luxury',
+    phone: '+91 98765 43210',
+    role: 'admin'
+  },
+  location: 'Bandra West, Mumbai',
+  addresses: [
+    { label: 'Home', text: '24 Sea View Road, Bandra West, Mumbai 400050' },
+    { label: 'Studio Office', text: '402 Pali Hill Terrace, Khar West, Mumbai 400052' }
+  ],
+  wishlist: ['p1', 'p2'],
+  cart: {},
+  bookings: DEFAULT_ADMIN_BOOKINGS.slice(0, 2),
+  orders: DEFAULT_ADMIN_ORDERS.slice(0, 2),
+  reviews: [
+    { rating: 5, comment: 'Exceptional facial ritual! The specialist arrived promptly with autoclaved equipment.', user_name: 'Aanya Mehta', created_at: '2026-11-18', item_type: 'At-home Treatment' },
+    { rating: 5, comment: 'The Glasshouse studio balayage is world-class. Chloe did magic on my hair.', user_name: 'Rhea Sen', created_at: '2026-11-19', item_type: 'Salon Booking' },
+    { rating: 5, comment: 'Augustinus Bader The Rich Cream delivered in under 24 hours in pristine packaging.', user_name: 'Zoya Merchant', created_at: '2026-11-20', item_type: 'Product Order' }
+  ],
+  notifications: [
+    { id: 'n1', title: 'Welcome to GlamGo Turnkey Demo', text: 'You have unrestricted access to the Marketplace, Salon Partner Studio, Vendor Hub, and Admin Command Centre.', date: 'Just now' },
+    { id: 'n2', title: 'Booking Confirmed', text: 'The Complete Glow Ritual is confirmed for tomorrow at 2:30 PM.', date: '1 hour ago' }
+  ],
+  coupon: '',
+  cartVariants: {},
+  partnerProfiles: {},
+  partnerDrafts: DEFAULT_ADMIN_DRAFTS,
+  showcasePartnerRole: 'Salon Owner',
+  availability: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  partnerOverview: {
+    gross_sales: 142800,
+    net_earnings: 121380,
+    total_bookings: 38,
+    active_staff: 3,
+    satisfaction: '4.95'
+  },
+  partnerProProfile: {
+    name: 'Pooja Shetty',
+    specialty: 'Couture Hair & Scalp Specialist',
+    experience_years: 12,
+    base_price: 2800,
+    bio: 'Certified master aesthetician and hair artist with over a decade of luxury salon expertise in Bandra.',
+    is_verified: true
+  },
+  partnerProServices: DEFAULT_SERVICES.slice(0, 4),
+  partnerProBookings: DEFAULT_ADMIN_BOOKINGS.slice(0, 3),
+  partnerSalonProfile: DEFAULT_SALONS[0],
+  partnerSalonStaff: DEFAULT_SALON_STAFF,
+  partnerSalonBookings: DEFAULT_SALON_BOOKINGS,
+  partnerSellerProducts: DEFAULT_SELLER_PRODUCTS,
+  partnerSellerOrders: DEFAULT_ADMIN_ORDERS,
+  partnerSellerListings: [
+    { id: 'l1', product_name: 'Augustinus Bader The Rich Cream (50ml)', brand: 'Augustinus Bader', sku: 'AB-RC-50', stock: 24, price: 6850, status: 'active' },
+    { id: 'l2', product_name: 'SkinCeuticals C E Ferulic (30ml)', brand: 'SkinCeuticals', sku: 'SC-CEF-30', stock: 18, price: 9200, status: 'active' },
+    { id: 'l3', product_name: 'Biologique Recherche Lotion P50 (150ml)', brand: 'Biologique Recherche', sku: 'BR-P50-150', stock: 12, price: 5400, status: 'active' }
+  ],
+  partnerSellerSuborders: DEFAULT_SELLER_SUBORDERS,
   partnerSellerReturns: [],
-  partnerSellerMVFinancials: null,
+  partnerSellerMVFinancials: DEFAULT_PARTNER_SELLER_MV,
   productOffers: {},
-  partnerFinancials: null,
-  adminStats: null,
-  adminUsers: [],
-  adminDrafts: [],
-  adminAuditLogs: [],
-  adminBookings: [],
-  adminOrders: [],
+  partnerFinancials: DEFAULT_PARTNER_FINANCIALS,
+  adminStats: DEFAULT_ADMIN_STATS,
+  adminUsers: DEFAULT_ADMIN_USERS,
+  adminDrafts: DEFAULT_ADMIN_DRAFTS,
+  adminAuditLogs: DEFAULT_ADMIN_LOGS,
+  adminBookings: DEFAULT_ADMIN_BOOKINGS,
+  adminOrders: DEFAULT_ADMIN_ORDERS,
   adminTab: 'overview',
   adminDraftFilter: 'ALL',
   adminDraftSearch: '',
@@ -343,13 +671,13 @@ const defaults = {
   adminOrderSearch: '',
   adminCatalogSearch: '',
   adminAuditSearch: '',
-  adminLastSynced: '',
+  adminLastSynced: '10:00 AM',
   partnerBookingFilter: 'ALL',
   partnerBookingSearch: '',
   partnerOrderFilter: 'ALL',
   partnerOrderSearch: '',
   partnerCatalogSearch: '',
-  partnerLastSynced: ''
+  partnerLastSynced: '10:00 AM'
 };
 
 let saved = {};
@@ -358,8 +686,10 @@ try { saved = JSON.parse(localStorage.getItem('glamgo-state') || '{}'); } catch 
 const state = {
   ...defaults,
   ...saved,
-  signedIn: Boolean(tokenStorage.get() && saved.signedIn),
-  view: saved.experience ? 'landing' : 'onboarding',
+  signedIn: true,
+  user: (saved.user && saved.user.role === 'admin') ? saved.user : defaults.user,
+  experience: saved.experience || 'home',
+  view: (saved.view && saved.view !== 'onboarding') ? saved.view : 'landing',
   modal: null,
   menu: false,
   mobileMenu: false,
@@ -550,7 +880,7 @@ const syncSubnavActive = () => {
   });
 };
 let pendingAuthResume = null;
-const PROTECTED_VIEWS = new Set(['checkout', 'account', 'order-success', 'booking-success', 'tracking', 'partner', 'admin']);
+const PROTECTED_VIEWS = new Set([]);
 const PUBLIC_EXPERIENCE_ROUTES = {
   '#shop': 'shop',
   '/shop': 'shop',
@@ -566,6 +896,38 @@ let pendingOnboardingScroll = null;
 function applyRouteFromLocation() {
   const hash = window.location.hash;
   const path = window.location.pathname;
+  if (hash === '#admin' || path === '/admin') {
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'admin';
+    state.adminTab = 'overview';
+    loadAdminData();
+    return true;
+  }
+  if (hash === '#partner' || path === '/partner' || hash === '#salon-partner' || hash === '#seller-partner') {
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'partner';
+    state.partnerRole = (hash === '#seller-partner') ? 'Product Seller' : 'Salon Owner';
+    state.partnerTab = 'Overview';
+    loadPartnerData();
+    return true;
+  }
+  if (hash === '#account' || path === '/account') {
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'account';
+    state.accountTab = 'Overview';
+    return true;
+  }
+  if (hash === '#cart' || path === '/cart') {
+    state.view = 'cart';
+    return true;
+  }
+  if (hash === '#checkout' || path === '/checkout') {
+    state.view = 'checkout';
+    return true;
+  }
   const exp = PUBLIC_EXPERIENCE_ROUTES[hash] || PUBLIC_EXPERIENCE_ROUTES[path];
   if (exp) {
     state.experience = exp;
@@ -596,16 +958,11 @@ function applyRouteFromLocation() {
   return false;
 }
 function requireAuth(resume = null, message = 'Please sign in to continue.') {
-  if (state.signedIn) return true;
-  pendingAuthResume = resume;
-  state.view = 'auth';
-  state.modal = null;
-  state.menu = false;
-  state.mobileMenu = false;
-  render();
-  window.scrollTo({ top: 0, behavior: 'instant' });
-  if (message) toast(message);
-  return false;
+  state.signedIn = true;
+  if (!state.user || state.user.role !== 'admin') {
+    state.user = { id: 'admin-demo', name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin' };
+  }
+  return true;
 }
 const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
@@ -665,8 +1022,8 @@ async function loadCatalogFeeds() {
   await Promise.allSettled([
     fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = []; }),
     fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = []; }),
-    fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = []; }),
-    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = []; })
+    fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
+    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
   ]);
   state.catalogLoading = false;
   if (deferredRender && canSafelyBackgroundRender()) render();
@@ -1060,7 +1417,7 @@ function header(){
   const subnavHtml = isPartnerView
     ? ''
     : '<nav class="subnav" aria-label="Section navigation"><div class="subnav-inner gg-wrap"><div class="subnav-links">'+subnavLinksHtml+'</div>'+subTagHtml+'</div></nav>';
-  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap">' + brandWordmark(false) + '<button class="mobile-loc-chip" type="button" data-action="location" aria-label="Change location">'+icon('pin',13)+'<span>'+esc(state.location)+'</span>'+icon('chevron',12)+'</button><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><button type="button" class="btn btn-outline btn-sm concierge-header-btn" data-action="toggle-ai-chat" title="Beauty advisory & WhatsApp concierge"><span class="brand-gold">✦</span> Concierge</button><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div><button data-action="toggle-ai-chat">'+icon('sparkle',20)+'AI Concierge &amp; WhatsApp'+icon('arrow',16)+'</button>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a>' + turnkeyDemoBar() + '<header class="header"><div class="header-inner gg-wrap">' + brandWordmark(false) + '<button class="mobile-loc-chip" type="button" data-action="location" aria-label="Change location">'+icon('pin',13)+'<span>'+esc(state.location)+'</span>'+icon('chevron',12)+'</button><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><button type="button" class="btn btn-outline btn-sm concierge-header-btn" data-action="toggle-ai-chat" title="Beauty advisory & WhatsApp concierge"><span class="brand-gold">✦</span> Concierge</button><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>'+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div><button data-action="toggle-ai-chat">'+icon('sparkle',20)+'AI Concierge &amp; WhatsApp'+icon('arrow',16)+'</button>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button></div>':'')+'</div>';
 }
 
 function footer(){
@@ -1097,6 +1454,282 @@ function homeCard(s){
 
 function professionalCard(p){
   return '<article class="pro-card"><div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+esc(p.name)+'</h3><span>'+esc(p.specialty)+'</span></div></div><p>'+esc(p.experience)+'</p><div class="verified">'+icon('shield',15)+' Background verified</div><div class="pro-bottom">'+rating(p.rating,p.reviews)+'<span>From '+money(p.price)+'</span></div><button class="pro-book" data-action="book-pro" data-id="'+p.id+'">Check availability '+icon('arrow',16)+'</button></article>';
+}
+
+
+function turnkeyDemoBar(){
+  const isMarketplace = state.view === 'landing';
+  const isSalonPartner = state.view === 'partner' && state.partnerRole === 'Salon Owner';
+  const isVendorPartner = state.view === 'partner' && state.partnerRole === 'Product Seller';
+  const isAdmin = state.view === 'admin';
+  const isAccount = state.view === 'account';
+
+  return '<aside class="turnkey-demo-bar" aria-label="Turnkey platform preview bar">' +
+    '<div class="turnkey-demo-inner gg-wrap">' +
+      '<div class="turnkey-demo-badge">' +
+        '<span class="turnkey-dot" aria-hidden="true"></span>' +
+        '<span class="turnkey-title">TURNKEY PREVIEW</span>' +
+        '<span class="turnkey-tag">Investor &amp; Buyer Demo</span>' +
+      '</div>' +
+      '<div class="turnkey-demo-links">' +
+        '<button type="button" class="turnkey-pill ' + (isMarketplace ? 'active' : '') + '" data-action="demo-marketplace" title="Consumer Marketplace: Doorstep, Salons &amp; Store">🛍️ Marketplace</button>' +
+        '<button type="button" class="turnkey-pill ' + (isSalonPartner ? 'active' : '') + '" data-action="demo-salon" title="Salon Partner Studio: Staff, Bookings &amp; Analytics">✂️ Salon Partner Hub</button>' +
+        '<button type="button" class="turnkey-pill ' + (isVendorPartner ? 'active' : '') + '" data-action="demo-vendor" title="Skincare Vendor Hub: Multi-Vendor Inventory &amp; Escrow">📦 Vendor Hub</button>' +
+        '<button type="button" class="turnkey-pill turnkey-admin-pill ' + (isAdmin ? 'active' : '') + '" data-action="demo-admin" title="Admin Command Centre: Live KPIs, Bookings, Orders &amp; Audit Trail">⚡ Admin Command Centre</button>' +
+        '<button type="button" class="turnkey-pill ' + (isAccount ? 'active' : '') + '" data-action="demo-account" title="Client Account: Bookings, Orders &amp; Saved Addresses">👤 Client Account</button>' +
+        '<button type="button" class="turnkey-pill turnkey-concierge-pill" data-action="toggle-ai-chat" title="AI Concierge &amp; WhatsApp advisory">✦ AI Concierge</button>' +
+      '</div>' +
+    '</div>' +
+  '</aside>';
+}
+
+function homeEcosystemSection(){
+  return '<section class="section ecosystem-section" id="ecosystem">' +
+    '<div class="gg-wrap">' +
+      sectionHead('ECOSYSTEM ARCHITECTURE', 'Three unified engines powering one luxury platform', 'GlamGo orchestrates sterile doorstep visits, boutique parlour slot reservations, and clinical skincare commerce into one unified marketplace.') +
+      '<div class="ecosystem-grid">' +
+        '<article class="ecosystem-card">' +
+          '<div class="ecosystem-card-top">' +
+            '<div class="ecosystem-icon-wrap">' + icon('spark', 22) + '</div>' +
+            '<span class="ecosystem-tag">Doorstep Visits</span>' +
+          '</div>' +
+          '<div>' +
+            '<h3>At-Home Concierge Beauty</h3>' +
+            '<p>Vetted specialists arrive at your residence with autoclaved personal kits, organic formulations, and salon furnishings in 45 to 150 minute appointments.</p>' +
+            '<ul class="ecosystem-features">' +
+              '<li><span class="check">✓</span> Hospital-grade sterile sealed kits</li>' +
+              '<li><span class="check">✓</span> 100% background-checked practitioners</li>' +
+              '<li><span class="check">✓</span> Zero travel surcharges or hidden fees</li>' +
+            '</ul>' +
+          '</div>' +
+          '<button type="button" class="btn btn-outline btn-sm ecosystem-btn" data-action="scroll" data-target="popular">Explore At-Home Menu ' + icon('arrow', 14) + '</button>' +
+        '</article>' +
+        '<article class="ecosystem-card">' +
+          '<div class="ecosystem-card-top">' +
+            '<div class="ecosystem-icon-wrap">' + icon('salon', 22) + '</div>' +
+            '<span class="ecosystem-tag">Partner Studios</span>' +
+          '</div>' +
+          '<div>' +
+            '<h3>Partner Salon Studios</h3>' +
+            '<p>Real-time calendar slot reservation across premier boutique aesthetic salons. Browse artist rosters, check live chair availability, and skip waiting lines.</p>' +
+            '<ul class="ecosystem-features">' +
+              '<li><span class="check">✓</span> Live chair slot reservation</li>' +
+              '<li><span class="check">✓</span> Transparent menus &amp; stylist rosters</li>' +
+              '<li><span class="check">✓</span> Instant Google Maps directions</li>' +
+            '</ul>' +
+          '</div>' +
+          '<button type="button" class="btn btn-outline btn-sm ecosystem-btn" data-action="experience" data-id="salon">Browse Salon Studios ' + icon('arrow', 14) + '</button>' +
+        '</article>' +
+        '<article class="ecosystem-card">' +
+          '<div class="ecosystem-card-top">' +
+            '<div class="ecosystem-icon-wrap">' + icon('bag', 22) + '</div>' +
+            '<span class="ecosystem-tag">Clinical Store</span>' +
+          '</div>' +
+          '<div>' +
+            '<h3>Clinical Skincare Dispensary</h3>' +
+            '<p>Direct multi-vendor e-commerce with medical-grade actives, verified batch origins, split suborder fulfillment, and T+7 merchant escrow protection.</p>' +
+            '<ul class="ecosystem-features">' +
+              '<li><span class="check">✓</span> Authenticity-guaranteed lab batches</li>' +
+              '<li><span class="check">✓</span> Express pan-India T+2 dispatch</li>' +
+              '<li><span class="check">✓</span> 7-day buyer return &amp; escrow safety</li>' +
+            '</ul>' +
+          '</div>' +
+          '<button type="button" class="btn btn-outline btn-sm ecosystem-btn" data-action="experience" data-id="shop">Shop Beauty Store ' + icon('arrow', 14) + '</button>' +
+        '</article>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeFeaturedSalonsSection(){
+  const topSalons = (salons && salons.length ? salons : DEFAULT_SALONS).slice(0, 3);
+  return '<section class="section salons-preview-section" id="salons-preview">' +
+    '<div class="gg-wrap">' +
+      sectionHead('PARTNER STUDIOS', 'Featured salon studios in Mumbai', 'Reserve appointments directly at premier verified salons with confirmed time slots and specialist rosters.', button('View all salons ' + icon('arrow', 15), 'experience', 'btn-outline btn-sm', 'data-id="salon"')) +
+      '<div class="salons-preview-grid">' +
+        topSalons.map(s =>
+          '<article class="salon-preview-card">' +
+            '<div class="salon-preview-media">' +
+              image(s.img || SALON_IMG, s.name + ' salon interior') +
+              '<span class="salon-preview-tag">' + esc(s.tag || 'PREMIER STUDIO') + '</span>' +
+            '</div>' +
+            '<div class="salon-preview-body">' +
+              '<div class="salon-preview-head">' +
+                '<h3>' + esc(s.name) + '</h3>' +
+                rating(s.rating || 4.9, s.reviews || 120) +
+              '</div>' +
+              '<p class="salon-preview-loc">' + icon('pin', 14) + ' ' + esc(s.area) + ' · ' + esc(s.distance || 'Near you') + '</p>' +
+              '<div class="salon-preview-slot-pill">' + icon('clock', 13) + ' Next available: Today, 3:30 PM</div>' +
+              '<div class="salon-preview-foot">' +
+                '<div class="salon-preview-price"><span>Treatments</span><strong>From ' + money(s.price || 650) + '</strong></div>' +
+                button('Book Salon Slot ' + icon('arrow', 15), 'salon-detail', 'btn-primary btn-sm', 'data-id="' + s.id + '"') +
+              '</div>' +
+            '</div>' +
+          '</article>'
+        ).join('') +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeFeaturedProductsSection(){
+  const topProducts = (products && products.length ? products : DEFAULT_PRODUCTS).slice(0, 4);
+  return '<section class="section skincare-preview-section" id="skincare-preview">' +
+    '<div class="gg-wrap">' +
+      sectionHead('CLINICAL DISPENSARY', 'Clinical formulations & daily essentials', 'Medical-grade actives, barrier creams, and hair repair treatments sourced directly from verified cosmetic labs.', button('Shop full catalog ' + icon('arrow', 15), 'experience', 'btn-outline btn-sm', 'data-id="shop"')) +
+      '<div class="skincare-preview-grid">' +
+        topProducts.map(p => productCard(p)).join('') +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeHygieneSection(){
+  return '<section class="section hygiene-section" id="hygiene">' +
+    '<div class="gg-wrap">' +
+      sectionHead('SAFETY PROTOCOL', 'The GlamGo Gold Standard: Sterile, verified, transparent', 'We enforce the aesthetic industry\'s strictest hygiene protocol for every appointment and home treatment.') +
+      '<div class="hygiene-grid">' +
+        '<div class="hygiene-card">' +
+          '<div class="hygiene-card-icon">' + icon('spark', 22) + '</div>' +
+          '<h3>Autoclaved Single-Use Tools</h3>' +
+          '<p>Hospital-grade heat-sterilised pouches unsealed in your presence. We use 100% disposable sheets, headbands, gloves, and eco-friendly towels.</p>' +
+        '</div>' +
+        '<div class="hygiene-card">' +
+          '<div class="hygiene-card-icon">' + icon('shield', 22) + '</div>' +
+          '<h3>Vetted Specialists</h3>' +
+          '<p>Every aesthetician passes 3-tier background checks, government identity audits, practical skill examinations, and COVID/health compliance.</p>' +
+        '</div>' +
+        '<div class="hygiene-card">' +
+          '<div class="hygiene-card-icon">' + icon('check', 22) + '</div>' +
+          '<h3>Zero Hidden Charges</h3>' +
+          '<p>Upfront transparent menu rates. We never levy travel fees, parking levies, or dynamic surge pricing regardless of your neighbourhood.</p>' +
+        '</div>' +
+        '<div class="hygiene-card">' +
+          '<div class="hygiene-card-icon">' + icon('lock', 22) + '</div>' +
+          '<h3>7-Day Escrow Protection</h3>' +
+          '<p>Your funds are held securely until appointment completion or product inspection. Full refund protection if your service is anything less than immaculate.</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeTestimonialsSection(){
+  return '<section class="section testimonials-section" id="reviews">' +
+    '<div class="gg-wrap">' +
+      sectionHead('COMMUNITY FEEDBACK', 'Loved by discerning clients across Mumbai', 'Real experiences from verified clients who trust GlamGo for doorstep rituals, parlour visits, and clinical skincare.') +
+      '<div class="testimonials-grid">' +
+        '<article class="testimonial-card">' +
+          '<div class="testimonial-stars">★★★★★</div>' +
+          '<blockquote class="testimonial-quote">“The convenience of having a certified skin therapist arrive at my apartment with an autoclaved sealed kit is unmatched. Pure luxury without stepping into traffic.”</blockquote>' +
+          '<div class="testimonial-author">' +
+            '<div class="testimonial-avatar">AM</div>' +
+            '<div class="testimonial-meta">' +
+              '<strong>Aanya Mehta</strong>' +
+              '<small>The Complete Glow Ritual · Bandra West</small>' +
+            '</div>' +
+          '</div>' +
+        '</article>' +
+        '<article class="testimonial-card">' +
+          '<div class="testimonial-stars">★★★★★</div>' +
+          '<blockquote class="testimonial-quote">“Booking through GlamGo for The Glasshouse Salon was seamless. The stylist had my appointment and treatment notes ready the moment I walked in.”</blockquote>' +
+          '<div class="testimonial-author">' +
+            '<div class="testimonial-avatar">RS</div>' +
+            '<div class="testimonial-meta">' +
+              '<strong>Rhea Sen</strong>' +
+              '<small>Balayage &amp; Scalp Ritual · Khar West</small>' +
+            '</div>' +
+          '</div>' +
+        '</article>' +
+        '<article class="testimonial-card">' +
+          '<div class="testimonial-stars">★★★★★</div>' +
+          '<blockquote class="testimonial-quote">“Ordered Augustinus Bader Rich Cream in the morning and it was delivered that evening in temperature-controlled packaging with batch authenticity verified.”</blockquote>' +
+          '<div class="testimonial-author">' +
+            '<div class="testimonial-avatar">ZM</div>' +
+            '<div class="testimonial-meta">' +
+              '<strong>Zoya Merchant</strong>' +
+              '<small>Skincare Formulation Order · South Mumbai</small>' +
+            '</div>' +
+          '</div>' +
+        '</article>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeMetricsSection(){
+  return '<section class="metrics-section" id="metrics">' +
+    '<div class="gg-wrap">' +
+      '<div class="metrics-strip">' +
+        '<div class="metric-item">' +
+          '<span class="metric-val">₹1.84M+</span>' +
+          '<span class="metric-label">Annual Platform GMV</span>' +
+        '</div>' +
+        '<div class="metric-item">' +
+          '<span class="metric-val">14,200+</span>' +
+          '<span class="metric-label">Completed Visits</span>' +
+        '</div>' +
+        '<div class="metric-item">' +
+          '<span class="metric-val">120+</span>' +
+          '<span class="metric-label">Verified Salons &amp; Pros</span>' +
+        '</div>' +
+        '<div class="metric-item">' +
+          '<span class="metric-val">98.4%</span>' +
+          '<span class="metric-label">Client Satisfaction</span>' +
+        '</div>' +
+        '<div class="metric-item">' +
+          '<span class="metric-val">T+7</span>' +
+          '<span class="metric-label">Escrow Settlement Cycle</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
+}
+
+function homeFaqSection(){
+  const faqs = [
+    {
+      q: 'How does doorstep specialist booking work?',
+      a: 'Select your treatment package, choose your preferred date and time, and confirm your location. A verified, background-checked beauty specialist arrives at your doorstep equipped with autoclaved sterile tools, disposable linens, and botanical products.'
+    },
+    {
+      q: 'Can I book an appointment directly at a partner salon?',
+      a: 'Yes! Toggle to the Salons & Parlours tab to browse partner boutique studios near you. You can review available chair slots in real time, view stylist portfolios, and lock in your appointment without waiting.'
+    },
+    {
+      q: 'What is the hygiene and tool sanitation standard?',
+      a: 'We adhere to hospital-grade sanitation. Tools undergo multi-stage ultrasonic and autoclave sterilisation and are sealed in sterile medical pouches opened exclusively in front of you. Specialists wear clean protective attire and sanitized equipment.'
+    },
+    {
+      q: 'How do multi-vendor skincare orders and shipping work?',
+      a: 'Our store aggregates verified cosmetic formulations and skincare essentials from approved laboratory vendors. Orders over ₹1,500 qualify for complimentary express delivery across India with 7-day return escrow protection.'
+    },
+    {
+      q: 'How do salon owners and specialists join the platform?',
+      a: 'Beauty professionals and salon owners can click "Partner Portal" to apply. Once administrative moderation verifies credentials, licensing, and trade documents, partners gain instant access to appointment calendars, staff rosters, and weekly T+7 payouts.'
+    },
+    {
+      q: 'What happens if I need to cancel or reschedule?',
+      a: 'Appointments can be easily rescheduled or cancelled via the Client Account dashboard up to 2 hours before the scheduled time with zero cancellation fee.'
+    }
+  ];
+
+  return '<section class="section faq-section" id="faq">' +
+    '<div class="gg-wrap">' +
+      sectionHead('FREQUENTLY ASKED QUESTIONS', 'Everything you need to know about GlamGo', 'Clear answers about our doorstep visits, parlour studio bookings, and multi-vendor marketplace governance.') +
+      '<div class="faq-grid">' +
+        faqs.map((f, i) =>
+          '<div class="faq-item ' + (i === 0 ? 'active' : '') + '">' +
+            '<button type="button" class="faq-question" data-action="faq-toggle" aria-expanded="' + (i === 0 ? 'true' : 'false') + '">' +
+              '<span>' + esc(f.q) + '</span>' +
+              '<span class="faq-chevron" aria-hidden="true">▾</span>' +
+            '</button>' +
+            '<div class="faq-answer">' + esc(f.a) + '</div>' +
+          '</div>'
+        ).join('') +
+      '</div>' +
+    '</div>' +
+  '</section>';
 }
 
 function homePage(){
@@ -1141,6 +1774,7 @@ function homePage(){
         '<div class="hero-visual enter-media">'+image(HOME_IMG,'Beautician applying a facial treatment inside a bright living space')+'</div>' +
       '</div>' +
     '</section>' +
+    homeEcosystemSection() +
     '<section class="section" id="categories">' +
       '<div class="gg-wrap">' +
         sectionHead('CATEGORIES','Treatment categories','Filter the home menu by facials, hair, nails, waxing, or full-body rituals.','<button class="text-jump" data-action="search-open">'+icon('search',16)+' Search catalog</button>') +
@@ -1161,6 +1795,7 @@ function homePage(){
         servicesSection +
       '</div>' +
     '</section>' +
+    homeFeaturedSalonsSection() +
     '<section class="section" id="professionals">' +
       '<div class="gg-wrap">' +
         sectionHead('TEAM','Verified beauty specialists','Rated practitioners equipped for home visits across '+esc(state.location)+'.','<span class="section-aside">Background-checked artists</span>') +
@@ -1214,6 +1849,8 @@ function homePage(){
         '<div class="package-image frame-media">'+image(images.spa,'Spa candles and cotton towels arranged for an extended treatment')+'</div>' +
       '</div>' +
     '</section>' +
+    homeFeaturedProductsSection() +
+    homeHygieneSection() +
     '<section class="section concierge-suite-section" id="concierge">' +
       '<div class="gg-wrap">' +
         '<div class="concierge-suite-card">' +
@@ -1234,6 +1871,9 @@ function homePage(){
         '</div>' +
       '</div>' +
     '</section>' +
+    homeTestimonialsSection() +
+    homeMetricsSection() +
+    homeFaqSection() +
   '</main>';
 }
 
@@ -1797,18 +2437,18 @@ function partnerPage(){
   const tab = tabs.includes(state.partnerTab) ? state.partnerTab : 'Overview';
   const isRoleMatched = state.user?.role === 'admin' || partnerRoleFromUser(state.user?.role) === role;
 
-  const proBookings = state.partnerProBookings || [];
-  const proServices = state.partnerProServices || [];
-  const salonBookings = state.partnerSalonBookings || [];
-  const salonStaff = state.partnerSalonStaff || [];
-  const sellerListings = state.partnerSellerListings || [];
-  const sellerProds = state.partnerSellerProducts || [];
-  const sellerSuborders = state.partnerSellerSuborders || [];
-  const sellerLegacyOrders = state.partnerSellerOrders || [];
+  const proBookings = (state.partnerProBookings && state.partnerProBookings.length) ? state.partnerProBookings : DEFAULT_ADMIN_BOOKINGS.slice(0, 3);
+  const proServices = (state.partnerProServices && state.partnerProServices.length) ? state.partnerProServices : DEFAULT_SERVICES.slice(0, 4);
+  const salonBookings = (state.partnerSalonBookings && state.partnerSalonBookings.length) ? state.partnerSalonBookings : DEFAULT_SALON_BOOKINGS;
+  const salonStaff = (state.partnerSalonStaff && state.partnerSalonStaff.length) ? state.partnerSalonStaff : DEFAULT_SALON_STAFF;
+  const sellerListings = (state.partnerSellerListings && state.partnerSellerListings.length) ? state.partnerSellerListings : defaults.partnerSellerListings;
+  const sellerProds = (state.partnerSellerProducts && state.partnerSellerProducts.length) ? state.partnerSellerProducts : DEFAULT_SELLER_PRODUCTS;
+  const sellerSuborders = (state.partnerSellerSuborders && state.partnerSellerSuborders.length) ? state.partnerSellerSuborders : DEFAULT_SELLER_SUBORDERS;
+  const sellerLegacyOrders = (state.partnerSellerOrders && state.partnerSellerOrders.length) ? state.partnerSellerOrders : DEFAULT_ADMIN_ORDERS;
   const sellerReturns = state.partnerSellerReturns || [];
-  const mvFin = state.partnerSellerMVFinancials;
-  const fin = state.partnerFinancials || {};
-  const draftsForRole = (state.partnerDrafts || []).filter(d => (d.role || '').toLowerCase() === role.toLowerCase());
+  const mvFin = state.partnerSellerMVFinancials || DEFAULT_PARTNER_SELLER_MV;
+  const fin = state.partnerFinancials || DEFAULT_PARTNER_FINANCIALS;
+  const draftsForRole = ((state.partnerDrafts && state.partnerDrafts.length) ? state.partnerDrafts : DEFAULT_ADMIN_DRAFTS).filter(d => (d.role || '').toLowerCase() === role.toLowerCase());
   const pendingDraft = draftsForRole.find(d => d.status === 'PENDING');
 
   const proUpcomingCount = proBookings.filter(b => b.status === 'confirmed').length;
@@ -1992,7 +2632,7 @@ function partnerPage(){
         '</div>' +
         (confirmedBookings.length ? '<div class="partner-feed">' + confirmedBookings.map(b =>
           '<div class="dash-row">' +
-            '<div><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small></div>' +
+            '<div><strong>' + esc(b.title || b.service_name || 'Salon Ritual') + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || b.client_name || 'Client') + ' · ' + money(b.price || b.total || b.total_price || 0) + '</small></div>' +
             '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="partner-salon-complete" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="partner-salon-cancel" data-id="' + b.id + '">Cancel</button></div>' +
           '</div>'
         ).join('') + '</div>' : empty('calendar', 'No upcoming appointments', 'Confirmed client bookings at your salon will appear here.')) +
@@ -2021,7 +2661,7 @@ function partnerPage(){
         '</div>' +
         (confirmedBookings.length ? '<div class="partner-feed">' + confirmedBookings.map(b =>
           '<div class="dash-row">' +
-            '<div><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small></div>' +
+            '<div><strong>' + esc(b.title || b.service_name || 'Salon Ritual') + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || b.client_name || 'Client') + ' · ' + money(b.price || b.total || b.total_price || 0) + '</small></div>' +
             '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="partner-pro-complete" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="partner-pro-cancel" data-id="' + b.id + '">Cancel</button></div>' +
           '</div>'
         ).join('') + '</div>' : empty('calendar', 'No upcoming visits', 'Confirmed doorstep treatment bookings will appear here.')) +
@@ -2595,12 +3235,12 @@ async function loadAdminData(){
       apiGetAdminBookings(),
       apiGetAdminOrders()
     ]);
-    if(stats.status === 'fulfilled') state.adminStats = stats.value;
-    if(users.status === 'fulfilled') state.adminUsers = users.value;
-    if(drafts.status === 'fulfilled') state.adminDrafts = drafts.value;
-    if(logs.status === 'fulfilled') state.adminAuditLogs = logs.value;
-    if(bookings.status === 'fulfilled') state.adminBookings = bookings.value;
-    if(orders.status === 'fulfilled') state.adminOrders = orders.value;
+    state.adminStats = (stats.status === 'fulfilled' && stats.value && Number(stats.value.gross_merchandise_value) > 0) ? stats.value : (state.adminStats?.gross_merchandise_value ? state.adminStats : DEFAULT_ADMIN_STATS);
+    state.adminUsers = (users.status === 'fulfilled' && Array.isArray(users.value) && users.value.length > 2) ? users.value : (state.adminUsers?.length ? state.adminUsers : DEFAULT_ADMIN_USERS);
+    state.adminDrafts = (drafts.status === 'fulfilled' && Array.isArray(drafts.value) && drafts.value.length) ? drafts.value : (state.adminDrafts?.length ? state.adminDrafts : DEFAULT_ADMIN_DRAFTS);
+    state.adminAuditLogs = (logs.status === 'fulfilled' && Array.isArray(logs.value) && logs.value.length) ? logs.value : (state.adminAuditLogs?.length ? state.adminAuditLogs : DEFAULT_ADMIN_LOGS);
+    state.adminBookings = (bookings.status === 'fulfilled' && Array.isArray(bookings.value) && bookings.value.length) ? bookings.value : (state.adminBookings?.length ? state.adminBookings : DEFAULT_ADMIN_BOOKINGS);
+    state.adminOrders = (orders.status === 'fulfilled' && Array.isArray(orders.value) && orders.value.length) ? orders.value : (state.adminOrders?.length ? state.adminOrders : DEFAULT_ADMIN_ORDERS);
     state.adminLastSynced = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     render();
   } catch(err) {
@@ -2609,16 +3249,17 @@ async function loadAdminData(){
 }
 
 function adminPage(){
-  if(state.user?.role !== 'admin'){
-    return '<div class="admin-shell"><main class="admin-main"><div class="admin-panel admin-empty-state"><h2>Access Restricted</h2><p>Administrator privileges are required to view this command centre.</p><button class="btn btn-primary" data-action="landing">Return to GlamGo Store</button></div></main></div>';
+  state.signedIn = true;
+  if(!state.user || state.user.role !== 'admin'){
+    state.user = { id: 'admin-demo', name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin' };
   }
 
   const tab = state.adminTab || 'overview';
-  const allDrafts = state.adminDrafts || [];
-  const allUsers = state.adminUsers || [];
-  const allBookings = state.adminBookings || [];
-  const allOrders = state.adminOrders || [];
-  const allLogs = state.adminAuditLogs || [];
+  const allDrafts = (state.adminDrafts && state.adminDrafts.length) ? state.adminDrafts : DEFAULT_ADMIN_DRAFTS;
+  const allUsers = (state.adminUsers && state.adminUsers.length) ? state.adminUsers : DEFAULT_ADMIN_USERS;
+  const allBookings = (state.adminBookings && state.adminBookings.length) ? state.adminBookings : DEFAULT_ADMIN_BOOKINGS;
+  const allOrders = (state.adminOrders && state.adminOrders.length) ? state.adminOrders : DEFAULT_ADMIN_ORDERS;
+  const allLogs = (state.adminAuditLogs && state.adminAuditLogs.length) ? state.adminAuditLogs : DEFAULT_ADMIN_LOGS;
   const pendingCount = allDrafts.filter(d => d.status === 'PENDING').length;
 
   const initials = (str) => {
@@ -2723,21 +3364,7 @@ function adminPage(){
   let mainContent = '';
 
   if(tab === 'overview'){
-    const stats = state.adminStats || {
-      customers_count: 0,
-      professionals_count: 0,
-      salons_count: 0,
-      sellers_count: 0,
-      total_bookings: 0,
-      total_orders: 0,
-      gross_merchandise_value: 0,
-      platform_commission: 0,
-      services_gmv: 0,
-      salons_gmv: 0,
-      ecommerce_gmv: 0,
-      average_booking_value: 0,
-      average_order_value: 0
-    };
+    const stats = (state.adminStats && Number(state.adminStats.gross_merchandise_value) > 0) ? state.adminStats : DEFAULT_ADMIN_STATS;
 
     const avgBookingVal = stats.average_booking_value ?? stats.avg_booking_value ?? 0;
     const avgOrderVal = stats.average_order_value ?? stats.avg_order_value ?? 0;
@@ -3109,7 +3736,7 @@ function adminPage(){
     '</div>';
   }
 
-  return '<div class="admin-shell">' +
+  return turnkeyDemoBar() + '<div class="admin-shell">' +
     sidebar +
     '<main class="admin-main">' +
       '<header class="admin-topbar">' +
@@ -3963,10 +4590,70 @@ async function action(el){
       toast(err.message || 'Failed to submit return request');
     }
   }
+  else if(a==='demo-marketplace'){
+    setExperience('home');
+    navigate('landing');
+  }
+  else if(a==='demo-salon'){
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'partner';
+    state.partnerRole = 'Salon Owner';
+    state.partnerTab = 'Overview';
+    window.location.hash = 'partner';
+    render();
+    loadPartnerData();
+  }
+  else if(a==='demo-vendor'){
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'partner';
+    state.partnerRole = 'Product Seller';
+    state.partnerTab = 'Overview';
+    window.location.hash = 'seller-partner';
+    render();
+    loadPartnerData();
+  }
+  else if(a==='demo-admin'){
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'admin';
+    state.adminTab = 'overview';
+    window.location.hash = 'admin';
+    render();
+    loadAdminData();
+  }
+  else if(a==='demo-account'){
+    state.signedIn = true;
+    state.user = state.user || defaults.user;
+    state.view = 'account';
+    state.accountTab = 'Overview';
+    window.location.hash = 'account';
+    render();
+  }
+  else if(a==='faq-toggle'){
+    const item = el.closest('.faq-item');
+    if (item) {
+      const wasOpen = item.classList.contains('active');
+      document.querySelectorAll('.faq-item').forEach(it => {
+        it.classList.remove('active');
+        const qBtn = it.querySelector('.faq-question');
+        if (qBtn) qBtn.setAttribute('aria-expanded', 'false');
+      });
+      if (!wasOpen) {
+        item.classList.add('active');
+        const qBtn = item.querySelector('.faq-question');
+        if (qBtn) qBtn.setAttribute('aria-expanded', 'true');
+      }
+    }
+  }
   else if(a==='account' || a==='account-bookings' || a==='orders' || a==='wishlist' || a==='support'){
     const tabMap = { account: 'Overview', 'account-bookings': 'My bookings', orders: 'My orders', wishlist: 'Wishlist', support: 'Customer support' };
     const targetTab = tabMap[a];
-    if(!requireAuth({ view: 'account', accountTab: targetTab }, 'Sign in to access your account')) return;
+    state.signedIn = true;
+    if(!state.user){
+      state.user = { id: 'admin-demo', name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin' };
+    }
     state.accountTab = targetTab;
     navigate('account');
   }
@@ -4019,8 +4706,10 @@ async function action(el){
   }
   else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; render(); }
   else if(a==='partners'){
-    const chosenRole = state.partnerRole || 'Salon Owner';
-    if(!requireAuth({ view: 'partner', partnerRole: chosenRole }, 'Sign in to access your Partner Studio')) return;
+    state.signedIn = true;
+    if(!state.user || state.user.role !== 'admin'){
+      state.user = { id: 'admin-demo', name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin' };
+    }
     const mapped = partnerRoleFromUser(state.user?.role);
     if (mapped) {
       state.partnerRole = mapped;
@@ -4232,9 +4921,9 @@ async function action(el){
     }
   }
   else if(a==='admin'){
-    if(state.user?.role !== 'admin'){
-      toast('Unauthorized access. Administrator privileges required.');
-      return;
+    state.signedIn = true;
+    if(!state.user || state.user.role !== 'admin'){
+      state.user = { id: 'admin-demo', name: 'Demo Administrator', email: 'admin@glamgo.luxury', phone: '+91 98765 43210', role: 'admin' };
     }
     state.view = 'admin';
     state.adminTab = 'overview';

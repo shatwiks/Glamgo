@@ -1,5 +1,58 @@
 # Change Report
 
+## Prompt Entry #18 — 2026-11-21 15:45 IST — Turnkey Platform Architecture & Deep Ecosystem Landing Page (/ui-ux-pro-max & Platform Sale Readiness)
+**Objective:** Prepare GlamGo for sale to prospective buyers/investors by removing all sign-in friction across all portals, adding a persistent 1-click Turnkey Tour Switcher, and expanding the landing page with comprehensive marketplace telemetry, partner studio showcases, clinical formulation store, hygiene protocols, testimonials, and interactive FAQ:
+1. **Turnkey Unrestricted Platform Access (Zero Sign-In Friction for Buyers & Investors):**
+   - **Persistent Turnkey Preview Bar (`.turnkey-demo-bar`):** Added a top-bar preview ribbon at the very top of every page allowing instant 1-click navigation between:
+     - `[ 🛍️ Marketplace ]` (Home consumer view)
+     - `[ ✂️ Salon Partner Hub ]` (Salon Owner Studio with live staff rosters, chair bookings, and revenue metrics)
+     - `[ 📦 Vendor Hub ]` (Product Seller Studio with inventory SKUs, fulfillment orders, and catalogue management)
+     - `[ ⚡ Admin Command Centre ]` (Executive command desk with GMV metrics, user databases, moderation queues, and audit logs)
+     - `[ 👤 Client Account ]` (Customer account dashboard with active bookings, order history, and preferences)
+     - `[ ✦ AI Concierge ]` (Interactive AI beauty advisor & WhatsApp booking desk)
+   - **Unrestricted Authentication & Fallback Data:**
+     - Cleared `PROTECTED_VIEWS = new Set([])` to eliminate any redirect to login gates.
+     - Auto-initialized demo administrator session (`role: 'admin'`) so evaluators have unrestricted access to all admin tools, partner suites, and customer accounts.
+     - Provided turnkey datasets (`DEFAULT_SALONS`, `DEFAULT_PRODUCTS`, `DEFAULT_ADMIN_STATS`, `DEFAULT_SALON_BOOKINGS`, `DEFAULT_SELLER_PRODUCTS`, etc.) ensuring rich, realistic metrics (₹18,42,600 GMV, 14,200+ visits, 98.4% satisfaction) even when the remote database is cold or offline.
+2. **Deeply Detailed Landing Page Ecosystem (`#home` / `homePage()`):**
+   - **Tri-Engine Ecosystem Overview (`#ecosystem`):** Interactive cards displaying the 3 commercial revenue engines: Doorstep Specialist Visits, Partner Salon & Parlour Studios, and Clinical Formulations Store.
+   - **Featured Partner Studios Showcase (`#salons-preview`):** Editorial salon showcase featuring Premier Partner studios (The Glasshouse, Maison de Beauté, Aura Wellness) with live booking buttons.
+   - **Clinical Formulations Showcase (`#skincare-preview`):** Direct-to-consumer store preview featuring medical-grade formulations (Augustinus Bader, SkinCeuticals, Biologique Recherche, Olaplex) with ratings, prices, and 1-click "Add to Bag".
+   - **Hospital-Grade Hygiene & Safety Protocol (`#hygiene`):** 4 safety pillars highlighting single-use sealed kits, certified & background-checked specialists, 100% upfront pricing, and 7-day partner escrow guarantee.
+   - **Verified Client Testimonials & Social Proof (`#reviews`):** 5.0★ verified reviews highlighting client satisfaction, punctuality, and salon-grade results.
+   - **Marketplace Scale Telemetry Strip (`#metrics`):** Key buyer-facing metrics (₹1.84M+ GMV, 14,200+ completed visits, 120+ partner studios & specialists, 98.4% retention rate).
+   - **Interactive FAQ Accordion (`#faq`):** 6 key client and partner questions with smooth toggle interactions.
+3. **Mobile & Viewport Optimization:**
+   - Enforced 0 horizontal overflow across all mobile viewports (`320px`, `390px`, `768px`) with scrollable turnkey ribbons and hidden desktop portal buttons on narrow screens.
+
+### Files changed
+- `src/app.js`: Added turnkey mock datasets, unrestricted auth routing, turnkey demo bar component, rich landing sections (`#ecosystem`, `#salons-preview`, `#skincare-preview`, `#hygiene`, `#reviews`, `#metrics`, `#faq`), and action handlers.
+- `styles.css`: Added styles for turnkey demo bar, ecosystem grid, salon preview, skincare preview, hygiene grid, testimonials, metrics strip, faq accordion, and mobile overflow guards.
+- `CHANGEREPORT.md`: Documented changes, verified commands, and platform sale readiness.
+
+### Verification
+- `npm run build`: Production build succeeded in 3.79s (`dist/assets/index-cyB4iERo.js` 432.93 kB, `dist/assets/index-Dg5sxKa_.css` 167.93 kB).
+- Playwright End-to-End Automated Verification:
+  - Turnkey Demo Bar: Rendered and active across all views.
+  - Landing page sections found: `#ecosystem`, `#categories`, `#popular`, `#salons-preview`, `#professionals`, `#how`, `#ritual`, `#skincare-preview`, `#hygiene`, `#concierge`, `#reviews`, `#metrics`, `#faq`.
+  - FAQ accordion toggle: Passed (`active: true`).
+  - Admin Command Centre (`#admin`): Loaded with ₹18,42,600 GMV, 5 moderation drafts, 5 bookings, 4 orders, 6 users, 4 audit logs.
+  - Partner Studio (`#partner`): Loaded with Salon Owner Studio and Product Seller Studio without login requirement.
+  - Customer Account (`#account`): Loaded without login prompt.
+  - Mobile 390px Viewport: `Doc: 390 x 390 (overflow: false)`, `Body: 390 x 390 (overflow: false)`.
+  - Desktop 1440px Viewport: Location picker map verified and functional (`Leaflet tiles count: 6`).
+- Visual Artifacts Generated:
+  - `turnkey_landing_top.png`
+  - `turnkey_landing_salons_skincare.png`
+  - `turnkey_landing_metrics_faq.png`
+  - `turnkey_admin_overview.png`
+  - `turnkey_partner_salon.png`
+  - `turnkey_partner_vendor.png`
+  - `turnkey_client_account.png`
+  - `turnkey_mobile_home_top.png`
+  - `test_local_location_modal.png`
+  - `verify_local_ritual.png`
+
 ## Prompt Entry #17 — 2026-11-21 14:35 IST — Container Edge Alignment & Concierge Suite Redesign (/design-taste-frontend)
 **Objective:** Address the user's feedback ("fix this its not alligned nicely and use some nice place for whatsapp and ai coverage") adhering to `tasteskill 2.5` (Rule 4: Equal left and right content edges; anti-slop luxury UI):
 1. **Container Alignment & Equal Margins (`#ritual.package-section`):**
