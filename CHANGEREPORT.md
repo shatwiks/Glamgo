@@ -1,5 +1,18 @@
 # Change Report
 
+## Prompt Entry #7 — 2026-11-21 09:30 IST — Treatment Category Photos & Main Branch Sync
+**Objective:** Replace placeholder icon boxes in the Home "Treatment categories" grid with curated beauty photography, update `CHANGEREPORT.md`, merge verified branch work into `main`, and push to GitHub `origin/main`.
+
+### Files changed
+- `src/app.js`
+  - Added `homeCategoryImages` mapping all 8 treatment categories (`Hair`, `Skin`, `Waxing`, `Threading`, `Nails`, `Makeup`, `Spa`, `Packages`) to verified curated photographs and local `./assets/home-editorial.webp`.
+  - Updated `homeLanding()` `#categories` cards to render full-bleed `image()` photos inside `.category-art` instead of placeholder icons.
+- `styles.css`
+  - Updated `.category-art` (`height: 118px`, `overflow: hidden`, `padding: 0`), added smooth hover zoom (`scale(1.06)`), and active ring state on `.category-tile.active`.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-ColD8ze5.js` + `index-AOSmRoHB.css`).
+- Playwright check (`verify_categories_photos.mjs`) on `http://127.0.0.1:5173/#home` confirmed all 8 category card images loaded with `complete: true` and non-zero `naturalWidth` (`900px` / `1600px`), `mobileNoOverflow: true`, `0` console errors, and `0` page errors at both `1440px` and `390px`.
 ## Prompt Entry #6 — 2026-11-21 09:22 IST — Partner Portal Multi-Role Redesign (Salon Owner, Product Seller, Specialist)
 **Objective:** Study and redesign the multi-role Partner Portal (`Salon Owner`, `Product Seller`, and `Specialist`) using `ui-ux-pro-max` design intelligence while preserving GlamGo's ivory/cream/espresso/champagne/terracotta palette, backend API contracts, forms, and `data-action` workflows.
 
