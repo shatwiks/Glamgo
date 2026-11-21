@@ -785,7 +785,9 @@
 
 /* UI/UX Pro Max Audit Fixes: Touch Targets, Minimum Font Floor, & Sans-Serif Numerals */
 .card-bottom button,.pro-book,.salon-bar button,.subnav-links button{min-height:36px;display:inline-flex;align-items:center}
-.mobile-menu-button,.icon-button{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.icon-button{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.mobile-menu-button{min-width:40px;min-height:40px;align-items:center;justify-content:center}
+@media(max-width:700px){.mobile-menu-button{display:inline-flex}}
 .eyebrow,.subnav-tag,.hero-proof,.hero-proof dt,.hero-proof dd,.card-body small,.product-brand,.product-old,.cat-count,.footer-bottom,.mobile-bar span,.badge{font-size:11px}
 .product-price,.product-bottom strong,.card-bottom strong,.package-price,.step>span,.chapter-btn>span,.shelf-count strong{font-family:var(--sans);font-variant-numeric:tabular-nums}
 @media(max-width:960px){
@@ -2215,7 +2217,7 @@
   .ops-qc-checks .btn-sm{flex:1 1 46%}
 }
 @media (prefers-reduced-motion:reduce){
-  .ops-status-btn,.ops-sos-btn,.ops-step,.ops-chair-slot{transition:none}
+  .ops-status-btn,.ops-sos-btn,.ops-step,.ops-chair-slot,.acquire-card,.turnkey-pill{transition:none}
 }
 .turnkey-demo-bar {
   background: #141210;
@@ -2263,11 +2265,15 @@
   font-size: 11px;
   padding-left: 6px;
   border-left: 1px solid rgba(255, 255, 255, 0.18);
+  white-space: nowrap;
 }
 .turnkey-demo-links {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -2280,12 +2286,13 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #F7F4EF;
   font-family: var(--sans);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
-  padding: 6px 12px;
+  padding: 5px 10px;
   border-radius: 999px;
   cursor: pointer;
   white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.18s ease;
   display: inline-flex;
   align-items: center;
@@ -2328,6 +2335,8 @@
   }
   .turnkey-demo-links {
     width: 100%;
+    flex: none;
+    justify-content: flex-start;
     padding-bottom: 2px;
   }
 }
@@ -2967,5 +2976,48 @@
   .ops-qc-checks .btn-sm{flex:1 1 46%}
 }
 @media (prefers-reduced-motion:reduce){
-  .ops-status-btn,.ops-sos-btn,.ops-step,.ops-chair-slot{transition:none}
+  .ops-status-btn,.ops-sos-btn,.ops-step,.ops-chair-slot,.acquire-card,.turnkey-pill{transition:none}
+}
+
+/* ═══ Turnkey Showcase Acquisition & Partner Listing Band (.acquire-*) ═══ */
+.turnkey-pill svg{flex-shrink:0}
+.turnkey-pill:focus-visible,.acquire-actions .btn:focus-visible{outline:2px solid #C5A059;outline-offset:2px}
+.turnkey-cta-pill{background:#C5A059;border-color:#C5A059;color:#141210;font-weight:700}
+.turnkey-cta-pill:hover{background:#d4b16e;border-color:#d4b16e;color:#141210}
+@media (max-width:900px){
+  .turnkey-pill{min-height:40px;padding:8px 13px}
+}
+
+.acquire-section{padding:64px 0 72px;background:var(--cream);border-bottom:1px solid rgba(30,28,26,.08)}
+.acquire-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:32px}
+.acquire-card{background:#FAF8F5;border:1px solid rgba(30,28,26,.1);border-radius:14px;padding:34px 30px;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-width:0;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.acquire-card:hover{transform:translateY(-2px);border-color:rgba(197,160,89,.55);box-shadow:0 14px 30px rgba(30,28,26,.07)}
+.acquire-card-dark{background:#181614;border-color:rgba(197,160,89,.4);color:#F7F4EF}
+.acquire-card-dark:hover{border-color:#C5A059;box-shadow:0 16px 34px rgba(20,18,16,.24)}
+.acquire-card-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.acquire-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:rgba(30,28,26,.07);color:#1E1C1A}
+.acquire-badge-gold{background:rgba(197,160,89,.16);border:1px solid rgba(197,160,89,.45);color:#F3CF85}
+.acquire-meta{font-family:var(--sans);font-size:11.5px;font-weight:600;color:rgba(30,28,26,.65)}
+.acquire-card-dark .acquire-meta{color:rgba(247,244,239,.7)}
+.acquire-card h3{font-family:var(--serif);font-size:28px;line-height:1.22;font-weight:500;margin:0;color:#1E1C1A}
+.acquire-card-dark h3{color:#F7F4EF}
+.acquire-card p{font-family:var(--sans);font-size:14.5px;line-height:1.62;margin:0;color:rgba(30,28,26,.78)}
+.acquire-card-dark p{color:rgba(247,244,239,.82)}
+.acquire-list{list-style:none;padding:0;margin:4px 0 8px;display:flex;flex-direction:column;gap:10px}
+.acquire-list li{display:flex;align-items:flex-start;gap:9px;font-family:var(--sans);font-size:13.5px;line-height:1.5;color:#1E1C1A}
+.acquire-card-dark .acquire-list li{color:rgba(247,244,239,.92)}
+.acquire-list li svg{flex-shrink:0;margin-top:3px;color:#9A732D}
+.acquire-card-dark .acquire-list li svg{color:#E4BE74}
+.acquire-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:auto;padding-top:6px}
+.acquire-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.acquire-card-dark .btn-primary{background:#C5A059;border-color:#C5A059;color:#141210}
+.acquire-card-dark .btn-primary:hover{background:#d7b36f;border-color:#d7b36f}
+.btn-outline-light{background:transparent;border:1px solid rgba(247,244,239,.38);color:#F7F4EF;border-radius:999px;padding:10px 18px;font-family:var(--sans);font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.btn-outline-light:hover{background:rgba(247,244,239,.1);border-color:#F7F4EF;color:#FFFFFF}
+@media (max-width:900px){
+  .acquire-section{padding:44px 0 52px}
+  .acquire-grid{grid-template-columns:1fr;gap:18px}
+  .acquire-card{padding:26px 20px}
+  .acquire-card h3{font-size:24px}
+  .acquire-actions .btn{width:100%}
 }

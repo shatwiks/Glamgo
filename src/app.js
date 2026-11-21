@@ -987,12 +987,12 @@ function applyRouteFromLocation() {
     loadAdminData();
     return true;
   }
-  if (hash === '#partner' || path === '/partner' || hash === '#salon-partner' || hash === '#seller-partner') {
+  if (hash === '#partner' || path === '/partner' || hash === '#salon-partner' || hash === '#seller-partner' || hash === '#specialist-partner' || hash === '#apply-partner') {
     state.signedIn = true;
     state.user = state.user || defaults.user;
     state.view = 'partner';
-    state.partnerRole = (hash === '#seller-partner') ? 'Product Seller' : 'Salon Owner';
-    state.partnerTab = 'Overview';
+    state.partnerRole = (hash === '#seller-partner') ? 'Product Seller' : (hash === '#specialist-partner') ? 'Professional' : 'Salon Owner';
+    state.partnerTab = (hash === '#apply-partner') ? 'Registration' : 'Overview';
     loadPartnerData();
     return true;
   }
@@ -1048,6 +1048,17 @@ function requireAuth(resume = null, message = 'Please sign in to continue.') {
   return true;
 }
 const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
+const openDemoPartner = (role, tab = 'Overview', hash = 'partner') => {
+  state.signedIn = true;
+  state.user = state.user || defaults.user;
+  state.view = 'partner';
+  state.partnerRole = role;
+  state.partnerTab = tab;
+  if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '#' + hash);
+  else window.location.hash = hash;
+  render();
+  loadPartnerData();
+};
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
 const image = (src, alt, cls='') => '<img class="'+cls+'" src="'+src+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
@@ -1542,28 +1553,82 @@ function professionalCard(p){
 
 function turnkeyDemoBar(){
   const isMarketplace = state.view === 'landing';
+  const isSpecialistPartner = state.view === 'partner' && state.partnerRole === 'Professional';
   const isSalonPartner = state.view === 'partner' && state.partnerRole === 'Salon Owner';
   const isVendorPartner = state.view === 'partner' && state.partnerRole === 'Product Seller';
   const isAdmin = state.view === 'admin';
   const isAccount = state.view === 'account';
 
-  return '<aside class="turnkey-demo-bar" aria-label="Turnkey platform preview bar">' +
+  return '<aside class="turnkey-demo-bar" aria-label="Turnkey platform showcase bar">' +
     '<div class="turnkey-demo-inner gg-wrap">' +
       '<div class="turnkey-demo-badge">' +
         '<span class="turnkey-dot" aria-hidden="true"></span>' +
-        '<span class="turnkey-title">TURNKEY PREVIEW</span>' +
-        '<span class="turnkey-tag">Investor &amp; Buyer Demo</span>' +
+        '<span class="turnkey-title">TURNKEY SHOWCASE</span>' +
+        '<span class="turnkey-tag">Buy or List Business</span>' +
       '</div>' +
       '<div class="turnkey-demo-links">' +
-        '<button type="button" class="turnkey-pill ' + (isMarketplace ? 'active' : '') + '" data-action="demo-marketplace" title="Consumer Marketplace: Doorstep, Salons &amp; Store">🛍️ Marketplace</button>' +
-        '<button type="button" class="turnkey-pill ' + (isSalonPartner ? 'active' : '') + '" data-action="demo-salon" title="Salon Partner Studio: Staff, Bookings &amp; Analytics">✂️ Salon Partner Hub</button>' +
-        '<button type="button" class="turnkey-pill ' + (isVendorPartner ? 'active' : '') + '" data-action="demo-vendor" title="Skincare Vendor Hub: Multi-Vendor Inventory &amp; Escrow">📦 Vendor Hub</button>' +
-        '<button type="button" class="turnkey-pill turnkey-admin-pill ' + (isAdmin ? 'active' : '') + '" data-action="demo-admin" title="Admin Command Centre: Live KPIs, Bookings, Orders &amp; Audit Trail">⚡ Admin Command Centre</button>' +
-        '<button type="button" class="turnkey-pill ' + (isAccount ? 'active' : '') + '" data-action="demo-account" title="Client Account: Bookings, Orders &amp; Saved Addresses">👤 Client Account</button>' +
-        '<button type="button" class="turnkey-pill turnkey-concierge-pill" data-action="toggle-ai-chat" title="AI Concierge &amp; WhatsApp advisory">✦ AI Concierge</button>' +
+        '<button type="button" class="turnkey-pill ' + (isMarketplace ? 'active' : '') + '" data-action="demo-marketplace" title="Consumer Marketplace: Doorstep, Salons &amp; Store">' + icon('bag', 13) + ' Marketplace</button>' +
+        '<button type="button" class="turnkey-pill ' + (isSpecialistPartner ? 'active' : '') + '" data-action="demo-specialist" title="Specialist Studio: Duty Status, Live Visits &amp; Payouts">' + icon('spark', 13) + ' Specialist Studio</button>' +
+        '<button type="button" class="turnkey-pill ' + (isSalonPartner ? 'active' : '') + '" data-action="demo-salon" title="Salon Owner Hub: Chair Scheduler, Staff &amp; Analytics">' + icon('salon', 13) + ' Salon Hub</button>' +
+        '<button type="button" class="turnkey-pill ' + (isVendorPartner ? 'active' : '') + '" data-action="demo-vendor" title="Product Seller Hub: Dispatch Queue, Shelf-Life &amp; Escrow">' + icon('truck', 13) + ' Seller Hub</button>' +
+        '<button type="button" class="turnkey-pill turnkey-admin-pill ' + (isAdmin ? 'active' : '') + '" data-action="demo-admin" title="Admin Command Centre: Live KPIs, Approvals &amp; Audit Trail">' + icon('shield', 13) + ' Admin Command</button>' +
+        '<button type="button" class="turnkey-pill ' + (isAccount ? 'active' : '') + '" data-action="demo-account" title="Client Account: Bookings, Orders &amp; Saved Addresses">' + icon('user', 13) + ' Client Account</button>' +
+        '<button type="button" class="turnkey-pill turnkey-concierge-pill" data-action="toggle-ai-chat" title="AI Concierge &amp; WhatsApp advisory">' + icon('sparkle', 13) + ' AI Concierge</button>' +
+        '<button type="button" class="turnkey-pill turnkey-cta-pill" data-action="scroll" data-target="acquire-partner" title="Acquire turnkey platform or apply to list your salon/products">Acquire / List ' + icon('arrow', 12) + '</button>' +
       '</div>' +
     '</div>' +
   '</aside>';
+}
+
+function homeAcquirePartnerSection(){
+  return '<section class="section acquire-section" id="acquire-partner" aria-labelledby="acquire-heading">' +
+    '<div class="gg-wrap">' +
+      '<div class="section-head">' +
+        '<div>' +
+          '<span class="eyebrow">TURNKEY BUYERS &amp; BUSINESS PARTNERS</span>' +
+          '<h2 id="acquire-heading">Own the platform or list your beauty brand</h2>' +
+          '<p class="section-sub">Launch this full-stack multi-vendor platform under your brand, or apply to list your salon chairs, clinical skincare SKUs, and doorstep specialists.</p>' +
+        '</div>' +
+      '</div>' +
+      '<div class="acquire-grid">' +
+        '<article class="acquire-card acquire-card-dark">' +
+          '<div class="acquire-card-top">' +
+            '<span class="acquire-badge acquire-badge-gold">' + icon('shield', 14) + ' White-Label &amp; Turnkey Acquisition</span>' +
+            '<span class="acquire-meta">4 Live Workspaces</span>' +
+          '</div>' +
+          '<h3>Acquire the complete turnkey beauty marketplace</h3>' +
+          '<p>Deploy the full consumer app alongside Specialist Studio, Salon Owner Hub, Product Seller Hub, and Admin Command Centre under your own domain and branding.</p>' +
+          '<ul class="acquire-list">' +
+            '<li>' + icon('check', 15) + '<span>3-engine marketplace: doorstep rituals, chair booking, and skincare commerce</span></li>' +
+            '<li>' + icon('check', 15) + '<span>Split-order escrow, GST commission ledger, and live inventory controls</span></li>' +
+            '<li>' + icon('check', 15) + '<span>Role-based Command Centre with staff, SKU, and booking CSV exports</span></li>' +
+          '</ul>' +
+          '<div class="acquire-actions">' +
+            '<button type="button" class="btn btn-primary" data-action="demo-admin">Explore Admin Command Centre ' + icon('arrow', 15) + '</button>' +
+            '<a class="btn btn-outline-light" href="https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20am%20interested%20in%20acquiring%20the%20turnkey%20platform." target="_blank" rel="noopener noreferrer">' + icon('whatsapp', 16) + ' Inquire to Buy Platform</a>' +
+          '</div>' +
+        '</article>' +
+        '<article class="acquire-card">' +
+          '<div class="acquire-card-top">' +
+            '<span class="acquire-badge">' + icon('salon', 14) + ' Salon, Brand &amp; Specialist Onboarding</span>' +
+            '<span class="acquire-meta">Direct Application</span>' +
+          '</div>' +
+          '<h3>List your salon chairs or beauty products on GlamGo</h3>' +
+          '<p>Preview your operational studio first in sandbox mode, then submit your Salon Owner, Product Seller, or independent Specialist onboarding application directly.</p>' +
+          '<ul class="acquire-list">' +
+            '<li>' + icon('check', 15) + '<span>Salon Hub: real-time chair scheduler, walk-in POS &amp; commission splits</span></li>' +
+            '<li>' + icon('check', 15) + '<span>Seller Hub: batch shelf-life alerts, dispatch SLAs &amp; return QC workflows</span></li>' +
+            '<li>' + icon('check', 15) + '<span>Specialist Studio: live availability toggle, hygiene checklist &amp; instant payouts</span></li>' +
+          '</ul>' +
+          '<div class="acquire-actions">' +
+            '<button type="button" class="btn btn-primary" data-action="demo-apply-partner" data-id="Salon Owner">Apply to List Now ' + icon('arrow', 15) + '</button>' +
+            '<button type="button" class="btn btn-outline" data-action="demo-salon">Try Salon Studio</button>' +
+            '<button type="button" class="btn btn-outline" data-action="demo-vendor">Try Seller Hub</button>' +
+          '</div>' +
+        '</article>' +
+      '</div>' +
+    '</div>' +
+  '</section>';
 }
 
 function homeEcosystemSection(){
@@ -1858,6 +1923,7 @@ function homePage(){
       '</div>' +
     '</section>' +
     homeEcosystemSection() +
+    homeAcquirePartnerSection() +
     '<section class="section" id="categories">' +
       '<div class="gg-wrap">' +
         sectionHead('CATEGORIES','Treatment categories','Filter the home menu by facials, hair, nails, waxing, or full-body rituals.','<button class="text-jump" data-action="search-open">'+icon('search',16)+' Search catalog</button>') +
@@ -4508,8 +4574,9 @@ async function action(el){
     const target = el.dataset.target;
     state.activeNav = target || 'landing';
     scrollLockUntil = Date.now() + 700;
-    if(state.view!=='landing'){
-      navigate('landing');
+    if(state.view!=='landing' || (target==='acquire-partner' && state.experience!=='home')){
+      if(target==='acquire-partner') setExperience('home');
+      else navigate('landing');
       setTimeout(()=>document.getElementById(target)?.scrollIntoView({behavior:'smooth'}),80);
     } else {
       syncSubnavActive();
@@ -4954,25 +5021,18 @@ async function action(el){
     setExperience('home');
     navigate('landing');
   }
+  else if(a==='demo-specialist'){
+    openDemoPartner('Professional', 'Overview', 'specialist-partner');
+  }
   else if(a==='demo-salon'){
-    state.signedIn = true;
-    state.user = state.user || defaults.user;
-    state.view = 'partner';
-    state.partnerRole = 'Salon Owner';
-    state.partnerTab = 'Overview';
-    window.location.hash = 'partner';
-    render();
-    loadPartnerData();
+    openDemoPartner('Salon Owner', 'Overview', 'salon-partner');
   }
   else if(a==='demo-vendor'){
-    state.signedIn = true;
-    state.user = state.user || defaults.user;
-    state.view = 'partner';
-    state.partnerRole = 'Product Seller';
-    state.partnerTab = 'Overview';
-    window.location.hash = 'seller-partner';
-    render();
-    loadPartnerData();
+    openDemoPartner('Product Seller', 'Overview', 'seller-partner');
+  }
+  else if(a==='demo-apply-partner'){
+    const targetRole = id || 'Salon Owner';
+    openDemoPartner(targetRole, 'Registration', 'apply-partner');
   }
   else if(a==='demo-admin'){
     state.signedIn = true;

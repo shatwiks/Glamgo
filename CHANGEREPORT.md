@@ -1,5 +1,20 @@
 # Change Report
 
+## Prompt Entry #22 — 2026-11-22 00:30 IST — Refine Turnkey Buyer Acquisition & Partner Listing Showcase (`feat/turnkey-platform`)
+**Objective:** Position `feat/turnkey-platform` cleanly for prospective white-label platform buyers and beauty businesses looking to list their salons, skincare brands, or specialist practices, alongside instant 1-click access to all 4 operational dashboards (`src/dashboards-suite.js`).
+- **Modified Files:**
+  - `src/app.js`:
+    - Upgraded `turnkeyDemoBar()` with crisp SVG `icon()` buttons (removing raw emojis), `TURNKEY SHOWCASE · Buy or List Business` framing, an 8-pill bar including `Specialist Studio` (`demo-specialist`) and `Acquire / List` CTA scrolling cleanly to `#acquire-partner` from any view or experience.
+    - Added `homeAcquirePartnerSection()` (`#acquire-partner`) inside `homePage()` with a two-column dual-track editorial showcase: Dark White-Label & Turnkey Acquisition card (`Explore Admin Command Centre` + pre-filled WhatsApp buyer inquiry link) and Ivory Salon/Brand/Specialist Onboarding card (`Apply to List Now` opening Registration, `Try Salon Studio`, and `Try Seller Hub`).
+    - Added `openDemoPartner(role, tab, hash)` helper and updated `applyRouteFromLocation()` to support `#specialist-partner`, `#salon-partner`, and `#apply-partner` routes cleanly without async `hashchange` overwrites, plus `demo-specialist` and `demo-apply-partner` handlers in `action(el)`.
+  - `styles.css`:
+    - Added `.turnkey-cta-pill`, `.btn-outline-light`, `.acquire-*` responsive card grid/badge/action styles (`min-height: 44px` action buttons, focus-visible gold outlines, mobile single-column stack at `<=900px`, `prefers-reduced-motion` support).
+    - Tightened `.turnkey-demo-links` flex bounds (`min-width: 0`, `flex: 1`) and restricted `.mobile-menu-button` visibility to `@media(max-width:700px)` to eliminate desktop horizontal overflow.
+- **Verification:**
+  - Syntax checks: `node -c src/dashboards-suite.js` and `node -c src/app.js` passed (exit `0`).
+  - Production build: `npm run build` passed (`✓ built in 1.90s`; `dist/assets/index-D0r6qDrD.js` 502.64 kB, `dist/assets/index-CuxqFj8-.css` 179.38 kB).
+  - Playwright E2E check against `http://127.0.0.1:5173/`: verified 8 SVG pills in `.turnkey-demo-bar`, 2 editorial cards in `#acquire-partner`, `Specialist Studio` toggle rendering `Specialist Overview` with duty status controls, `Apply to List Now` opening `Partner Application & Onboarding`, `0` page errors, and `0px` horizontal overflow on both desktop (`1440px`) and mobile (`375px`).
+
 ## Prompt Entry #21 — 2026-11-22 00:05 IST — Sync Full 4-Dashboard Operational Suite to Turnkey Branch (`feat/turnkey-platform`)
 **Objective:** Merge `main`'s complete 4-dashboard operational suite (`30567de`, `e2ade67`) into `feat/turnkey-platform` so the turnkey evaluation link exposes the exact same full-featured Admin, Specialist, Salon Owner, and Product Seller dashboards alongside the turnkey preview bar and landing ecosystem.
 - **Files Synced:** `src/dashboards-suite.js`, `src/app.js`, `styles.css`, `backend/app/services/seed_service.py`.
