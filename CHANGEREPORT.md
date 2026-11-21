@@ -1,5 +1,38 @@
 # Change Report
 
+## Prompt Entry #16 — 2026-11-21 13:57 IST — Package Section Full-Width Grid & Closing CTA Dock Clearance Fix
+**Objective:** Resolve the visual bugs captured in the desktop user screenshot at `https://glamgo-ricoz.vercel.app/#home`:
+1. **Package Section Whitespace & Layout Fix (`#ritual.package-section`):**
+   - **Root Cause:** `.package-section` had a legacy style rule `display: grid; grid-template-columns: 1fr 1fr;`. Because `<div class="gg-wrap split-pair">` was its sole direct child, the entire container was forced into column 1 (left 50% of the screen), leaving the entire right 50% (850px) completely blank and squeezing the package copy into 217px width, causing unnatural 4-line title wrapping ("Complete Glow 150- minute session").
+   - **Fix:** Set `.package-section` to `display: block !important; width: 100%;`. The inner `.split-pair` grid now spans the full 1440px / 1920px width (`grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr)`), allowing the package copy to expand to 611px–825px with balanced 2-line typography and rendering a full-bleed 460px high editorial image across the right half with 0 empty space.
+2. **Closing CTA Button Collision with Floating Concierge Dock:**
+   - **Root Cause:** In `.footer.closing .closing-cta`, the `Book a service →` CTA button was positioned on the far right edge of the footer container, directly underneath the fixed `.floating-concierge-dock` (WhatsApp and AI Concierge launcher).
+   - **Fix:** Added `padding-right: 220px !important;` to `.footer.closing .closing-cta` on desktop screens (`> 960px`). This shifts the CTA button cleanly to the left, guaranteeing over 75px–315px of clearance with zero overlap.
+
+### Files changed
+- `styles.css`
+  - Replaced legacy `.package-section { display: grid; grid-template-columns: 1fr 1fr; }` with `display: block`.
+  - Upgraded `.package-section .split-pair` full-width 2-column layout with 460px image height and 20ch heading max-width.
+  - Added `padding-right: 220px !important;` on `.footer.closing .closing-cta` on screens `> 960px`.
+
+### Verification
+- `npm run build`: built cleanly in 2.43s (`dist/assets/index-C7QPw-Vx.css` 152.82 kB, `index-B68oK_kv.js` 399.98 kB).
+- Playwright Desktop Verification (1440×900 & 1920×1080):
+  - `1440×900`:
+    - `secDisplay` = `"block"`
+    - `wrapWidth` = `1440px` (full width, up from 518px)
+    - `copyWidth` = `611.5px` (up from 217px, natural 2-line title)
+    - `imgWidth` = `764.5px` (up from 228px, fills right half cleanly)
+    - `clearance` = `75.8px`, `overlap` = `false`
+  - `1920×1080`:
+    - `wrapWidth` = `1920px`
+    - `copyWidth` = `824.9px`
+    - `imgWidth` = `1031.1px`
+    - `clearance` = `315.8px`, `overlap` = `false`
+- Visual Artifacts Generated:
+  - `verify_package_and_footer_desktop.png`
+  - `verify_package_1920.png`
+
 ## Prompt Entry #15 — 2026-11-21 13:40 IST — Mobile Phone Experience Polish (/design-taste-frontend)
 **Objective:** Optimize the complete GlamGo customer and salon experience specifically for mobile phones (iPhone/Android, 390×844 down to 320px) complying with `/design-taste-frontend` (`tasteskill 2.5` anti-slop standard):
 1. **Collision Elimination (Floating Dock vs Fixed Mobile Bottom Navigation):**
