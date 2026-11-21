@@ -12,5 +12,8 @@
   "devDependencies": {
     "sharp": "^0.35.5",
     "vite": "^7.1.12"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4"
   }
 }

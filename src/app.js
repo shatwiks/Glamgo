@@ -1,3 +1,5 @@
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   tokenStorage,
   apiLogin,
@@ -963,6 +965,121 @@ function homePage(){
   return '<main id="top"><section class="hero-stage"'+heroEnterAttr('home')+' aria-labelledby="home-hero-h"><div class="home-hero gg-wrap"><div class="hero-copy"><p class="hero-fact-line enter-line">'+esc(state.location)+' · '+serviceCount+' treatments from '+money(minPrice)+'</p><h1 id="home-hero-h" class="enter-line">At-home beauty treatments at your door</h1><p class="hero-lead enter-fade">Verified specialists bring sterile tools, botanical skincare, and salon furnishings to '+esc(state.location)+' in 45 to 150 minute appointments.</p><div class="hero-buttons enter-fade">'+button('Book a service '+icon('arrow',17),'scroll','btn-primary','data-target="popular"')+button('How bookings work','scroll','btn-outline','data-target="how"')+'</div><dl class="hero-proof enter-fade"><div><dt>Appointments</dt><dd>45–150 min visits</dd></div><div><dt>Specialists</dt><dd>Background checked</dd></div><div><dt>Hours</dt><dd>Daily, 8:00–21:00</dd></div></dl></div><div class="hero-visual enter-media">'+image(HOME_IMG,'Beautician applying a facial treatment inside a bright living space')+'</div></div></section><section class="section" id="categories"><div class="gg-wrap">'+sectionHead('CATEGORIES','Treatment categories','Filter the home menu by facials, hair, nails, waxing, or full-body rituals.','<button class="text-jump" data-action="search-open">'+icon('search',16)+' Search catalog</button>')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c] || HOME_IMG, c+' at-home treatment')+'</div><span>'+c+'</span>'+icon('arrow',15)+'</button>').join('')+'</div></div></section><section class="section soft-section" id="popular"><div class="gg-wrap">'+sectionHead('MENU','At-home treatments & packages','Fixed upfront rates with no home-visit travel fee.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</div></section><section class="section" id="professionals"><div class="gg-wrap">'+sectionHead('TEAM','Verified beauty specialists','Rated practitioners equipped for home visits across '+esc(state.location)+'.','<span class="section-aside">Background-checked artists</span>')+' '+prosSection+'</div></section><section class="how-section dark-band" id="how" data-moment="pinned-chapters" aria-labelledby="how-h"><div class="gg-wrap chapters-layout"><div class="chapters-text"><p class="eyebrow">HOW IT WORKS</p><h2 id="how-h">Booking a home visit in four steps</h2><ol class="chapters-steps">'+heroChapters.map((ch, idx)=>'<li class="chapter-step'+(idx===activeStep?' active':'')+'" data-step="'+idx+'"><button type="button" class="chapter-btn" data-action="chapter-select" data-step="'+idx+'" aria-pressed="'+(idx===activeStep?'true':'false')+'"><span>'+ch.num+'</span><div><h3>'+ch.title+'</h3><p>'+ch.desc+'</p></div></button></li>').join('')+'</ol></div><div class="chapters-stage"><div class="chapters-frame">'+heroChapters.map((ch, idx)=>'<img class="chapter-img'+(idx===activeStep?' active':'')+'" src="'+ch.img+'" alt="'+esc(ch.alt)+'" loading="eager" decoding="async" onerror="this.style.opacity=0.15">').join('')+'</div></div></div></section><section class="section package-section" id="ritual"><div class="gg-wrap split-pair"><div class="package-copy"><p class="eyebrow">SIGNATURE PACKAGE</p><h2>The Complete Glow 150-minute session</h2><p>Combines a hydrating botanical facial, classic manicure with nail care, and a salon blowout into one booked appointment.</p><div class="package-price">From '+money(3299)+' <span>· 150 minutes · Single visit</span></div>'+button('Book Complete Glow '+icon('arrow',17),'book-home','btn-primary','data-id="s8"')+'</div><div class="package-image frame-media">'+image(images.spa,'Spa candles and cotton towels arranged for an extended treatment')+'</div></div></section></main>';
 }
 
+const AREA_COORDS = {
+  'bandra west': [19.0596, 72.8295],
+  'bandra': [19.0596, 72.8295],
+  'khar west': [19.0708, 72.8339],
+  'khar': [19.0708, 72.8339],
+  'juhu': [19.1075, 72.8263],
+  'lower parel': [18.9977, 72.8295],
+  'colaba': [18.9067, 72.8147],
+  'powai': [19.1176, 72.9060],
+  'andheri': [19.1136, 72.8697],
+  'worli': [19.0176, 72.8179],
+  'indiranagar': [12.9784, 77.6408],
+  'koramangala': [12.9352, 77.6245],
+  'bengaluru': [12.9716, 77.5946],
+  'delhi': [28.6139, 77.2090],
+  'south delhi': [28.5494, 77.2244],
+  'koregaon park': [18.5362, 73.8939],
+  'pune': [18.5204, 73.8567],
+  'hyderabad': [17.3850, 78.4867],
+  'mumbai': [19.0760, 72.8777]
+};
+
+function resolveSalonCoords(s){
+  if(s && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng))){
+    return [Number(s.lat), Number(s.lng)];
+  }
+  const area = String(s?.area || state.location || 'Mumbai').toLowerCase();
+  const match = Object.keys(AREA_COORDS).find(k => area.includes(k));
+  const base = AREA_COORDS[match || 'mumbai'];
+  const hash = String(s?.id || s?.name || '1').split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
+  const offsetLat = ((hash % 7) - 3) * 0.0014;
+  const offsetLng = (((hash >> 2) % 7) - 3) * 0.0014;
+  return [base[0] + offsetLat, base[1] + offsetLng];
+}
+
+let activeLeafletMaps = [];
+function destroyActiveMaps(){
+  activeLeafletMaps.forEach(m => {
+    try { m.stop(); m.off(); m.remove(); } catch {}
+  });
+  activeLeafletMaps = [];
+}
+
+function addTileLayerWithFallback(map){
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+}
+
+function mountSalonMaps(){
+  const dirEl = document.getElementById('salon-directory-map');
+  if(dirEl && !dirEl._leaflet_id){
+    let list = salons.filter(s => state.salonCategory === 'All' || s.services.includes(state.salonCategory));
+    const center = list.length ? resolveSalonCoords(list[0]) : [19.065, 72.831];
+    const map = L.map(dirEl, {
+      scrollWheelZoom: false,
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false
+    }).setView(center, 13);
+    addTileLayerWithFallback(map);
+    const bounds = [];
+    list.forEach(s => {
+      const coords = resolveSalonCoords(s);
+      bounds.push(coords);
+      const pinIcon = L.divIcon({
+        className: 'gg-map-pin-wrap',
+        html: '<span class="gg-map-pin">' + esc(money(s.price)) + '</span>',
+        iconSize: [58, 28],
+        iconAnchor: [29, 14]
+      });
+      const popupHtml = '<div class="gg-map-popup">' +
+        '<strong>' + esc(s.name) + '</strong>' +
+        '<span>' + esc(s.area) + ' · ' + esc(s.rating) + ' ★</span>' +
+        '<button type="button" class="gg-map-popup-btn" data-action="salon-detail" data-id="' + esc(s.id) + '">View salon →</button>' +
+      '</div>';
+      L.marker(coords, { icon: pinIcon }).addTo(map).bindPopup(popupHtml);
+    });
+    if(Array.isArray(state.userCoords)){
+      L.circleMarker(state.userCoords, {
+        radius: 7, color: '#1E1C1A', weight: 2, fillColor: '#C5A059', fillOpacity: 0.95
+      }).addTo(map).bindPopup('<strong>Your current location</strong>');
+      bounds.push(state.userCoords);
+    }
+    if(bounds.length > 1){
+      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
+    }
+    activeLeafletMaps.push(map);
+  }
+
+  const detailEl = document.getElementById('salon-detail-map');
+  if(detailEl && !detailEl._leaflet_id){
+    const s = salons.find(x => x.id === state.selectedSalon) || salons[0];
+    if(s){
+      const coords = resolveSalonCoords(s);
+      const map = L.map(detailEl, {
+        scrollWheelZoom: false,
+        zoomAnimation: false,
+        fadeAnimation: false,
+        markerZoomAnimation: false
+      }).setView(coords, 14);
+      addTileLayerWithFallback(map);
+      const pinIcon = L.divIcon({
+        className: 'gg-map-pin-wrap',
+        html: '<span class="gg-map-pin gg-map-pin-active">' + esc(money(s.price)) + '</span>',
+        iconSize: [64, 28],
+        iconAnchor: [32, 14]
+      });
+      L.marker(coords, { icon: pinIcon }).addTo(map).bindPopup('<div class="gg-map-popup"><strong>' + esc(s.name) + '</strong><span>' + esc(s.area) + ' · ' + esc(s.hours) + '</span></div>').openPopup();
+      activeLeafletMaps.push(map);
+    }
+  }
+}
+
 function salonCard(s){
   return '<article class="salon-card"><div class="salon-image">'+image(s.img,s.name+' salon interior','card-img')+'<span>'+esc(s.tag)+'</span></div><div class="salon-body"><div class="salon-title"><h3>'+esc(s.name)+'</h3>'+rating(s.rating,s.reviews)+'</div><p>'+icon('pin',15)+esc(s.area)+' <i>·</i> '+esc(s.distance)+'</p><div class="salon-services">'+s.services.map(x=>'<span>'+esc(x)+'</span>').join('')+'</div><div class="card-bottom"><strong>From '+money(s.price)+'</strong><button data-action="salon-detail" data-id="'+s.id+'">View salon '+icon('arrow',16)+'</button></div></div></article>';
 }
@@ -977,7 +1094,7 @@ function salonPage(){
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another treatment filter to view more studios.'));
+      : '<div class="salon-map-card"><div class="salon-map-head"><div><strong>Partner salons on the map</strong><span>'+list.length+' curated studios near '+esc(state.location)+'</span></div><button type="button" class="btn btn-outline btn-sm" data-action="map-locate">'+icon('pin',14)+' '+(state.userCoords ? 'Location pinned' : 'Use my location')+'</button></div><div id="salon-directory-map" class="gg-map-canvas" role="region" aria-label="Interactive map of partner salons"></div></div><div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another treatment filter to view more studios.'));
   return '<main id="top"><section class="hero-stage"'+heroEnterAttr('salon')+' aria-labelledby="salon-hero-h"><div class="salon-hero gg-wrap"><div class="salon-hero-copy"><p class="hero-fact-line enter-line">'+esc(state.location)+' · '+salonCount+' partner studios from '+money(minSalonPrice)+'</p><h1 id="salon-hero-h" class="enter-line">Local salon studios with live booking slots</h1><p class="hero-lead enter-fade">Review menus, specialist rosters, and verified customer ratings before locking your appointment time.</p><div class="hero-buttons enter-fade">'+button('Browse salons '+icon('arrow',17),'scroll','btn-primary','data-target="salons"')+button('Pick visit date','salon-date','btn-outline')+'</div></div><div class="salon-hero-image enter-media">'+image(SALON_IMG,'Contemporary salon chairs and warm daylight mirrors')+'</div></div></section><section class="salon-search-wrap"><div class="gg-wrap"><div class="salon-search-box"><div><label>AREA</label><button data-action="location">'+icon('pin',17)+esc(state.location)+'</button></div><div><label>TREATMENT</label><button data-action="search-open">'+icon('search',17)+' Service or studio name</button></div><div><label>DATE</label><button data-action="salon-date">'+icon('calendar',17)+' '+(state.salonDate?formatDate(state.salonDate):'Select a date')+'</button></div>'+button('Find salons '+icon('arrow',17),'scroll','btn-primary','data-target="salons"')+'</div></div></section><section class="section" id="salon-categories"><div class="gg-wrap">'+sectionHead('DISCIPLINES','Appointments by specialty','Choose a discipline to jump straight to participating salons.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' salon treatments')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></div></section><section class="section soft-section" id="salons"><div class="gg-wrap">'+sectionHead('DIRECTORY','Partner salons near '+esc(state.location),'Verified studios with transparent opening hours and upfront service menus.')+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+salonsSection+'</div></section></main>';
 }
 
@@ -988,7 +1105,8 @@ function salonDetail(){
   }
   const staffList = (s.staff && s.staff.length) ? s.staff : professionals.slice(0, 2);
   const galleryExtras = [SALON_IMG, images.salon2, images.salon3, images.spa].filter(u => u && u !== s.img);
-  return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(galleryExtras[0]||images.salon2,'Salon styling space')+image(galleryExtras[1]||images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>Map preview</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
+  const dirUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(s.name + ', ' + s.area);
+  return '<main class="detail-page"><button class="back-link" data-action="landing">← Back to salons</button><div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(galleryExtras[0]||images.salon2,'Salon styling space')+image(galleryExtras[1]||images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+s.distance+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div id="salon-detail-map" class="gg-map-detail" role="region" aria-label="Map showing salon location"></div><a class="btn btn-outline full gg-directions-link" href="'+dirUrl+'" target="_blank" rel="noopener noreferrer">'+icon('pin',15)+' Get Directions</a>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
 }
 
 function productCard(p){
@@ -2737,6 +2855,7 @@ function bookingSuccess(){
 }
 
 function render(){
+  destroyActiveMaps();
   if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); return; }
   if(state.view === 'onboarding'){ app.innerHTML = onboarding(); return; }
   if(state.view === 'admin'){
@@ -2752,6 +2871,7 @@ function render(){
   let page = state.view==='landing' ? (state.experience==='home'?homePage():state.experience==='salon'?salonPage():shopPage()) : state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
   app.innerHTML = header() + page + footer() + mobileNav() + modal();
   document.body.classList.toggle('modal-open', !!state.modal);
+  requestAnimationFrame(mountSalonMaps);
 }
 
 function openBooking(type, itemId, serviceId = null, pro = null){
@@ -2778,7 +2898,22 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
-  if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); window.scrollTo({top:0,behavior:'instant'}); }
+  if(a==='map-locate'){
+    if(!navigator.geolocation){
+      toast('Geolocation is not supported in this browser.');
+      return;
+    }
+    toast('Finding your location…');
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        state.userCoords = [pos.coords.latitude, pos.coords.longitude];
+        render();
+        toast('Pinned your current location on the map.');
+      },
+      () => toast('Location permission denied — showing studio areas instead.')
+    );
+  }
+  else if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='guest-browse'){ pendingAuthResume=null; state.view=state.experience?'landing':'onboarding'; render(); }
   else if(a==='scroll-onboard'){
     const targetId = el.dataset.target;

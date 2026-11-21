@@ -1,5 +1,26 @@
 # Change Report
 
+## Prompt Entry #10 — 2026-11-21 10:03 IST — Real Interactive Salon Maps (Leaflet + OpenStreetMap)
+**Objective:** Replace static location placeholders with real interactive Leaflet + OpenStreetMap maps across the Salons Directory and Salon Detail views, verify interactively at desktop & mobile sizes, update `CHANGEREPORT.md`, and push to `origin/main`.
+
+### Files changed
+- `package.json`, `package-lock.json`
+  - Added `leaflet` dependency (
+pm install leaflet).
+- `src/app.js`
+  - Imported `leaflet` and `leaflet/dist/leaflet.css`.
+  - Added `resolveSalonCoords()`, `destroyActiveMaps()`, and `mountSalonMaps()` hooked into `render()` to render interactive keyless OpenStreetMap layers without zoom-cleanup race errors.
+  - Added the interactive **Partner salons on the map** card (`#salon-directory-map`) in `salonPage()` with clickable espresso price pins (`?800`, `?650`, `?900`), interactive studio popups with **View salon ->** buttons, auto-fit bounds, and a **Use my location** geolocation action (`map-locate`).
+  - Replaced `.map-placeholder` in `salonDetail()` with an interactive **#salon-detail-map** card pinned to the salon plus a **Get Directions** external Google Maps link.
+- `styles.css`
+  - Added styles for `.salon-map-card`, `.salon-map-head`, `.gg-map-canvas`, `.gg-map-detail`, `.gg-map-pin`, `.gg-map-popup`, and warm editorial OpenStreetMap tile tinting.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-DhrBx7Ta.js` + `index-BxEblzXP.css`).
+- Playwright check (`verify_salon_maps.mjs`) on `http://127.0.0.1:5173/#salons` and Salon Detail:
+  - `dirMapInfo`: `mounted: true`, `pinCount: 3` (`?800`, `?650`, `?900`), `12/12` map tiles loaded, clicking marker opened popup (`The Ivory Room`), clicking `View salon ->` navigated cleanly to Salon Detail.
+  - `detailMapInfo`: `mounted: true`, `6/6` tiles loaded, `hasDirectionsLink: true`, `popupOpen: true`.
+  - `0` console errors, `0` page errors, `0` failed requests, `scrollWidth <= innerWidth` at both `1440px` and `390px`. Visually inspected rendered map screenshots.
 ## Prompt Entry #9 — 2026-11-21 09:47 IST — Full-Site UI/UX Audit Remediation (ui-ux-pro-max)
 **Objective:** Resolve all 4 findings from the full-site Playwright + ui-ux-pro-max UI/UX audit across consumer storefront, Partner Portal, and Admin Command Centre, verify on desktop & mobile, and push to origin/main.
 
