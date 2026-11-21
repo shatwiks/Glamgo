@@ -762,3 +762,12 @@
   .footer.closing{padding:0 0 76px}
   .footer-grid{grid-template-columns:repeat(2,1fr);gap:28px 18px}
 }
+
+/* UI/UX Pro Max Audit Fixes: Touch Targets, Minimum Font Floor, & Sans-Serif Numerals */
+.card-bottom button,.pro-book,.salon-bar button,.subnav-links button{min-height:36px;display:inline-flex;align-items:center}
+.mobile-menu-button,.icon-button{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.eyebrow,.subnav-tag,.hero-proof,.hero-proof dt,.hero-proof dd,.card-body small,.product-brand,.product-old,.cat-count,.footer-bottom,.mobile-bar span,.badge{font-size:11px}
+.product-price,.product-bottom strong,.card-bottom strong,.package-price,.step>span,.chapter-btn>span,.shelf-count strong{font-family:var(--sans);font-variant-numeric:tabular-nums}
+@media(max-width:960px){
+  .admin-nav-item,.partner-nav-btn,.partner-role-switcher button{min-height:38px}
+}

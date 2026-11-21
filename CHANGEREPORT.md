@@ -1,5 +1,23 @@
 # Change Report
 
+## Prompt Entry #9 — 2026-11-21 09:47 IST — Full-Site UI/UX Audit Remediation (ui-ux-pro-max)
+**Objective:** Resolve all 4 findings from the full-site Playwright + ui-ux-pro-max UI/UX audit across consumer storefront, Partner Portal, and Admin Command Centre, verify on desktop & mobile, and push to origin/main.
+
+### Files changed
+- `src/app.js`
+  - Removed the duplicate secondary role switcher bar (`<nav class="subnav">`) inside `header()` when `state.view === 'partner'` so Partner Portal uses a single unified `Specialist | Salon | Seller` sidebar switcher.
+  - Standardized 'Professional' display label in `auth()` to 'Specialist' to match Partner Portal headings.
+- `styles.css`
+  - Raised storefront action & navigation touch targets (`.card-bottom button`, `.pro-book`, `.salon-bar button`, `.subnav-links button` = 36px; `.mobile-menu-button`, `.icon-button` = 40×40px; mobile `<= 960px` Admin/Partner nav items = 38px).
+  - Enforced an `11px` minimum readable floor on micro-labels (`.eyebrow`, `.subnav-tag`, `.hero-proof`, `.card-body small`, `.product-brand`, `.product-old`, `.cat-count`, `.footer-bottom`, `.mobile-bar span`, `.badge`).
+  - Applied `var(--sans)` (Manrope) with `tabular-nums` consistently to `.product-price`, `.product-bottom strong`, `.card-bottom strong`, `.package-price`, `.step > span`, `.chapter-btn > span`, and `.shelf-count strong`.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-DuYc9Y1J.js` + `index-C5yzVScA.css`).
+- Full-site Playwright audit across Desktop (`1440px`) and Mobile (`390px`) routes (`Onboarding`, `Home`, `Salons`, `Shop`, `Partner`, `Admin`):
+  - `0` horizontal overflow, `0` broken images, `0` missing `alt`, `0` console/page/HTTP errors.
+  - Partner Portal confirmed `hasSubnav: false` (no duplicate switcher).
+  - Mobile Admin small touch targets reduced from `10` ? `0`; Mobile Partner `30` ? `11`; Mobile Home `38` ? `20`; Desktop Home `23` ? `11`; Shop tiny text nodes cut `18` ? `9`.
 ## Prompt Entry #8 — 2026-11-21 09:34 IST — Dashboard & Analytics Numerals in Clean Sans-Serif
 **Objective:** Replace old-style serif KPI/metric numerals across Admin Command Centre & Partner Portal with crisp standard sans-serif numerals (Manrope, 	abular-nums), update CHANGEREPORT.md, and push to origin/main.
 
