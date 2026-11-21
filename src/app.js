@@ -2922,7 +2922,10 @@ async function action(el){
         render();
         toast('Pinned your current location on the map.');
       },
-      () => toast('Location permission denied — tap the map or type your area.')
+      err => toast(err?.code === 1
+        ? 'Location blocked in browser settings — tap the map or type your area.'
+        : 'Unable to fetch GPS right now — tap the map or type your area.'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
   else if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); window.scrollTo({top:0,behavior:'instant'}); }

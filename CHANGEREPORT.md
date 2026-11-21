@@ -1,5 +1,17 @@
 # Change Report
 
+## Prompt Entry #12 — 2026-11-21 10:14 IST — Allow Browser Geolocation on Vercel Production
+**Objective:** Fix `Use my location` auto-denying geolocation on Vercel (`glamgo-ricoz.vercel.app`) caused by a restrictive `Permissions-Policy` header.
+
+### Files changed
+- `vercel.json`
+  - Updated `Permissions-Policy` header from `camera=(), microphone=(), geolocation=()` to `camera=(), microphone=(), geolocation=(self)` so same-origin browser location prompts work on Vercel.
+- `src/app.js`
+  - Passed explicit geolocation options (`enableHighAccuracy: true, timeout: 10000, maximumAge: 60000`) and clearer error messaging when blocked in browser settings vs GPS timeout.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7).
+- Playwright geolocation verification on `http://127.0.0.1:5173/#salons` with granted coordinates (19.0607, 72.8362): clicking **Use my location** updated input to `Khar, Mumbai` and displayed `Pinned your current location on the map.`.
 ## Prompt Entry #11 — 2026-11-21 10:09 IST — Interactive Location Picker Map Moved Into Location Modal
 **Objective:** Remove the map from the Salons Directory listing page (`#salons`) and move the interactive Leaflet + OpenStreetMap picker inside the **Where should we find you?** location modal (while keeping the interactive map on individual Salon Detail pages).
 
