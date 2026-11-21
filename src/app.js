@@ -1001,11 +1001,15 @@ function resolveSalonCoords(s){
 }
 
 let activeLeafletMaps = [];
+let activeLocationMap = null;
+let activeLocationMarker = null;
 function destroyActiveMaps(){
   activeLeafletMaps.forEach(m => {
     try { m.stop(); m.off(); m.remove(); } catch {}
   });
   activeLeafletMaps = [];
+  activeLocationMap = null;
+  activeLocationMarker = null;
 }
 
 function addTileLayerWithFallback(map){
@@ -1013,6 +1017,47 @@ function addTileLayerWithFallback(map){
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
   }).addTo(map);
+}
+
+async function searchLocationSuggestions(query){
+  const q = String(query || '').trim();
+  if(q.length < 2) return [];
+  const bias = Array.isArray(state.userCoords) ? state.userCoords : [19.076, 72.8777];
+  try {
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=en&lat=${encodeURIComponent(bias[0])}&lon=${encodeURIComponent(bias[1])}`);
+    if(res.ok){
+      const data = await res.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      const items = features.map(f => {
+        const p = f.properties || {};
+        const coords = f.geometry?.coordinates || [];
+        const name = p.name || p.street || p.district || p.city || '';
+        const sub = [p.district, p.city || p.county, p.state, p.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+        const full = sub && !sub.toLowerCase().startsWith(name.toLowerCase()) ? `${name}, ${sub}` : (name || sub);
+        return { label: name || sub, sub, full: full || sub, lat: Number(coords[1]), lng: Number(coords[0]) };
+      }).filter(x => x.full && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+      if(items.length) return items;
+    }
+  } catch {}
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`, {
+      headers: { Accept: 'application/json' }
+    });
+    if(res.ok){
+      const rows = await res.json();
+      return (Array.isArray(rows) ? rows : []).map(r => {
+        const parts = String(r.display_name || '').split(',').map(s => s.trim()).filter(Boolean);
+        return {
+          label: parts[0] || r.display_name,
+          sub: parts.slice(1, 4).join(', '),
+          full: parts.slice(0, 3).join(', '),
+          lat: Number(r.lat),
+          lng: Number(r.lon)
+        };
+      }).filter(x => x.full && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+    }
+  } catch {}
+  return [];
 }
 
 async function reverseGeocodeCoords(lat, lng){
@@ -1051,15 +1096,17 @@ function mountSalonMaps(){
       iconAnchor: [37, 14]
     });
     const marker = L.marker(center, { icon: pinIcon }).addTo(map);
+    activeLocationMap = map;
+    activeLocationMarker = marker;
     map.on('click', async (ev) => {
       const { lat, lng } = ev.latlng;
       state.userCoords = [lat, lng];
       marker.setLatLng([lat, lng]);
-      const input = document.querySelector('#location-form input[name="location"]');
+      const input = document.getElementById('location-search-input');
       if(input) input.value = 'Updating location…';
       const label = await reverseGeocodeCoords(lat, lng);
       state.location = label;
-      const freshInput = document.querySelector('#location-form input[name="location"]');
+      const freshInput = document.getElementById('location-search-input');
       if(freshInput) freshInput.value = label;
     });
     activeLeafletMaps.push(map);
@@ -2807,7 +2854,7 @@ function modal(){
     const draft = (state.adminDrafts || []).find(d => d.id === state.selectedDraftId);
     inner='<div class="modal-head"><p class="eyebrow">PARTNER MODERATION</p><h2>Reject application.</h2><p>Please provide a formal rejection reason for '+esc(draft?.applicant_name || 'the applicant')+'.</p></div><form id="admin-reject-form"><label>Rejection reason<textarea name="reason" required placeholder="e.g. Incomplete training credentials or invalid salon trade license" style="min-height:90px"></textarea></label><button class="btn btn-danger full" type="submit">Confirm rejection '+icon('arrow',17)+'</button></form>';
   }
-  if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>Discover services and salons around your neighbourhood.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<input name="location" required value="'+esc(state.location)+'" placeholder="e.g. Bandra West, Mumbai" autofocus></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Bandra West, Mumbai','Juhu, Mumbai','Khar West, Mumbai','Andheri West, Mumbai'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
+  if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>Discover services and salons around your neighbourhood.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<div class="gg-loc-field"><input id="location-search-input" name="location" required value="'+esc(state.location)+'" placeholder="Search any area, street, or city…" autocomplete="off" autofocus><div id="location-autocomplete-list" class="gg-loc-dropdown" role="listbox" aria-label="Location suggestions" hidden></div></div></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Bandra West, Mumbai','Juhu, Mumbai','Khar West, Mumbai','Andheri West, Mumbai'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
@@ -2969,6 +3016,21 @@ async function action(el){
   else if(a==='mobile-toggle'){ state.mobileMenu=!state.mobileMenu; render(); }
   else if(a==='location'){ state.modal='location'; render(); }
   else if(a==='location-set'){ state.location=id; state.userCoords=null; state.modal=null; persist(); render(); toast('Location updated'); }
+  else if(a==='location-pick'){
+    const label = el.dataset.label || '';
+    const lat = Number(el.dataset.lat);
+    const lng = Number(el.dataset.lng);
+    if(label) state.location = label;
+    if(Number.isFinite(lat) && Number.isFinite(lng)){
+      state.userCoords = [lat, lng];
+      if(activeLocationMap) activeLocationMap.setView([lat, lng], 14);
+      if(activeLocationMarker) activeLocationMarker.setLatLng([lat, lng]);
+    }
+    const input = document.getElementById('location-search-input');
+    if(input && label) input.value = label;
+    const dd = document.getElementById('location-autocomplete-list');
+    if(dd){ dd.hidden = true; dd.innerHTML = ''; }
+  }
   else if(a==='search-open'){ state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
   else if(a==='search-quick'){
     state.query = id || '';
@@ -4268,6 +4330,8 @@ document.addEventListener('submit', async e => {
   }
 });
 
+let locationSearchTimer = null;
+let locationSearchSeq = 0;
 document.addEventListener('input', e => {
   if(e.target.id === 'global-search'){
     state.query = e.target.value;
@@ -4276,6 +4340,37 @@ document.addEventListener('input', e => {
     const input = document.getElementById('global-search');
     input?.focus();
     input?.setSelectionRange(focus, focus);
+  }
+  if(e.target.id === 'location-search-input'){
+    clearTimeout(locationSearchTimer);
+    const val = e.target.value;
+    const dd = document.getElementById('location-autocomplete-list');
+    if(!dd) return;
+    if(val.trim().length < 2){
+      dd.hidden = true;
+      dd.innerHTML = '';
+      return;
+    }
+    dd.hidden = false;
+    dd.innerHTML = '<div class="gg-loc-status">Searching locations…</div>';
+    const seq = ++locationSearchSeq;
+    locationSearchTimer = setTimeout(async () => {
+      const results = await searchLocationSuggestions(val);
+      if(seq !== locationSearchSeq) return;
+      const box = document.getElementById('location-autocomplete-list');
+      if(!box) return;
+      if(!results.length){
+        box.innerHTML = '<div class="gg-loc-status">No matching places found</div>';
+        return;
+      }
+      box.innerHTML = results.map(item =>
+        '<button type="button" class="gg-loc-option" role="option" data-action="location-pick" data-label="' + esc(item.full) + '" data-lat="' + item.lat + '" data-lng="' + item.lng + '">' +
+          icon('pin', 15) +
+          '<span><strong>' + esc(item.label) + '</strong>' + (item.sub ? '<small>' + esc(item.sub) + '</small>' : '') + '</span>' +
+        '</button>'
+      ).join('');
+    }, 260);
+    return;
   }
   const adminSearchMap = {
     'admin-user-search': 'adminUserSearch',

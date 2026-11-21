@@ -1,5 +1,23 @@
 # Change Report
 
+## Prompt Entry #13 — 2026-11-21 10:28 IST — Free Live Location Search Autocomplete
+**Objective:** Add free real-time location search autocomplete inside the **Where should we find you?** modal so typing any area, road, or city suggests live place names and moves the map pin on selection.
+
+### Files changed
+- `src/app.js`
+  - Added `searchLocationSuggestions(query)` querying free OpenStreetMap Photon geocoding (`photon.komoot.io/api` with location bias and Nominatim fallback).
+  - Tracked `activeLocationMap` / `activeLocationMarker` across `mountSalonMaps()` and `destroyActiveMaps()`.
+  - Upgraded the Location modal input to `#location-search-input` + live `#location-autocomplete-list` dropdown (`.gg-loc-dropdown`), debounced at `260ms` on input without destroying the active Leaflet map.
+  - Added `location-pick` click action to select a suggested place, fill the input, save `state.userCoords`, and immediately pan + move the map marker.
+- `styles.css`
+  - Styled `.gg-loc-field`, `.gg-loc-dropdown`, `.gg-loc-option`, and `.gg-loc-status`.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-Crv_vPGS.js` + `index-D9mrywzU.css`).
+- Playwright verification on `http://127.0.0.1:5173/#salons` ? Location modal:
+  - Typed `Indiranagar` ? rendered 5 live Indian location suggestions inside `.gg-loc-dropdown`.
+  - Clicked first suggestion ? filled `Indira Nagar, F/N Ward, Mumbai City District, Maharashtra, India`, moved map marker, hid dropdown.
+  - `0` console errors, `0` page errors, `desktopNoOverflow: true`, `mobileNoOverflow: true`; visually inspected screenshot.
 ## Prompt Entry #12 — 2026-11-21 10:14 IST — Allow Browser Geolocation on Vercel Production
 **Objective:** Fix `Use my location` auto-denying geolocation on Vercel (`glamgo-ricoz.vercel.app`) caused by a restrictive `Permissions-Policy` header.
 
