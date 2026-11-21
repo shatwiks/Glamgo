@@ -1,5 +1,26 @@
 # Change Report
 
+## Prompt Entry #6 — 2026-11-21 09:22 IST — Partner Portal Multi-Role Redesign (Salon Owner, Product Seller, Specialist)
+**Objective:** Study and redesign the multi-role Partner Portal (`Salon Owner`, `Product Seller`, and `Specialist`) using `ui-ux-pro-max` design intelligence while preserving GlamGo's ivory/cream/espresso/champagne/terracotta palette, backend API contracts, forms, and `data-action` workflows.
+
+### Files changed
+- `src/app.js`
+  - Rewrote `partnerPage()` with a unified 2-column workspace layout matching the Command Centre design system: sticky dark sidebar (`.partner-nav-sidebar`) with role switcher (`Specialist | Salon | Seller`), grouped section links, live counts, and alert badges (pending orders, open returns, low stock =5 units, upcoming visits).
+  - Added sticky workspace topbar (`.partner-topbar`) showing dynamic role/tab title, subtitle, last synced timestamp (`partnerLastSynced` updated by `loadPartnerData()`), manual `Refresh` button (`partner-refresh`), and `Live Studio` / `Preview Mode` badge.
+  - Upgraded each role's `Overview` tab with 4 `tabular-nums` KPI cards + a 2-column actionable workspace feed:
+    - **Salon Owner:** Upcoming studio appointments with 1-click Complete/Cancel actions + stylist roster preview and quick setup controls; honest primary-branch info panel on `Branches` noting multi-branch expansion as upcoming.
+    - **Product Seller:** Recent suborders + low-stock alert feed (=5 units) and quick catalog/escrow actions; searchable inventory tables, status-filtered & searchable suborder cards (without raw `?` glyph clutter), clean return decision cards, and T+7 escrow ledger tables.
+    - **Specialist (`Professional`):** Next confirmed doorstep visits + interactive 7-day availability mini-grid right on Overview; separate status filtering for `Upcoming appointments`, `Booking requests`, and `Booking history`; honest credential verification summary on `Identity verification`.
+  - Added state & caret-preserving search/filter handlers (`partnerBookingFilter`, `partnerBookingSearch`, `partnerOrderFilter`, `partnerOrderSearch`, `partnerCatalogSearch`). Preserved every existing form ID and `data-action` handler.
+- `styles.css`
+  - Replaced legacy dense `.partner-*` / `.dashboard-*` rules with refined rounded cards (`12px`), legible `13px` body typography, accessible `:focus-visible` rings, `prefers-reduced-motion` support, responsive horizontal-scrolling navigation at `= 960px`, and single-column stacking for mobile viewports.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-D8txMheL.js` + `index-BpM-n3Jk.css`).
+- Playwright verification (`verify_partner_redesign.mjs`) logged in via UI auth on `http://127.0.0.1:5173/#partner` connected to local backend `http://127.0.0.1:8000/api/v1`:
+  - Verified all 3 roles (`Salon Owner`, `Product Seller`, `Professional`/Specialist) across 22 total tab switches: `0` console errors, `0` page errors, `0` failed HTTP requests.
+  - Verified live search input `#partner-catalog-search` preserved focus and narrowed `Service Catalogue` to `1` row on `"Facial"`.
+  - Verified zero horizontal overflow (`scrollWidth === innerWidth`) at desktop (`1440px`), tablet (`768px`), and mobile (`390px`) across tested roles and visually inspected rendered screenshots.
 ## Prompt Entry #5 — 2026-11-21 03:58 IST — Admin Panel Redesign
 **Objective:** Redesign the full admin panel to look better and be easier to use while keeping the existing GlamGo colour theme. References: Stripe Dashboard, Linear, Shopify Admin.
 

@@ -229,7 +229,13 @@ const defaults = {
   adminOrderSearch: '',
   adminCatalogSearch: '',
   adminAuditSearch: '',
-  adminLastSynced: ''
+  adminLastSynced: '',
+  partnerBookingFilter: 'ALL',
+  partnerBookingSearch: '',
+  partnerOrderFilter: 'ALL',
+  partnerOrderSearch: '',
+  partnerCatalogSearch: '',
+  partnerLastSynced: ''
 };
 
 let saved = {};
@@ -284,6 +290,12 @@ const state = {
   adminCatalogSearch: '',
   adminAuditSearch: '',
   adminLastSynced: '',
+  partnerBookingFilter: 'ALL',
+  partnerBookingSearch: '',
+  partnerOrderFilter: 'ALL',
+  partnerOrderSearch: '',
+  partnerCatalogSearch: '',
+  partnerLastSynced: '',
   selectedDraftId: null,
   reviews: [],
   catalogFeedsLoading: {
@@ -1274,6 +1286,7 @@ async function loadPartnerData(){
     if(baseRes[0]?.status === 'fulfilled') state.partnerDrafts = baseRes[0].value;
     if(baseRes[1]?.status === 'fulfilled') state.partnerOverview = baseRes[1].value;
     if(baseRes[2]?.status === 'fulfilled') state.partnerFinancials = baseRes[2].value;
+    state.partnerLastSynced = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     if (!canQueryRoleApi) {
       render();
       return;
@@ -1313,6 +1326,7 @@ async function loadPartnerData(){
       if(retRes.status === 'fulfilled') state.partnerSellerReturns = retRes.value;
       if(mvFinRes.status === 'fulfilled') state.partnerSellerMVFinancials = mvFinRes.value;
     }
+    state.partnerLastSynced = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     render();
   } catch(err) {
     console.warn('[Partner] Live sync notice:', err);
@@ -1320,183 +1334,494 @@ async function loadPartnerData(){
 }
 
 function partnerPage(){
-  const role = state.partnerRole, tabs = roleSections[role] || ['Overview'];
-  const tab = state.partnerTab;
-  const overview = state.partnerOverview;
+  const role = state.partnerRole || 'Professional';
+  const roleDisplay = role === 'Professional' ? 'Specialist' : role;
+  const tabs = roleSections[role] || ['Overview'];
+  const tab = tabs.includes(state.partnerTab) ? state.partnerTab : 'Overview';
+  const isRoleMatched = state.user?.role === 'admin' || partnerRoleFromUser(state.user?.role) === role;
 
-  const metrics = role === 'Professional' ? [
-    ['Upcoming appointments', (state.partnerProBookings || state.bookings.filter(b=>b.type==='home')).filter(b=>b.status==='confirmed').length],
-    ['Services listed', (state.partnerProServices || []).length || services.length],
-    ['Recorded earnings', money(state.partnerFinancials?.net_earnings || state.bookings.filter(b=>b.type==='home').reduce((n,b)=>n+b.price,0))]
-  ] : role === 'Salon Owner' ? [
-    ['Appointments', (state.partnerSalonBookings || state.bookings.filter(b=>b.type==='salon')).length],
-    ['Active staff', (state.partnerSalonStaff || []).length || 2],
-    ['Studio revenue', money(state.partnerFinancials?.net_earnings || 0)]
+  const proBookings = state.partnerProBookings || [];
+  const proServices = state.partnerProServices || [];
+  const salonBookings = state.partnerSalonBookings || [];
+  const salonStaff = state.partnerSalonStaff || [];
+  const sellerListings = state.partnerSellerListings || [];
+  const sellerProds = state.partnerSellerProducts || [];
+  const sellerSuborders = state.partnerSellerSuborders || [];
+  const sellerLegacyOrders = state.partnerSellerOrders || [];
+  const sellerReturns = state.partnerSellerReturns || [];
+  const mvFin = state.partnerSellerMVFinancials;
+  const fin = state.partnerFinancials || {};
+  const draftsForRole = (state.partnerDrafts || []).filter(d => (d.role || '').toLowerCase() === role.toLowerCase());
+  const pendingDraft = draftsForRole.find(d => d.status === 'PENDING');
+
+  const proUpcomingCount = proBookings.filter(b => b.status === 'confirmed').length;
+  const salonUpcomingCount = salonBookings.filter(b => b.status === 'confirmed').length;
+  const pendingOrdersCount = sellerSuborders.length
+    ? sellerSuborders.filter(s => ['placed', 'packed', 'in_transit'].includes(s.status)).length
+    : sellerLegacyOrders.filter(o => ['placed', 'packed', 'in_transit'].includes(o.status)).length;
+  const openReturnsCount = sellerReturns.filter(r => ['REQUESTED', 'PENDING', 'REFUND_FAILED'].includes(r.status)).length;
+  const lowStockCount = sellerListings.filter(l => l.stock <= 5).length + sellerProds.filter(p => p.stock <= 5).length;
+
+  const statusTone = (status) => {
+    const s = String(status || '').toLowerCase();
+    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail')) return 'rejected';
+    if(s.includes('pend') || s.includes('pack') || s.includes('transit') || s.includes('request')) return 'pending';
+    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('refunded') || s.includes('matured') || s.includes('settled')) return 'approved';
+    return 'info';
+  };
+
+  const tabMetaMap = {
+    'Overview': { title: roleDisplay + ' Overview', sub: 'At-a-glance metrics, next actions, and studio health.' },
+    'Registration': { title: 'Partner Registration', sub: 'Submit credentials and track onboarding verification.' },
+    'Salon profile': { title: 'Salon Profile', sub: 'Public studio name, neighbourhood, hours, and gallery image.' },
+    'Staff management': { title: 'Staff Management', sub: 'Curate your stylist roster so clients can select their expert.' },
+    'Service catalogue': { title: 'Service Catalogue', sub: 'Doorstep & studio rituals synced with customer booking.' },
+    'Branches': { title: 'Studio Branches', sub: 'Location details and hours served across GlamGo.' },
+    'Appointments': { title: 'Salon Appointments', sub: 'Manage confirmed, completed, and cancelled chair bookings.' },
+    'Availability': { title: 'Availability Calendar', sub: 'Toggle active weekly days for 30-minute client slot generation.' },
+    'Availability calendar': { title: 'Availability Calendar', sub: 'Toggle active weekly days for 30-minute client slot generation.' },
+    'Revenue analytics': { title: 'Revenue Analytics', sub: 'Gross sales, 15% platform curation fee, and net payout ledger.' },
+    'Customer reviews': { title: 'Client Reviews', sub: 'Verified post-appointment and post-delivery client feedback.' },
+    'Identity verification': { title: 'Identity & Credentials', sub: 'Onboarding compliance and live profile verification status.' },
+    'Profile management': { title: 'Specialist Profile', sub: 'Public artist bio, certified specialty, and base ticket.' },
+    'Services & pricing': { title: 'Services & Pricing', sub: 'Link or unlink signature treatments to your artist profile.' },
+    'Booking requests': { title: 'Booking Requests', sub: 'Active client appointments awaiting completion or updates.' },
+    'Upcoming appointments': { title: 'Upcoming Appointments', sub: 'Scheduled doorstep visits requiring specialist attendance.' },
+    'Booking history': { title: 'Booking History', sub: 'Completed and cancelled client visits archived for reference.' },
+    'Earnings': { title: 'Earnings & Payouts', sub: 'Track gross bookings, 15% fee, and net specialist earnings.' },
+    'Marketplace listings': { title: 'Marketplace Listings', sub: 'List verified stock and competitive prices on master SKUs.' },
+    'Products': { title: 'Brand Products', sub: 'Create and publish original beauty cosmetics and skincare.' },
+    'Inventory & stock': { title: 'Inventory & Stock', sub: 'Real-time SKU stock levels with low-stock alerts at ≤ 5 units.' },
+    'Orders & fulfillment': { title: 'Orders & Fulfillment', sub: 'Pack suborders, attach carrier tracking AWB, and confirm delivery.' },
+    'Returns & refunds': { title: 'Returns & Refunds', sub: 'Inspect client return requests and orchestrate gateway refunds.' },
+    'Escrow & settlement': { title: 'Escrow & Settlement', sub: 'T+7 return-aligned escrow holds, maturity dates, and payouts.' }
+  };
+  const currentMeta = tabMetaMap[tab] || { title: tab, sub: 'Manage your ' + roleDisplay.toLowerCase() + ' workspace.' };
+
+  const sidebarGroups = role === 'Salon Owner' ? [
+    { label: 'Overview', items: [{ id: 'Overview', icon: 'grid', text: 'Salon Overview' }] },
+    { label: 'Operations', items: [
+      { id: 'Appointments', icon: 'calendar', text: 'Appointments', count: salonBookings.length, alert: salonUpcomingCount },
+      { id: 'Availability', icon: 'clock', text: 'Availability' },
+      { id: 'Staff management', icon: 'user', text: 'Staff Roster', count: salonStaff.length }
+    ]},
+    { label: 'Studio', items: [
+      { id: 'Salon profile', icon: 'spark', text: 'Salon Profile' },
+      { id: 'Service catalogue', icon: 'scissors', text: 'Service Catalogue', count: services.length },
+      { id: 'Branches', icon: 'pin', text: 'Branches' }
+    ]},
+    { label: 'Business', items: [
+      { id: 'Revenue analytics', icon: 'star', text: 'Revenue & Ledger' },
+      { id: 'Customer reviews', icon: 'heart', text: 'Reviews', count: (state.reviews || []).length },
+      { id: 'Registration', icon: 'shield', text: 'Registration', alert: pendingDraft ? 1 : 0 }
+    ]}
+  ] : role === 'Product Seller' ? [
+    { label: 'Overview', items: [{ id: 'Overview', icon: 'grid', text: 'Seller Overview' }] },
+    { label: 'Commerce', items: [
+      { id: 'Orders & fulfillment', icon: 'bag', text: 'Orders & Packing', count: sellerSuborders.length || sellerLegacyOrders.length, alert: pendingOrdersCount },
+      { id: 'Returns & refunds', icon: 'shield', text: 'Returns & Refunds', count: sellerReturns.length, alert: openReturnsCount },
+      { id: 'Inventory & stock', icon: 'truck', text: 'Inventory Alerts', count: sellerListings.length + sellerProds.length, alert: lowStockCount }
+    ]},
+    { label: 'Catalog', items: [
+      { id: 'Marketplace listings', icon: 'spark', text: 'Marketplace Listings', count: sellerListings.length },
+      { id: 'Products', icon: 'plus', text: 'Brand Products', count: sellerProds.length }
+    ]},
+    { label: 'Finance & Trust', items: [
+      { id: 'Escrow & settlement', icon: 'check', text: 'Escrow & T+7 Payouts' },
+      { id: 'Registration', icon: 'user', text: 'Registration', alert: pendingDraft ? 1 : 0 }
+    ]}
   ] : [
-    ['Listings & Products', (state.partnerSellerListings || []).length || (state.partnerSellerProducts || []).length || products.length],
-    ['Active Suborders', (state.partnerSellerSuborders || state.partnerSellerOrders || state.orders).length],
-    ['Matured Payout', money(state.partnerSellerMVFinancials?.matured_balance_available ?? state.partnerFinancials?.net_earnings ?? 0)]
+    { label: 'Overview', items: [{ id: 'Overview', icon: 'grid', text: 'Specialist Overview' }] },
+    { label: 'Schedule', items: [
+      { id: 'Upcoming appointments', icon: 'calendar', text: 'Upcoming Visits', count: proUpcomingCount, alert: proUpcomingCount },
+      { id: 'Booking requests', icon: 'clock', text: 'Booking Requests', count: proBookings.length },
+      { id: 'Booking history', icon: 'check', text: 'Booking History', count: proBookings.filter(b => b.status !== 'confirmed').length },
+      { id: 'Availability calendar', icon: 'spark', text: 'Weekly Availability' }
+    ]},
+    { label: 'Practice', items: [
+      { id: 'Profile management', icon: 'user', text: 'Artist Profile' },
+      { id: 'Services & pricing', icon: 'scissors', text: 'Services & Pricing', count: proServices.length }
+    ]},
+    { label: 'Business & Trust', items: [
+      { id: 'Earnings', icon: 'star', text: 'Earnings & Ledger' },
+      { id: 'Customer reviews', icon: 'heart', text: 'Client Reviews', count: (state.reviews || []).length },
+      { id: 'Identity verification', icon: 'shield', text: 'Credentials' },
+      { id: 'Registration', icon: 'plus', text: 'Registration', alert: pendingDraft ? 1 : 0 }
+    ]}
+  ];
+
+  const renderNavBtn = (item) =>
+    '<button type="button" class="partner-nav-btn ' + (tab === item.id ? 'active' : '') + '" data-action="partner-tab" data-id="' + esc(item.id) + '">' +
+      icon(item.icon || 'grid', 15) +
+      '<span class="partner-nav-label">' + esc(item.text) + '</span>' +
+      (item.alert > 0
+        ? '<span class="partner-nav-badge">' + item.alert + '</span>'
+        : (typeof item.count === 'number' ? '<span class="partner-nav-count">' + item.count + '</span>' : '')) +
+    '</button>';
+
+  const roleDesc = role === 'Product Seller'
+    ? 'Manage multi-vendor SKUs, stock thresholds, independent suborder shipping, and T+7 escrow payouts.'
+    : role === 'Salon Owner'
+      ? 'Oversee studio profile details, stylist roster, active appointments, and studio revenue.'
+      : 'Manage doorstep treatments, weekly calendar availability, client bookings, and earnings.';
+
+  const kpiCards = role === 'Product Seller' ? [
+    { label: 'Held in Escrow', val: money(mvFin?.funds_in_escrow ?? 0), sub: 'T+7 return protection period', tag: 'Escrow', featured: true },
+    { label: 'Matured Payout', val: money(mvFin?.matured_balance_available ?? fin.net_earnings ?? 0), sub: 'Eligible for disbursement', tag: 'Cleared' },
+    { label: 'Active Orders', val: sellerSuborders.length || sellerLegacyOrders.length, sub: pendingOrdersCount + ' awaiting fulfillment', tag: 'Commerce' },
+    { label: 'Catalog SKUs', val: sellerListings.length + sellerProds.length, sub: lowStockCount + ' low-stock items (≤5)', tag: 'Inventory' }
+  ] : role === 'Salon Owner' ? [
+    { label: 'Net Studio Revenue', val: money(fin.net_earnings || 0), sub: 'After 15% platform curation', tag: 'Revenue', featured: true },
+    { label: 'Appointments', val: salonBookings.length, sub: salonUpcomingCount + ' upcoming confirmed', tag: 'Calendar' },
+    { label: 'Active Stylists', val: salonStaff.length, sub: 'Assigned to ' + esc(state.partnerSalonProfile?.name || 'Studio'), tag: 'Roster' },
+    { label: 'Open Days / Wk', val: (state.availability || []).length + ' / 7', sub: esc(state.partnerSalonProfile?.hours || '10:00 AM - 8:00 PM'), tag: 'Schedule' }
+  ] : [
+    { label: 'Net Specialist Earnings', val: money(fin.net_earnings || 0), sub: 'Gross: ' + money(fin.gross_sales || 0), tag: 'Payouts', featured: true },
+    { label: 'Upcoming Visits', val: proUpcomingCount, sub: proBookings.length + ' total recorded bookings', tag: 'Schedule' },
+    { label: 'Linked Treatments', val: proServices.length, sub: 'Synced to artist booking card', tag: 'Catalog' },
+    { label: 'Available Days', val: (state.availability || []).length + ' / 7', sub: '30-min intervals · 9AM–7PM', tag: 'Calendar' }
   ];
 
   let body = '';
 
-  const roleDesc = role === 'Product Seller'
-    ? 'Manage variant SKUs, inventory ledgers, suborder packing, return requests, and T+7 escrow payouts.'
-    : role === 'Salon Owner'
-      ? 'Manage salon branches, treatment catalogues, staff assignments, appointments, and reviews.'
-      : 'Manage your at-home treatments, weekly booking calendar, client requests, and earnings.';
-  const isRoleMatched = state.user?.role === 'admin' || partnerRoleFromUser(state.user?.role) === role;
-
   if(tab === 'Overview'){
-    body = (!isRoleMatched ? '<div class="payment-notice payment-notice-warn" style="margin-bottom:18px"><strong>Partner Application Required</strong><p>You are currently signed in as a consumer or viewing a different role. Submit an application in Registration below to activate your '+esc(role)+' workspace.</p></div>' : '') +
-      '<div class="dashboard-metrics">'+metrics.map(x=>'<div><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')+'</div>' +
-      '<div class="dashboard-panel">' +
-        '<h3>'+role+' Workspace</h3>' +
-        '<p>'+roleDesc+'</p>' +
+    const previewBookings = role === 'Salon Owner' ? salonBookings : proBookings;
+    const confirmedBookings = previewBookings.filter(b => b.status === 'confirmed').slice(0, 4);
+    const activeOrders = (sellerSuborders.length ? sellerSuborders : sellerLegacyOrders).slice(0, 4);
+
+    let leftPanel = '';
+    let rightPanel = '';
+
+    if(role === 'Product Seller'){
+      leftPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Recent Suborders</h3><p class="partner-panel-sub">Next shipments requiring packing or tracking updates.</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Orders & fulfillment">Manage all</button>' +
+        '</div>' +
+        (activeOrders.length ? '<div class="partner-feed">' + activeOrders.map(s => {
+          const sid = s.suborder_id || s.id;
+          return '<div class="dash-row">' +
+            '<div><strong>#' + esc(sid) + '</strong><small>' + esc(s.created_at?.slice(0, 10) || s.date || 'Recent') + ' · ' + money(s.subtotal ?? s.total ?? 0) + ' · ' + esc(s.payment_status || 'pending') + '</small></div>' +
+            '<span class="badge badge-' + statusTone(s.status) + '">' + esc(s.status || 'placed') + '</span>' +
+          '</div>';
+        }).join('') + '</div>' : empty('bag', 'No active orders yet', 'New customer orders for your brand products or marketplace offers will appear here.')) +
+      '</div>';
+
+      const lowItems = [
+        ...sellerListings.filter(l => l.stock <= 5).map(l => ({ title: l.product_name || ('Product #' + l.product_id), meta: 'SKU: ' + l.sku, stock: l.stock })),
+        ...sellerProds.filter(p => p.stock <= 5).map(p => ({ title: p.name, meta: p.brand, stock: p.stock }))
+      ].slice(0, 4);
+
+      rightPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Stock & Quick Actions</h3><p class="partner-panel-sub">' + (lowItems.length ? lowItems.length + ' items at 5 units or below' : 'All inventory levels look healthy') + '</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Inventory & stock">Open stock</button>' +
+        '</div>' +
+        (lowItems.length ? '<div class="partner-feed" style="margin-bottom:14px">' + lowItems.map(x =>
+          '<div class="dash-row"><div><strong>' + esc(x.title) + '</strong><small>' + esc(x.meta) + '</small></div><span class="badge badge-warning">' + x.stock + ' left</span></div>'
+        ).join('') + '</div>' : '') +
         '<div class="dashboard-actions">' +
-          (!isRoleMatched
-            ? '<button data-action="partner-tab" data-id="Registration">Submit '+role+' application '+icon('arrow',16)+'</button>'
-            : tabs.slice(1, 5).map(t => '<button data-action="partner-tab" data-id="'+t+'">'+t+' '+icon('arrow',16)+'</button>').join('')) +
+          '<button type="button" data-action="partner-tab" data-id="Marketplace listings">Add marketplace offer ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Products">Publish new product ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Returns & refunds">Inspect returns (' + openReturnsCount + ') ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Escrow & settlement">Escrow ledger ' + icon('arrow', 15) + '</button>' +
         '</div>' +
       '</div>';
-  } else if(tab.toLowerCase().includes('registration') || tab === 'Partner application'){
-    const drafts = (state.partnerDrafts || []).filter(d => (d.role || '').toLowerCase() === role.toLowerCase() || (d.role || '') === role);
-    const pendingDraft = drafts.find(d => d.status === 'PENDING');
+    } else if(role === 'Salon Owner'){
+      leftPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Upcoming Appointments</h3><p class="partner-panel-sub">Confirmed studio bookings needing completion or updates.</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Appointments">All bookings</button>' +
+        '</div>' +
+        (confirmedBookings.length ? '<div class="partner-feed">' + confirmedBookings.map(b =>
+          '<div class="dash-row">' +
+            '<div><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small></div>' +
+            '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="partner-salon-complete" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="partner-salon-cancel" data-id="' + b.id + '">Cancel</button></div>' +
+          '</div>'
+        ).join('') + '</div>' : empty('calendar', 'No upcoming appointments', 'Confirmed client bookings at your salon will appear here.')) +
+      '</div>';
 
+      rightPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Studio Team & Controls</h3><p class="partner-panel-sub">' + (salonStaff.length ? salonStaff.length + ' active stylists in roster' : 'Add stylists to showcase specialists to clients') + '</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Staff management">Manage roster</button>' +
+        '</div>' +
+        (salonStaff.length ? '<div class="partner-feed" style="margin-bottom:14px">' + salonStaff.slice(0, 3).map(st =>
+          '<div class="dash-row"><div><strong>' + esc(st.name) + '</strong><small>' + esc(st.specialty) + '</small></div><span class="badge badge-active">Active</span></div>'
+        ).join('') + '</div>' : '') +
+        '<div class="dashboard-actions">' +
+          '<button type="button" data-action="partner-tab" data-id="Salon profile">Edit studio profile ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Availability">Weekly hours & days ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Revenue analytics">Settlement ledger ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Customer reviews">Client reviews ' + icon('arrow', 15) + '</button>' +
+        '</div>' +
+      '</div>';
+    } else {
+      leftPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Next Doorstep Visits</h3><p class="partner-panel-sub">Confirmed client appointments assigned to you.</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Upcoming appointments">Full schedule</button>' +
+        '</div>' +
+        (confirmedBookings.length ? '<div class="partner-feed">' + confirmedBookings.map(b =>
+          '<div class="dash-row">' +
+            '<div><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small></div>' +
+            '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="partner-pro-complete" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="partner-pro-cancel" data-id="' + b.id + '">Cancel</button></div>' +
+          '</div>'
+        ).join('') + '</div>' : empty('calendar', 'No upcoming visits', 'Confirmed doorstep treatment bookings will appear here.')) +
+      '</div>';
+
+      rightPanel = '<div class="dashboard-panel">' +
+        '<div class="account-heading">' +
+          '<div><h3>Weekly Availability & Setup</h3><p class="partner-panel-sub">Tap days to toggle live booking slots.</p></div>' +
+          '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Availability calendar">Calendar view</button>' +
+        '</div>' +
+        '<div class="availability-grid partner-avail-mini">' +
+          ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => '<button type="button" data-action="availability" data-id="' + day + '" class="' + (state.availability.includes(day) ? 'active' : '') + '"><strong>' + day + '</strong><span>' + (state.availability.includes(day) ? 'Open' : 'Off') + '</span></button>').join('') +
+        '</div>' +
+        '<div class="dashboard-actions">' +
+          '<button type="button" data-action="partner-tab" data-id="Profile management">Edit artist profile ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Services & pricing">Services & pricing ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Earnings">View earnings ' + icon('arrow', 15) + '</button>' +
+          '<button type="button" data-action="partner-tab" data-id="Identity verification">Credentials & status ' + icon('arrow', 15) + '</button>' +
+        '</div>' +
+      '</div>';
+    }
+
+    body = (!isRoleMatched ? '<div class="payment-notice payment-notice-warn" style="margin-bottom:18px"><strong>Partner Application Required</strong><p>You are viewing the ' + esc(roleDisplay) + ' workspace while signed in as <strong>' + esc(state.user?.role || 'guest') + '</strong>. Submit an application in Registration to activate live role write permissions.</p></div>' : '') +
+      '<section class="admin-kpi-grid" aria-label="Role metrics">' +
+        kpiCards.map(k => '<div class="admin-kpi-card ' + (k.featured ? 'admin-kpi-featured' : '') + '">' +
+          '<div class="admin-kpi-top"><span>' + esc(k.label) + '</span><span class="admin-kpi-tag">' + esc(k.tag) + '</span></div>' +
+          '<strong class="admin-num">' + k.val + '</strong>' +
+          '<small>' + esc(k.sub) + '</small>' +
+        '</div>').join('') +
+      '</section>' +
+      '<div class="partner-split-grid">' + leftPanel + rightPanel + '</div>';
+
+  } else if(tab.toLowerCase().includes('registration') || tab === 'Partner application'){
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
         '<div>' +
           '<h3>Partner Application & Onboarding</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Apply to join GlamGo luxury beauty network. All applications undergo curation and credential review.</p>' +
+          '<p class="partner-panel-sub">Apply to join GlamGo as a verified ' + esc(roleDisplay) + '. Applications undergo credential review by platform administrators.</p>' +
         '</div>' +
       '</div>' +
-      (pendingDraft ? 
-        '<div style="background:var(--ivory);border:1px solid var(--champagne);padding:24px;margin-top:20px">' +
+      (pendingDraft ?
+        '<div class="partner-callout">' +
           '<span class="badge badge-pending">APPLICATION UNDER REVIEW</span>' +
-          '<h4 style="font-family:var(--serif);font-size:24px;margin:12px 0 6px">'+esc(pendingDraft.name)+'</h4>' +
-          '<p style="color:var(--muted);font-size:12px;line-height:1.6">'+esc(pendingDraft.description)+'</p>' +
-          '<small style="color:var(--muted)">Submitted on '+new Date(pendingDraft.created_at).toLocaleDateString()+' · Reference #'+pendingDraft.id+'</small>' +
+          '<h4>' + esc(pendingDraft.name) + '</h4>' +
+          '<p>' + esc(pendingDraft.description) + '</p>' +
+          '<small>Submitted on ' + new Date(pendingDraft.created_at).toLocaleDateString() + ' · Reference #' + pendingDraft.id + '</small>' +
         '</div>' :
-        '<form id="partner-apply-form" class="form-grid" style="margin-top:20px">' +
-          '<label>Business or professional name<input name="name" required placeholder="e.g. Maison Atelier" value="'+esc(state.user?.name||'')+'"></label>' +
-          '<label>Direct contact number<input name="phone" required placeholder="+91 98765 43210" value="'+esc(state.user?.phone||'')+'"></label>' +
+        '<form id="partner-apply-form" class="form-grid" style="margin-top:18px">' +
+          '<label>Business or professional name<input name="name" required placeholder="e.g. Maison Atelier" value="' + esc(state.user?.name || '') + '"></label>' +
+          '<label>Direct contact number<input name="phone" required placeholder="+91 98765 43210" value="' + esc(state.user?.phone || '') + '"></label>' +
           '<label>Operating city<input name="city" required placeholder="Mumbai, Bengaluru, Delhi" value="Mumbai"></label>' +
           '<label>Base service price / Expected ticket (₹)<input name="price" type="number" required placeholder="1500" value="1500"></label>' +
           '<label style="grid-column:1/-1">Professional bio & business description<textarea name="description" required rows="3" placeholder="Describe your experience, luxury training, and specialties..."></textarea></label>' +
           '<label style="grid-column:1/-1">Certifications & ID proof URLs (comma-separated)<input name="documents" placeholder="https://example.com/certificate.pdf, https://example.com/license.pdf"></label>' +
           '<label style="grid-column:1/-1">Portfolio / Studio lookbook URLs (comma-separated)<input name="portfolio" placeholder="https://instagram.com/atelier, https://portfolio.com"></label>' +
-          '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Submit Application for Review '+icon('arrow',17)+'</button>' +
+          '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Submit Application for Review ' + icon('arrow', 17) + '</button>' +
         '</form>') +
-      (drafts.length ? 
-        '<div style="margin-top:35px;border-top:1px solid var(--border);padding-top:20px">' +
+      (draftsForRole.length ?
+        '<div class="partner-subpanel">' +
           '<h4>Application History</h4>' +
-          drafts.map(d => '<div class="dash-row"><div><strong>#'+d.id+' · '+esc(d.name)+'</strong><small>'+money(d.price)+' · Submitted '+new Date(d.created_at).toLocaleDateString()+'</small></div><span class="badge badge-'+d.status.toLowerCase()+'">'+esc(d.status)+'</span></div>').join('') +
+          draftsForRole.map(d => '<div class="dash-row"><div><strong>#' + d.id + ' · ' + esc(d.name) + '</strong><small>' + money(d.price) + ' · Submitted ' + new Date(d.created_at).toLocaleDateString() + '</small></div><span class="badge badge-' + statusTone(d.status) + '">' + esc(d.status) + '</span></div>').join('') +
         '</div>' : '') +
     '</div>';
+
+  } else if(tab === 'Identity verification'){
+    const pro = state.partnerProProfile || {};
+    body = '<div class="dashboard-panel">' +
+      '<div class="account-heading">' +
+        '<div><h3>Identity & Practice Credentials</h3><p class="partner-panel-sub">Verification status for your GlamGo Specialist account.</p></div>' +
+        '<span class="badge badge-' + (isRoleMatched ? 'approved' : 'pending') + '">' + (isRoleMatched ? 'ROLE ACTIVE' : 'VERIFICATION REQUIRED') + '</span>' +
+      '</div>' +
+      '<div class="verification-list">' +
+        '<div>' + icon(state.signedIn ? 'check' : 'shield', 18) + '<span><strong>Account Identity:</strong> ' + esc(state.user?.name || 'Guest') + ' (' + esc(state.user?.email || 'Not signed in') + ')</span></div>' +
+        '<div>' + icon(pro.specialty ? 'check' : 'clock', 18) + '<span><strong>Specialist Profile:</strong> ' + (pro.name ? esc(pro.name) + ' · ' + esc(pro.specialty || 'Specialist') : 'Complete your artist bio & image under Artist Profile.') + '</span></div>' +
+        '<div>' + icon(draftsForRole.length ? 'check' : 'shield', 18) + '<span><strong>Submitted Onboarding Records:</strong> ' + draftsForRole.length + ' application(s) on file.</span></div>' +
+      '</div>' +
+      '<div class="dashboard-actions">' +
+        '<button type="button" data-action="partner-tab" data-id="Profile management">Update artist profile ' + icon('arrow', 15) + '</button>' +
+        '<button type="button" data-action="partner-tab" data-id="Registration">View / submit application ' + icon('arrow', 15) + '</button>' +
+      '</div>' +
+    '</div>';
+
   } else if(tab === 'Profile management'){
     const pro = state.partnerProProfile || {};
     body = '<div class="dashboard-panel">' +
-      '<h3>Professional Profile & Portfolio</h3>' +
-      '<p>Keep your editorial bio, pricing, and certified specialty current for customer booking.</p>' +
-      '<form id="partner-pro-profile-form" class="form-grid" style="margin-top:20px">' +
-        '<label>Display name<input name="name" required value="'+esc(pro.name || state.user?.name || '')+'"></label>' +
-        '<label>Specialty<input name="specialty" required placeholder="e.g. Bridal & Editorial Hair Specialist" value="'+esc(pro.specialty || 'Specialist')+'"></label>' +
-        '<label>Experience level<input name="experience" required placeholder="e.g. 8 years luxury salon experience" value="'+esc(pro.experience || 'Certified Specialist')+'"></label>' +
-        '<label>Base appointment price (₹)<input name="price" type="number" required value="'+(pro.price || 1500)+'"></label>' +
-        '<label style="grid-column:1/-1">Portfolio image URL<input name="img" required value="'+esc(pro.img || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500')+'"></label>' +
-        '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Save Profile Updates '+icon('arrow',17)+'</button>' +
+      '<h3>Specialist Profile & Portfolio</h3>' +
+      '<p class="partner-panel-sub">Keep your editorial bio, base pricing, and certified specialty current for client booking.</p>' +
+      '<form id="partner-pro-profile-form" class="form-grid" style="margin-top:18px">' +
+        '<label>Display name<input name="name" required value="' + esc(pro.name || state.user?.name || '') + '"></label>' +
+        '<label>Specialty<input name="specialty" required placeholder="e.g. Bridal & Editorial Hair Specialist" value="' + esc(pro.specialty || 'Specialist') + '"></label>' +
+        '<label>Experience level<input name="experience" required placeholder="e.g. 8 years luxury salon experience" value="' + esc(pro.experience || 'Certified Specialist') + '"></label>' +
+        '<label>Base appointment price (₹)<input name="price" type="number" required value="' + (pro.price || 1500) + '"></label>' +
+        '<label style="grid-column:1/-1">Portfolio image URL<input name="img" required value="' + esc(pro.img || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500') + '"></label>' +
+        '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Save Profile Updates ' + icon('arrow', 17) + '</button>' +
       '</form>' +
     '</div>';
+
   } else if(tab === 'Salon profile'){
     const sal = state.partnerSalonProfile || {};
     body = '<div class="dashboard-panel">' +
       '<h3>Salon Studio Profile</h3>' +
-      '<p>Manage your studio details, neighborhood, operating hours, and photo assets.</p>' +
-      '<form id="partner-salon-profile-form" class="form-grid" style="margin-top:20px">' +
-        '<label>Studio name<input name="name" required value="'+esc(sal.name || '')+'"></label>' +
-        '<label>Area / Locality<input name="area" required value="'+esc(sal.area || 'Bandra West')+'"></label>' +
-        '<label>Operating hours<input name="hours" required placeholder="10:00 AM - 8:00 PM" value="'+esc(sal.hours || '10:00 AM - 8:00 PM')+'"></label>' +
-        '<label>Base service ticket (₹)<input name="price" type="number" required value="'+(sal.price || 2000)+'"></label>' +
-        '<label style="grid-column:1/-1">Studio exterior / Interior image URL<input name="img" required value="'+esc(sal.img || '')+'"></label>' +
-        '<label style="grid-column:1/-1">About the studio<textarea name="about" required rows="3">'+esc(sal.about || '')+'</textarea></label>' +
-        '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Save Studio Updates '+icon('arrow',17)+'</button>' +
+      '<p class="partner-panel-sub">Manage your studio name, locality, operating hours, and cover photography.</p>' +
+      '<form id="partner-salon-profile-form" class="form-grid" style="margin-top:18px">' +
+        '<label>Studio name<input name="name" required value="' + esc(sal.name || '') + '"></label>' +
+        '<label>Area / Locality<input name="area" required value="' + esc(sal.area || 'Bandra West') + '"></label>' +
+        '<label>Operating hours<input name="hours" required placeholder="10:00 AM - 8:00 PM" value="' + esc(sal.hours || '10:00 AM - 8:00 PM') + '"></label>' +
+        '<label>Base service ticket (₹)<input name="price" type="number" required value="' + (sal.price || 2000) + '"></label>' +
+        '<label style="grid-column:1/-1">Studio exterior / Interior image URL<input name="img" required value="' + esc(sal.img || '') + '"></label>' +
+        '<label style="grid-column:1/-1">About the studio<textarea name="about" required rows="3">' + esc(sal.about || '') + '</textarea></label>' +
+        '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">Save Studio Updates ' + icon('arrow', 17) + '</button>' +
       '</form>' +
     '</div>';
-  } else if(tab === 'Staff management'){
-    const staff = state.partnerSalonStaff || [];
+
+  } else if(tab === 'Branches'){
+    const sal = state.partnerSalonProfile || {};
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Salon Staff & Stylist Roster</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Add and manage stylists, therapists, and specialists available for client appointments.</p>' +
-        '</div>' +
+        '<div><h3>Studio Flagship Location</h3><p class="partner-panel-sub">Primary salon address and service hours currently published to customers.</p></div>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Salon profile">Edit location</button>' +
       '</div>' +
-      '<form id="partner-staff-add-form" class="form-grid" style="margin:20px 0;padding:20px;background:var(--ivory);border:1px solid var(--border)">' +
+      '<div class="partner-callout">' +
+        '<span class="badge badge-approved">PRIMARY BRANCH ACTIVE</span>' +
+        '<h4>' + esc(sal.name || 'Your GlamGo Flagship Salon') + '</h4>' +
+        '<p><strong>Locality:</strong> ' + esc(sal.area || 'Bandra West') + ' · <strong>Hours:</strong> ' + esc(sal.hours || '10:00 AM - 8:00 PM') + ' · <strong>Starting Ticket:</strong> ' + money(sal.price || 2000) + '</p>' +
+        '<small>Note: Multi-branch location management is scheduled for a future platform update; your studio profile currently manages your flagship location.</small>' +
+      '</div>' +
+    '</div>';
+
+  } else if(tab === 'Staff management'){
+    body = '<div class="dashboard-panel">' +
+      '<div class="account-heading">' +
+        '<div><h3>Salon Staff & Stylist Roster</h3><p class="partner-panel-sub">Add stylists, therapists, and specialists clients can book.</p></div>' +
+        '<span class="admin-metric-pill">' + salonStaff.length + ' Stylists</span>' +
+      '</div>' +
+      '<form id="partner-staff-add-form" class="form-grid partner-form-card">' +
         '<label>Stylist name<input name="name" required placeholder="Stylist full name"></label>' +
         '<label>Specialty<input name="specialty" required placeholder="e.g. Master Colorist, Skin Therapist"></label>' +
         '<label style="grid-column:1/-1">Avatar image URL<input name="img" placeholder="https://images.unsplash.com/..."></label>' +
         '<button class="btn btn-outline" type="submit" style="grid-column:1/-1">+ Add Stylist to Salon</button>' +
       '</form>' +
-      (staff.length ? staff.map(st => '<div class="dash-row"><div><strong>'+esc(st.name)+'</strong><small>'+esc(st.specialty)+'</small></div><button class="btn btn-danger btn-sm" data-action="partner-staff-delete" data-id="'+st.id+'">Remove</button></div>').join('') : empty('user','No staff assigned yet','Add your stylists and specialists to allow customers to choose their expert.')) +
+      (salonStaff.length ? '<div class="partner-feed">' + salonStaff.map(st =>
+        '<div class="dash-row"><div><strong>' + esc(st.name) + '</strong><small>' + esc(st.specialty) + '</small></div><button type="button" class="btn btn-danger btn-sm" data-action="partner-staff-delete" data-id="' + st.id + '">Remove</button></div>'
+      ).join('') + '</div>' : empty('user', 'No staff assigned yet', 'Add your stylists and specialists above to let clients select their preferred expert.')) +
     '</div>';
-  } else if(tab.toLowerCase().includes('service')){
-    const myServices = state.partnerProServices || [];
+
+  } else if(tab === 'Service catalogue'){
+    const q = (state.partnerCatalogSearch || '').toLowerCase().trim();
+    const sList = q ? services.filter(s => (s.name || '').toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q)) : services;
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Offered Services & Treatment Menu</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Services linked to your professional booking profile.</p>' +
+        '<div><h3>Master Service Catalogue</h3><p class="partner-panel-sub">Platform treatments curated across GlamGo doorstep and salon verticals.</p></div>' +
+        '<span class="admin-metric-pill">' + services.length + ' Services</span>' +
+      '</div>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-search-box admin-search-wide">' +
+          '<input id="partner-catalog-search" value="' + esc(state.partnerCatalogSearch || '') + '" placeholder="Search services or category…" autocomplete="off">' +
+          '<span class="admin-result-count">' + sList.length + ' shown</span>' +
         '</div>' +
       '</div>' +
-      '<div style="margin:20px 0;padding:15px;background:var(--ivory);border:1px solid var(--border);display:flex;gap:12px;align-items:center">' +
-        '<select id="partner-service-select" class="admin-role-select" style="flex:1;height:42px">' +
-          services.map(s => '<option value="'+s.id+'">'+esc(s.name)+' ('+s.category+') — '+money(s.price)+'</option>').join('') +
-        '</select>' +
-        '<button class="btn btn-primary btn-sm" data-action="partner-pro-assign-service">Assign Service</button>' +
-      '</div>' +
-      (myServices.length ? myServices.map(s => '<div class="dash-row"><div><strong>'+esc(s.name)+' ('+s.category+')</strong><small>'+s.duration+' · '+money(s.price)+'</small></div><button class="btn btn-danger btn-sm" data-action="partner-pro-unlink-service" data-id="'+s.id+'">Unlink</button></div>').join('') : '<p style="color:var(--muted);padding:15px 0">No services assigned yet. Select from the master catalog above.</p>') +
+      (sList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Treatment</th><th>Category</th><th>Duration</th><th>Reference Price</th><th>Rating</th></tr></thead><tbody>' +
+        sList.map(s => '<tr>' +
+          '<td><strong>' + esc(s.name) + '</strong></td>' +
+          '<td><span class="badge badge-info">' + esc(s.category) + '</span></td>' +
+          '<td>' + esc(s.duration) + '</td>' +
+          '<td class="admin-num"><strong>' + money(s.price) + '</strong></td>' +
+          '<td class="admin-num">' + s.rating + ' ★ <small class="admin-muted">(' + s.reviews + ')</small></td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : '<div class="admin-empty-inline">No services match your search.</div>') +
     '</div>';
+
+  } else if(tab.toLowerCase().includes('service')){
+    body = '<div class="dashboard-panel">' +
+      '<div class="account-heading">' +
+        '<div><h3>Offered Services & Treatment Menu</h3><p class="partner-panel-sub">Link master treatments to your specialist profile so clients can book them.</p></div>' +
+        '<span class="admin-metric-pill">' + proServices.length + ' Linked</span>' +
+      '</div>' +
+      '<div class="partner-inline-bar">' +
+        '<select id="partner-service-select" class="admin-role-select" style="flex:1;height:40px">' +
+          services.map(s => '<option value="' + s.id + '">' + esc(s.name) + ' (' + esc(s.category) + ') — ' + money(s.price) + '</option>').join('') +
+        '</select>' +
+        '<button type="button" class="btn btn-primary btn-sm" data-action="partner-pro-assign-service">Assign Service</button>' +
+      '</div>' +
+      (proServices.length ? '<div class="partner-feed">' + proServices.map(s =>
+        '<div class="dash-row"><div><strong>' + esc(s.name) + ' (' + esc(s.category) + ')</strong><small>' + esc(s.duration) + ' · ' + money(s.price) + '</small></div><button type="button" class="btn btn-danger btn-sm" data-action="partner-pro-unlink-service" data-id="' + s.id + '">Unlink</button></div>'
+      ).join('') + '</div>' : empty('scissors', 'No services linked yet', 'Choose a treatment from the catalog selector above to add it to your menu.')) +
+    '</div>';
+
   } else if(tab === 'Availability calendar' || tab === 'Availability'){
     body = '<div class="dashboard-panel">' +
       '<h3>Weekly Working Days</h3>' +
-      '<p>Select the days you accept client appointments. Changes sync in real time.</p>' +
+      '<p class="partner-panel-sub">Select the days you accept client appointments. Changes sync live with customer slot pickers.</p>' +
       '<div class="availability-grid" style="margin-top:20px">' +
-        ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => '<button data-action="availability" data-id="'+day+'" class="'+(state.availability.includes(day)?'active':'')+'"><strong>'+day+'</strong><span>'+(state.availability.includes(day)?'Available':'Unavailable')+'</span></button>').join('') +
+        ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => '<button type="button" data-action="availability" data-id="' + day + '" class="' + (state.availability.includes(day) ? 'active' : '') + '"><strong>' + day + '</strong><span>' + (state.availability.includes(day) ? 'Available' : 'Unavailable') + '</span></button>').join('') +
       '</div>' +
-      '<p class="dashboard-note" style="margin-top:15px">Appointment slot intervals are generated in 30-minute blocks between 09:00 AM and 07:00 PM.</p>' +
+      '<p class="dashboard-note">Appointment intervals run in 30-minute blocks between 09:00 AM and 07:00 PM.</p>' +
     '</div>';
+
   } else if(tab.toLowerCase().includes('booking') || tab.toLowerCase().includes('appointment')){
-    const bList = role === 'Professional' ? (state.partnerProBookings || []) : (state.partnerSalonBookings || []);
+    const rawList = role === 'Professional' ? proBookings : salonBookings;
+    const defaultStatusFilter = tab === 'Upcoming appointments' ? 'confirmed' : (tab === 'Booking history' ? 'history' : 'ALL');
+    const filter = state.partnerBookingFilter || 'ALL';
+    const effectiveFilter = (filter === 'ALL' && defaultStatusFilter !== 'ALL') ? defaultStatusFilter : filter;
+    const q = (state.partnerBookingSearch || '').toLowerCase().trim();
+
+    let bList = rawList;
+    if(effectiveFilter === 'confirmed') bList = bList.filter(b => b.status === 'confirmed');
+    else if(effectiveFilter === 'completed') bList = bList.filter(b => b.status === 'completed');
+    else if(effectiveFilter === 'cancelled') bList = bList.filter(b => b.status === 'cancelled');
+    else if(effectiveFilter === 'history') bList = bList.filter(b => b.status !== 'confirmed');
+    if(q) bList = bList.filter(b =>
+      String(b.id).includes(q) ||
+      (b.title || '').toLowerCase().includes(q) ||
+      (b.customer_name || '').toLowerCase().includes(q) ||
+      (b.location || '').toLowerCase().includes(q)
+    );
+
+    const completeAct = role === 'Professional' ? 'partner-pro-complete' : 'partner-salon-complete';
+    const cancelAct = role === 'Professional' ? 'partner-pro-cancel' : 'partner-salon-cancel';
+
     body = '<div class="dashboard-panel">' +
-      '<div class="account-heading">' +
-        '<div>' +
-          '<h3>'+tab+'</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Review upcoming client bookings, update statuses, or mark appointments completed.</p>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          [['ALL','All'], ['confirmed','Upcoming'], ['completed','Completed'], ['cancelled','Cancelled']].map(([val, lbl]) =>
+            '<button type="button" class="admin-pill ' + (effectiveFilter === val ? 'active' : '') + '" data-action="partner-booking-filter" data-id="' + val + '">' + lbl + '</button>'
+          ).join('') +
+        '</div>' +
+        '<div class="admin-search-box">' +
+          '<input id="partner-booking-search" value="' + esc(state.partnerBookingSearch || '') + '" placeholder="Search service, client, or location…" autocomplete="off">' +
+          '<span class="admin-result-count">' + bList.length + ' shown</span>' +
         '</div>' +
       '</div>' +
-      (bList.length ? bList.map(b => '<div class="dash-row">' +
-        '<div><strong>'+esc(b.title)+'</strong><small>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.customer_name||'Client')+' · '+money(b.price)+'</small><small style="color:var(--muted)">Location: '+esc(b.location)+'</small></div>' +
-        '<div style="display:flex;gap:8px;align-items:center">' +
-          '<span class="badge badge-'+b.status.toLowerCase()+'">'+esc(b.status)+'</span>' +
-          (b.status === 'confirmed' ? 
-            '<button class="btn btn-success btn-sm" data-action="'+(role==='Professional'?'partner-pro-complete':'partner-salon-complete')+'" data-id="'+b.id+'">Complete</button>' +
-            '<button class="btn btn-danger btn-sm" data-action="'+(role==='Professional'?'partner-pro-cancel':'partner-salon-cancel')+'" data-id="'+b.id+'">Cancel</button>' : '') +
-        '</div>' +
-      '</div>').join('') : empty('calendar','No appointments yet','New client booking requests will appear here.')) +
+      (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Treatment</th><th>Client</th><th>Date & Time</th><th>Location</th><th>Price</th><th>Status</th><th>Action</th></tr></thead><tbody>' +
+        bList.map(b => '<tr>' +
+          '<td class="admin-num admin-muted">#' + b.id + '</td>' +
+          '<td><strong>' + esc(b.title) + '</strong></td>' +
+          '<td>' + esc(b.customer_name || 'Client') + '</td>' +
+          '<td class="admin-num">' + formatDate(b.date) + ' · ' + esc(b.time) + '</td>' +
+          '<td><small>' + esc(b.location) + '</small></td>' +
+          '<td class="admin-num"><strong>' + money(b.price) + '</strong></td>' +
+          '<td><span class="badge badge-' + statusTone(b.status) + '">' + esc(b.status) + '</span></td>' +
+          '<td>' + (b.status === 'confirmed'
+            ? '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="' + completeAct + '" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="' + cancelAct + '" data-id="' + b.id + '">Cancel</button></div>'
+            : '<span class="admin-muted">—</span>') + '</td>' +
+        '</tr>').join('') +
+      '</tbody></table></div>' : empty('calendar', 'No appointments match this filter', 'New client bookings or other status views will appear here.')) +
     '</div>';
+
   } else if(tab === 'Marketplace listings' || tab === 'Marketplace Listings'){
-    const listings = state.partnerSellerListings || [];
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Multi-Vendor Marketplace Listings</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">List your stock on shared master catalog products. Compete with pricing, verified inventory, and express fulfillment.</p>' +
-        '</div>' +
+        '<div><h3>Multi-Vendor Marketplace Listings</h3><p class="partner-panel-sub">Attach offers to shared master catalog SKUs with your price and dedicated inventory.</p></div>' +
+        '<span class="admin-metric-pill">' + sellerListings.length + ' Listings</span>' +
       '</div>' +
-      '<form id="partner-seller-listing-form" class="form-grid" style="margin:20px 0;padding:20px;background:var(--ivory);border:1px solid var(--border)">' +
+      '<form id="partner-seller-listing-form" class="form-grid partner-form-card">' +
         '<label>Master Product' +
           '<select name="product_id" required class="admin-role-select" style="width:100%;height:42px">' +
-            products.map(p => '<option value="'+p.id+'">'+esc(p.name)+' ('+esc(p.brand)+') — Ref ₹'+p.price+'</option>').join('') +
+            products.map(p => '<option value="' + p.id + '">' + esc(p.name) + ' (' + esc(p.brand) + ') — Ref ₹' + p.price + '</option>').join('') +
           '</select>' +
         '</label>' +
         '<label>Merchant SKU<input name="sku" required placeholder="e.g. LUX-SERUM-001"></label>' +
@@ -1505,27 +1830,25 @@ function partnerPage(){
         '<label>Min Order Qty<input name="min_order_qty" type="number" required placeholder="1" value="1"></label>' +
         '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">+ Create Marketplace Listing</button>' +
       '</form>' +
-      (listings.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product & SKU</th><th>Offer Price</th><th>Available Stock</th><th>Moderation</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
-        listings.map(l => '<tr>' +
-          '<td><strong>'+esc(l.product_name || l.product_id)+'</strong><br><small>SKU: '+esc(l.sku)+'</small></td>' +
-          '<td><input type="number" id="listing-price-'+l.id+'" value="'+l.price+'" style="width:80px;padding:4px 6px;border:1px solid var(--border)"></td>' +
-          '<td><input type="number" id="listing-stock-'+l.id+'" value="'+l.stock+'" style="width:70px;padding:4px 6px;border:1px solid var(--border)"></td>' +
-          '<td><span class="badge badge-'+(l.moderation_status==='APPROVED'?'approved':l.moderation_status==='REJECTED'?'rejected':'pending')+'">'+esc(l.moderation_status)+'</span></td>' +
-          '<td><span class="badge badge-'+(l.is_active?'active':'suspended')+'">'+(l.is_active?'ACTIVE':'INACTIVE')+'</span></td>' +
-          '<td><button class="btn btn-outline btn-sm" data-action="partner-listing-update" data-id="'+l.id+'">Save Changes</button></td>' +
+      (sellerListings.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product & SKU</th><th>Offer Price</th><th>Available Stock</th><th>Moderation</th><th>Active</th><th>Actions</th></tr></thead><tbody>' +
+        sellerListings.map(l => '<tr>' +
+          '<td><strong>' + esc(l.product_name || l.product_id) + '</strong><br><small class="admin-muted">SKU: ' + esc(l.sku) + '</small></td>' +
+          '<td><input type="number" id="listing-price-' + l.id + '" value="' + l.price + '" class="partner-compact-input"></td>' +
+          '<td><input type="number" id="listing-stock-' + l.id + '" value="' + l.stock + '" class="partner-compact-input partner-compact-sm"></td>' +
+          '<td><span class="badge badge-' + statusTone(l.moderation_status) + '">' + esc(l.moderation_status) + '</span></td>' +
+          '<td><span class="badge badge-' + (l.is_active ? 'active' : 'suspended') + '">' + (l.is_active ? 'ACTIVE' : 'INACTIVE') + '</span></td>' +
+          '<td><button type="button" class="btn btn-outline btn-sm" data-action="partner-listing-update" data-id="' + l.id + '">Save</button></td>' +
         '</tr>').join('') +
-      '</tbody></table></div>' : empty('bag','No marketplace listings yet','Attach an offer to any master product above to start selling.')) +
+      '</tbody></table></div>' : empty('bag', 'No marketplace listings yet', 'Create an offer on any master product above to start selling.')) +
     '</div>';
+
   } else if(tab === 'Products'){
-    const prods = state.partnerSellerProducts || [];
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Brand Product Catalog</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">List and manage your bespoke beauty cosmetics, skincare, and haircare items.</p>' +
-        '</div>' +
+        '<div><h3>Brand Product Catalog</h3><p class="partner-panel-sub">Create and manage original beauty cosmetics, skincare, and haircare items.</p></div>' +
+        '<span class="admin-metric-pill">' + sellerProds.length + ' Products</span>' +
       '</div>' +
-      '<form id="partner-seller-product-form" class="form-grid" style="margin:20px 0;padding:20px;background:var(--ivory);border:1px solid var(--border)">' +
+      '<form id="partner-seller-product-form" class="form-grid partner-form-card">' +
         '<label>Brand name<input name="brand" required placeholder="e.g. Maison GlamGo"></label>' +
         '<label>Product title<input name="name" required placeholder="e.g. Botanical Facial Oil"></label>' +
         '<label>Category<input name="category" required placeholder="Skincare, Haircare, Cosmetics" value="Skincare"></label>' +
@@ -1536,229 +1859,272 @@ function partnerPage(){
         '<label style="grid-column:1/-1">Description<textarea name="description" required rows="2" placeholder="Cold-pressed organic ingredients..."></textarea></label>' +
         '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">+ Create & List Product</button>' +
       '</form>' +
-      (prods.length ? prods.map(p => '<div class="dash-row"><div><strong>'+esc(p.name)+'</strong><small>'+esc(p.brand)+' · '+p.category+' · '+money(p.price)+'</small></div><span class="badge badge-info">'+p.stock+' in stock</span></div>').join('') : '<p style="color:var(--muted)">No products created yet.</p>') +
+      (sellerProds.length ? '<div class="partner-feed">' + sellerProds.map(p =>
+        '<div class="dash-row"><div><strong>' + esc(p.name) + '</strong><small>' + esc(p.brand) + ' · ' + esc(p.category) + ' · ' + money(p.price) + '</small></div><span class="badge badge-' + (p.stock <= 5 ? 'warning' : 'approved') + '">' + p.stock + ' in stock</span></div>'
+      ).join('') + '</div>' : empty('bag', 'No brand products yet', 'Publish your first direct product using the form above.')) +
     '</div>';
+
   } else if(tab === 'Inventory' || tab === 'Inventory & stock'){
-    const prods = state.partnerSellerProducts || [];
-    const listings = state.partnerSellerListings || [];
+    const q = (state.partnerCatalogSearch || '').toLowerCase().trim();
+    const listFiltered = q ? sellerListings.filter(l => (l.product_name || '').toLowerCase().includes(q) || (l.sku || '').toLowerCase().includes(q)) : sellerListings;
+    const prodFiltered = q ? sellerProds.filter(p => (p.name || '').toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q)) : sellerProds;
+
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Real-Time Inventory & Stock Alerts</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Live stock tracking across products and marketplace listings. Low stock warning fires at 5 units or below.</p>' +
+        '<div><h3>Real-Time Inventory & Stock Alerts</h3><p class="partner-panel-sub">Update allocated stock across marketplace offers and brand SKUs. Alerts fire at 5 units or below.</p></div>' +
+        (lowStockCount ? '<span class="badge badge-warning">' + lowStockCount + ' Low Stock</span>' : '<span class="badge badge-approved">Healthy Stock</span>') +
+      '</div>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-search-box admin-search-wide">' +
+          '<input id="partner-catalog-search" value="' + esc(state.partnerCatalogSearch || '') + '" placeholder="Search by product name, brand, or SKU…" autocomplete="off">' +
+          '<span class="admin-result-count">' + (listFiltered.length + prodFiltered.length) + ' SKUs</span>' +
         '</div>' +
       '</div>' +
-      (listings.length ? '<div style="margin-top:16px"><h4 style="margin-bottom:10px">Multi-Vendor Listings Stock</h4><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product & SKU</th><th>Current Stock</th><th>Status</th><th>Update Stock</th></tr></thead><tbody>' +
-        listings.map(l => '<tr>' +
-          '<td><strong>'+esc(l.product_name || l.product_id)+'</strong><br><small>SKU: '+esc(l.sku)+'</small></td>' +
-          '<td><strong>'+l.stock+' units</strong></td>' +
-          '<td>'+(l.stock <= 5 ? '<span class="badge badge-warning">LOW STOCK</span>' : '<span class="badge badge-approved">HEALTHY</span>')+'</td>' +
-          '<td><div style="display:flex;gap:6px"><input type="number" id="listing-stock-'+l.id+'" value="'+l.stock+'" style="width:70px;padding:4px 8px;border:1px solid var(--border)"><button class="btn btn-outline btn-sm" data-action="partner-listing-update" data-id="'+l.id+'">Update</button></div></td>' +
+      (listFiltered.length ? '<div class="partner-table-section"><h4>Multi-Vendor Listings Stock</h4><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product & SKU</th><th>Current Stock</th><th>Status</th><th>Update Stock</th></tr></thead><tbody>' +
+        listFiltered.map(l => '<tr>' +
+          '<td><strong>' + esc(l.product_name || l.product_id) + '</strong><br><small class="admin-muted">SKU: ' + esc(l.sku) + '</small></td>' +
+          '<td class="admin-num"><strong>' + l.stock + ' units</strong></td>' +
+          '<td>' + (l.stock <= 5 ? '<span class="badge badge-warning">LOW STOCK</span>' : '<span class="badge badge-approved">HEALTHY</span>') + '</td>' +
+          '<td><div class="admin-actions"><input type="number" id="listing-stock-' + l.id + '" value="' + l.stock + '" class="partner-compact-input partner-compact-sm"><button type="button" class="btn btn-outline btn-sm" data-action="partner-listing-update" data-id="' + l.id + '">Update</button></div></td>' +
         '</tr>').join('') +
       '</tbody></table></div></div>' : '') +
-      (prods.length ? '<div style="margin-top:24px"><h4 style="margin-bottom:10px">Direct Products Stock</h4><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Status</th><th>Update Stock</th></tr></thead><tbody>' +
-        prods.map(p => '<tr>' +
-          '<td><strong>'+esc(p.name)+'</strong><br><small>'+esc(p.brand)+'</small></td>' +
-          '<td>'+esc(p.category)+'</td>' +
-          '<td><strong>'+p.stock+' units</strong></td>' +
-          '<td>'+(p.stock <= 5 ? '<span class="badge badge-warning">LOW STOCK ALERT</span>' : '<span class="badge badge-approved">HEALTHY</span>')+'</td>' +
-          '<td><div style="display:flex;gap:6px"><input type="number" id="stock-input-'+p.id+'" value="'+p.stock+'" style="width:70px;padding:4px 8px;border:1px solid var(--border)"><button class="btn btn-outline btn-sm" data-action="partner-stock-update" data-id="'+p.id+'">Update</button></div></td>' +
+      (prodFiltered.length ? '<div class="partner-table-section"><h4>Direct Brand Products</h4><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Product</th><th>Category</th><th>Current Stock</th><th>Status</th><th>Update Stock</th></tr></thead><tbody>' +
+        prodFiltered.map(p => '<tr>' +
+          '<td><strong>' + esc(p.name) + '</strong><br><small class="admin-muted">' + esc(p.brand) + '</small></td>' +
+          '<td><span class="badge badge-info">' + esc(p.category) + '</span></td>' +
+          '<td class="admin-num"><strong>' + p.stock + ' units</strong></td>' +
+          '<td>' + (p.stock <= 5 ? '<span class="badge badge-warning">LOW STOCK</span>' : '<span class="badge badge-approved">HEALTHY</span>') + '</td>' +
+          '<td><div class="admin-actions"><input type="number" id="stock-input-' + p.id + '" value="' + p.stock + '" class="partner-compact-input partner-compact-sm"><button type="button" class="btn btn-outline btn-sm" data-action="partner-stock-update" data-id="' + p.id + '">Update</button></div></td>' +
         '</tr>').join('') +
       '</tbody></table></div></div>' : '') +
-      (!listings.length && !prods.length ? '<p style="color:var(--muted);padding:20px 0">No products or listings available in inventory.</p>' : '') +
+      (!listFiltered.length && !prodFiltered.length ? empty('truck', 'No inventory items match', 'Add marketplace offers or brand products to manage live inventory here.') : '') +
     '</div>';
+
   } else if(tab === 'Orders & fulfillment' || tab === 'Orders & Shipping' || tab.toLowerCase().includes('order') || tab === 'Shipping'){
-    const suborders = state.partnerSellerSuborders || [];
-    const legacyOrders = state.partnerSellerOrders || [];
+    const filter = state.partnerOrderFilter || 'ALL';
+    const q = (state.partnerOrderSearch || '').toLowerCase().trim();
+    const filterList = (arr, isSub) => {
+      let res = arr;
+      if(filter !== 'ALL') res = res.filter(x => String(x.status || '').toLowerCase() === filter);
+      if(q) res = res.filter(x => {
+        const oid = String(isSub ? x.suborder_id : x.id).toLowerCase();
+        const addr = String(isSub ? x.shipping_address_text : x.address_text || '').toLowerCase();
+        const itemsText = (x.items || []).map(i => i.name + ' ' + (i.sku || '')).join(' ').toLowerCase();
+        return oid.includes(q) || addr.includes(q) || itemsText.includes(q);
+      });
+      return res;
+    };
+
+    const filteredSuborders = filterList(sellerSuborders, true);
+    const filteredLegacy = filterList(sellerLegacyOrders, false);
+
     body = '<div class="dashboard-panel">' +
-      '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Multi-Vendor Suborders & Fulfillment</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Manage your packages independently. Pack items, assign carrier AWB tracking, and mark delivery milestones.</p>' +
+      '<div class="admin-toolbar">' +
+        '<div class="admin-pill-group">' +
+          [['ALL','All'], ['placed','Placed'], ['packed','Packed'], ['in_transit','In Transit'], ['delivered','Delivered'], ['cancelled','Cancelled']].map(([val, lbl]) =>
+            '<button type="button" class="admin-pill ' + (filter === val ? 'active' : '') + '" data-action="partner-order-filter" data-id="' + val + '">' + lbl + '</button>'
+          ).join('') +
+        '</div>' +
+        '<div class="admin-search-box">' +
+          '<input id="partner-order-search" value="' + esc(state.partnerOrderSearch || '') + '" placeholder="Search suborder ID, product, or address…" autocomplete="off">' +
+          '<span class="admin-result-count">' + (filteredSuborders.length || filteredLegacy.length) + ' orders</span>' +
         '</div>' +
       '</div>' +
-      (suborders.length ? suborders.map(s => {
+      (filteredSuborders.length ? '<div class="partner-order-stack">' + filteredSuborders.map(s => {
         const fulfillOk = canSellerFulfillOrder(s.payment_method, s.payment_status, s.status, s.parent_order_status);
         const payBlockedNote = !fulfillOk && ['placed', 'packed', 'in_transit'].includes(s.status)
-          ? '<span style="font-size:11px;color:#8a4b24;font-weight:600">Fulfillment blocked — '+esc(formatOrderPaymentStatusLabel(s.payment_status))+'</span>'
+          ? '<span class="partner-block-note">Fulfillment blocked — ' + esc(formatOrderPaymentStatusLabel(s.payment_status)) + '</span>'
           : (s.payment_status === 'refund_pending_oos' || s.payment_status === 'refunded_oos'
-              ? '<span style="font-size:11px;color:#8a4b24;font-weight:600">'+esc(formatOrderPaymentStatusLabel(s.payment_status))+'</span>'
+              ? '<span class="partner-block-note">' + esc(formatOrderPaymentStatusLabel(s.payment_status)) + '</span>'
               : '');
-        return '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:12px">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<div><strong>Suborder #'+esc(s.suborder_id)+'</strong><small>Parent: '+esc(s.parent_order_id)+' · '+(s.created_at?.slice(0,10)||'Recent')+' · '+money(s.subtotal)+' · Shipping: '+money(s.shipping_fee)+' · Payment: '+esc(s.payment_status||'pending')+'</small></div>' +
-            '<span class="badge badge-'+(s.status==='delivered'?'approved':s.status==='cancelled'?'rejected':'info')+'">'+esc(s.status).toUpperCase()+'</span>' +
+        return '<div class="partner-order-card">' +
+          '<div class="partner-order-head">' +
+            '<div><strong>Suborder #' + esc(s.suborder_id) + '</strong><small>Parent ' + esc(s.parent_order_id) + ' · ' + (s.created_at?.slice(0, 10) || 'Recent') + ' · Subtotal ' + money(s.subtotal) + ' · Ship ' + money(s.shipping_fee) + ' · Pay: ' + esc(s.payment_status || 'pending') + '</small></div>' +
+            '<span class="badge badge-' + statusTone(s.status) + '">' + esc(s.status) + '</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(s.shipping_address_label||'Home')+' — '+esc(s.shipping_address_text||'')+'</div>' +
-          (s.shipment ? '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">Carrier: <strong>'+esc(s.shipment.carrier_name)+'</strong> · Tracking AWB: <strong>'+esc(s.shipment.tracking_number)+'</strong>'+(s.shipment.tracking_url?' · <a href="'+esc(s.shipment.tracking_url)+'" target="_blank" style="color:var(--champagne)">Live Courier Tracking</a>':'')+'</div>' : '') +
-          '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border)">' +
-            (s.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+(i.sku?' · SKU: '+esc(i.sku):'')+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
+          '<div class="partner-order-addr">Deliver to: <strong>' + esc(s.shipping_address_label || 'Home') + '</strong> — ' + esc(s.shipping_address_text || '') + '</div>' +
+          (s.shipment ? '<div class="partner-order-box">Carrier: <strong>' + esc(s.shipment.carrier_name) + '</strong> · Tracking AWB: <strong>' + esc(s.shipment.tracking_number) + '</strong>' + (s.shipment.tracking_url ? ' · <a href="' + esc(s.shipment.tracking_url) + '" target="_blank" rel="noopener">Live Courier Tracking</a>' : '') + '</div>' : '') +
+          '<div class="partner-order-box">' +
+            (s.items || []).map(i => '<div class="partner-order-item"><span>' + esc(i.name) + (i.variant_name ? ' (' + esc(i.variant_name) + ')' : '') + (i.sku ? ' · SKU ' + esc(i.sku) : '') + '</span><strong class="admin-num">× ' + i.qty + ' · ' + money(i.price) + '</strong></div>').join('') +
           '</div>' +
-          '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">' +
+          '<div class="partner-order-foot">' +
             payBlockedNote +
-            (fulfillOk && s.status === 'placed' ? '<button class="btn btn-outline btn-sm" data-action="partner-suborder-pack" data-id="'+s.suborder_id+'">Pack Suborder</button>' : '') +
-            (fulfillOk && s.status === 'packed' ? '<button class="btn btn-primary btn-sm" data-action="partner-suborder-ship" data-id="'+s.suborder_id+'">Dispatch & Enter Tracking</button>' : '') +
-            (fulfillOk && s.status === 'in_transit' ? '<button class="btn btn-success btn-sm" data-action="partner-suborder-deliver" data-id="'+s.suborder_id+'">Confirm Delivery</button>' : '') +
+            (fulfillOk && s.status === 'placed' ? '<button type="button" class="btn btn-outline btn-sm" data-action="partner-suborder-pack" data-id="' + s.suborder_id + '">Pack Suborder</button>' : '') +
+            (fulfillOk && s.status === 'packed' ? '<button type="button" class="btn btn-primary btn-sm" data-action="partner-suborder-ship" data-id="' + s.suborder_id + '">Dispatch & Tracking</button>' : '') +
+            (fulfillOk && s.status === 'in_transit' ? '<button type="button" class="btn btn-success btn-sm" data-action="partner-suborder-deliver" data-id="' + s.suborder_id + '">Confirm Delivery</button>' : '') +
           '</div>' +
         '</div>';
-      }).join('') : (legacyOrders.length ? legacyOrders.map(o => {
+      }).join('') + '</div>' : (filteredLegacy.length ? '<div class="partner-order-stack">' + filteredLegacy.map(o => {
         const fulfillOk = canSellerFulfillOrder(o.payment_method, o.payment_status, o.status, o.status);
         const payBlockedNote = !fulfillOk
-          ? '<span style="font-size:11px;color:#8a4b24;font-weight:600">Fulfillment blocked — '+esc(formatOrderPaymentStatusLabel(o.payment_status))+'</span>'
+          ? '<span class="partner-block-note">Fulfillment blocked — ' + esc(formatOrderPaymentStatusLabel(o.payment_status)) + '</span>'
           : '';
-        return '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:12px">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<div><strong>Order #'+esc(o.id)+'</strong><small>'+o.date+' · '+money(o.total)+' · Payment: '+esc(o.payment_status)+'</small></div>' +
-            '<span class="badge badge-info">'+esc(o.status)+'</span>' +
+        return '<div class="partner-order-card">' +
+          '<div class="partner-order-head">' +
+            '<div><strong>Order #' + esc(o.id) + '</strong><small>' + esc(o.date) + ' · ' + money(o.total) + ' · Payment: ' + esc(o.payment_status) + '</small></div>' +
+            '<span class="badge badge-' + statusTone(o.status) + '">' + esc(o.status) + '</span>' +
           '</div>' +
-          '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(o.address_text)+'</div>' +
-          '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border)">' +
-            (o.items || []).map(i => '<div style="font-size:11px">✦ '+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
+          '<div class="partner-order-addr">Deliver to: ' + esc(o.address_text) + '</div>' +
+          '<div class="partner-order-box">' +
+            (o.items || []).map(i => '<div class="partner-order-item"><span>' + esc(i.name) + (i.variant_name ? ' (' + esc(i.variant_name) + ')' : '') + '</span><strong class="admin-num">× ' + i.qty + ' · ' + money(i.price) + '</strong></div>').join('') +
           '</div>' +
-          '<div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">' +
+          '<div class="partner-order-foot">' +
             payBlockedNote +
-            (fulfillOk && o.status === 'placed' ? '<button class="btn btn-outline btn-sm" data-action="partner-order-pack" data-id="'+o.id+'">Pack Order</button>' : '') +
-            (fulfillOk && o.status === 'packed' ? '<button class="btn btn-primary btn-sm" data-action="partner-order-ship" data-id="'+o.id+'">Ship Order</button>' : '') +
-            (fulfillOk && o.status === 'in_transit' ? '<button class="btn btn-success btn-sm" data-action="partner-order-deliver" data-id="'+o.id+'">Mark Delivered</button>' : '') +
+            (fulfillOk && o.status === 'placed' ? '<button type="button" class="btn btn-outline btn-sm" data-action="partner-order-pack" data-id="' + o.id + '">Pack Order</button>' : '') +
+            (fulfillOk && o.status === 'packed' ? '<button type="button" class="btn btn-primary btn-sm" data-action="partner-order-ship" data-id="' + o.id + '">Ship Order</button>' : '') +
+            (fulfillOk && o.status === 'in_transit' ? '<button type="button" class="btn btn-success btn-sm" data-action="partner-order-deliver" data-id="' + o.id + '">Mark Delivered</button>' : '') +
           '</div>' +
         '</div>';
-      }).join('') : empty('bag','No orders received yet','Customer purchases from your brand or listings will appear here.'))) +
+      }).join('') + '</div>' : empty('bag', 'No matching orders found', 'Customer orders matching this status or query will appear here.'))) +
     '</div>';
+
   } else if(tab === 'Returns & refunds' || tab.toLowerCase().includes('return')){
-    const returns = state.partnerSellerReturns || [];
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div>' +
-          '<h3>Customer Returns & Reverse Logistics</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Inspect client return requests. Approved returns trigger gateway refund orchestration and optional restocking.</p>' +
-        '</div>' +
+        '<div><h3>Customer Returns & Reverse Logistics</h3><p class="partner-panel-sub">Review return requests, approve restocking & gateway refunds, or decline invalid claims.</p></div>' +
+        '<span class="admin-metric-pill">' + sellerReturns.length + ' Requests</span>' +
       '</div>' +
-      (returns.length ? returns.map(r => {
+      (sellerReturns.length ? '<div class="partner-order-stack">' + sellerReturns.map(r => {
         const needsOp = r.refund_status === 'REQUIRES_OPERATOR';
         const isPendingSync = r.status === 'REFUND_PENDING' && !needsOp;
         const actionable = !needsOp && (r.status === 'REQUESTED' || r.status === 'PENDING' || r.status === 'REFUND_FAILED' || isPendingSync);
-        const badgeCls = (r.status==='REFUNDED'||r.status==='APPROVED') ? 'approved' : (r.status==='REJECTED'||r.status==='REFUND_FAILED'||needsOp) ? 'rejected' : 'pending';
+        const badgeCls = (r.status === 'REFUNDED' || r.status === 'APPROVED') ? 'approved' : (r.status === 'REJECTED' || r.status === 'REFUND_FAILED' || needsOp) ? 'rejected' : 'pending';
         const approveLabel = r.status === 'REFUND_FAILED' ? 'Retry Refund' : (isPendingSync ? 'Reconcile Status' : 'Approve & Restock');
         const allowReject = ['REQUESTED', 'PENDING', 'APPROVED'].includes(r.status);
-        return '<div class="dash-row" style="flex-direction:column;align-items:stretch;gap:10px">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center">' +
-            '<div><strong>Return #'+esc(r.id)+' · Suborder #'+esc(r.suborder_id)+'</strong><small>Requested: '+(r.created_at?.slice(0,10)||'Recent')+' · Item #'+r.order_item_id+' (Qty: '+(r.return_qty||1)+') · Refund: '+money(r.refund_amount||0)+'</small></div>' +
-            '<span class="badge badge-'+badgeCls+'">'+esc(r.status)+'</span>' +
+        return '<div class="partner-order-card">' +
+          '<div class="partner-order-head">' +
+            '<div><strong>Return #' + esc(r.id) + ' · Suborder #' + esc(r.suborder_id) + '</strong><small>Requested ' + (r.created_at?.slice(0, 10) || 'Recent') + ' · Item #' + r.order_item_id + ' (Qty ' + (r.return_qty || 1) + ') · Refund ' + money(r.refund_amount || 0) + '</small></div>' +
+            '<span class="badge badge-' + badgeCls + '">' + esc(r.status) + '</span>' +
           '</div>' +
-          '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">' +
-            '<strong>Reason:</strong> '+esc(r.reason)+'<br>' +
-            '<strong>Refund state:</strong> '+esc(r.refund_status||'NONE')+(r.gateway_refund_id ? ' (Gateway Ref: <code>'+esc(r.gateway_refund_id)+'</code>)' : '')+'<br>' +
-            (needsOp ? '<span style="color:#721c24"><strong>Operator attention required:</strong> Automatic refund retries reached limit or failed validation.</span><br>' : '') +
-            (r.detailed_explanation ? '<span style="color:var(--muted)"><strong>Customer note:</strong> '+esc(r.detailed_explanation)+'</span><br>' : '') +
-            (r.rejection_reason ? '<span style="color:#721c24"><strong>Seller decision reason:</strong> '+esc(r.rejection_reason)+'</span>' : '') +
+          '<div class="partner-order-box">' +
+            '<div><strong>Reason:</strong> ' + esc(r.reason) + '</div>' +
+            '<div><strong>Refund state:</strong> ' + esc(r.refund_status || 'NONE') + (r.gateway_refund_id ? ' (Ref: <code>' + esc(r.gateway_refund_id) + '</code>)' : '') + '</div>' +
+            (needsOp ? '<div class="partner-block-note"><strong>Operator attention required:</strong> Automatic refund retries reached limit or failed validation.</div>' : '') +
+            (r.detailed_explanation ? '<div class="admin-muted"><strong>Customer note:</strong> ' + esc(r.detailed_explanation) + '</div>' : '') +
+            (r.rejection_reason ? '<div class="partner-block-note"><strong>Seller decision reason:</strong> ' + esc(r.rejection_reason) + '</div>' : '') +
           '</div>' +
-          (actionable ? '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-            '<button class="btn btn-success btn-sm" data-action="partner-return-approve" data-id="'+esc(r.id)+'">'+approveLabel+'</button>' +
-            (allowReject ? '<button class="btn btn-danger btn-sm" data-action="partner-return-reject" data-id="'+esc(r.id)+'">Reject Return</button>' : '') +
+          (actionable ? '<div class="partner-order-foot">' +
+            '<button type="button" class="btn btn-success btn-sm" data-action="partner-return-approve" data-id="' + esc(r.id) + '">' + approveLabel + '</button>' +
+            (allowReject ? '<button type="button" class="btn btn-danger btn-sm" data-action="partner-return-reject" data-id="' + esc(r.id) + '">Reject Return</button>' : '') +
           '</div>' : '') +
         '</div>';
-      }).join('') : empty('shield','No return requests','When customers submit reverse logistics requests, you can inspect and decision them here.')) +
+      }).join('') + '</div>' : empty('shield', 'No return requests', 'Customer reverse logistics requests will appear here when submitted.')) +
     '</div>';
+
   } else if(tab === 'Escrow & settlement' || ['Earnings','Revenue analytics','Sales analytics','Analytics'].includes(tab)){
-    const mvFin = state.partnerSellerMVFinancials;
     if(role === 'Product Seller' && mvFin){
-      body = '<div class="admin-kpi-grid">' +
-        '<div class="admin-kpi-card"><span>HELD IN ESCROW</span><strong>'+money(mvFin.funds_in_escrow ?? 0)+'</strong><small>Pending delivery + 7-day return window</small></div>' +
-        '<div class="admin-kpi-card"><span>MATURED / CLEARED</span><strong>'+money(mvFin.matured_balance_available ?? 0)+'</strong><small>Eligible (T+7, no open returns)</small></div>' +
-        '<div class="admin-kpi-card"><span>SETTLED LEDGER</span><strong>'+money(mvFin.total_disbursed ?? 0)+'</strong><small>Marked settled internally</small></div>' +
-        '<div class="admin-kpi-card"><span>TOTAL SALES VOLUME</span><strong>'+money(mvFin.gross_sales ?? 0)+'</strong><small>Commission (15%): '+money(mvFin.platform_commission_15pct ?? 0)+' · Refunds: '+money(mvFin.refund_deductions ?? 0)+'</small></div>' +
-      '</div>' +
-      '<div class="dashboard-panel" style="margin-top:20px">' +
+      body = '<section class="admin-kpi-grid">' +
+        '<div class="admin-kpi-card admin-kpi-featured"><span>Held in Escrow</span><strong class="admin-num">' + money(mvFin.funds_in_escrow ?? 0) + '</strong><small>Pending delivery + 7-day return window</small></div>' +
+        '<div class="admin-kpi-card"><span>Matured / Cleared</span><strong class="admin-num">' + money(mvFin.matured_balance_available ?? 0) + '</strong><small>Eligible (T+7, no open returns)</small></div>' +
+        '<div class="admin-kpi-card"><span>Settled Ledger</span><strong class="admin-num">' + money(mvFin.total_disbursed ?? 0) + '</strong><small>Marked settled internally</small></div>' +
+        '<div class="admin-kpi-card"><span>Total Sales Volume</span><strong class="admin-num">' + money(mvFin.gross_sales ?? 0) + '</strong><small>15% Fee: ' + money(mvFin.platform_commission_15pct ?? 0) + ' · Refunds: ' + money(mvFin.refund_deductions ?? 0) + '</small></div>' +
+      '</section>' +
+      '<div class="dashboard-panel" style="margin-top:18px">' +
         '<div class="account-heading">' +
-          '<div>' +
-            '<h3>Multi-Vendor Escrow & Settlement Ledger</h3>' +
-            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">GlamGo Escrow holds merchant funds for 7 days (T+7) after confirmed delivery and blocks maturity while any return remains unresolved.</p>' +
-          '</div>' +
-          '<span class="badge badge-info">Policy: T+7 Return-Aligned Cooling Period</span>' +
+          '<div><h3>Multi-Vendor Escrow & Settlement Ledger</h3><p class="partner-panel-sub">Merchant funds remain in escrow for 7 days (T+7) after delivery until open returns resolve.</p></div>' +
+          '<span class="badge badge-info">Policy: T+7 Return-Aligned</span>' +
         '</div>' +
-        (mvFin.escrow_batches && mvFin.escrow_batches.length ? 
-          '<div class="admin-table-wrap" style="margin-top:20px"><table class="admin-table"><thead><tr><th>Suborder</th><th>Net Settlement</th><th>Refunded</th><th>Comm. Reversed</th><th>Status</th><th>Maturity Date</th></tr></thead><tbody>' +
+        (mvFin.escrow_batches && mvFin.escrow_batches.length ?
+          '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Suborder</th><th>Net Settlement</th><th>Refunded</th><th>Comm. Reversed</th><th>Status</th><th>Maturity Date</th></tr></thead><tbody>' +
             mvFin.escrow_batches.map(rec => '<tr>' +
-              '<td><strong>'+esc(rec.suborder_id)+'</strong></td>' +
-              '<td><strong>'+money(rec.net_amount)+'</strong></td>' +
-              '<td>'+money(rec.refunded_amount || 0)+'</td>' +
-              '<td>'+money(rec.reversed_commission || 0)+'</td>' +
-              '<td><span class="badge badge-'+(rec.status==='MATURED'||rec.status==='SETTLED'?'approved':rec.status==='CLAWBACK_REFUND'?'rejected':'pending')+'">'+esc(rec.status)+'</span></td>' +
-              '<td><small>'+(rec.matures_at ? new Date(rec.matures_at).toLocaleDateString() : 'Pending Delivery')+'</small></td>' +
+              '<td class="admin-num"><strong>' + esc(rec.suborder_id) + '</strong></td>' +
+              '<td class="admin-num"><strong>' + money(rec.net_amount) + '</strong></td>' +
+              '<td class="admin-num">' + money(rec.refunded_amount || 0) + '</td>' +
+              '<td class="admin-num">' + money(rec.reversed_commission || 0) + '</td>' +
+              '<td><span class="badge badge-' + statusTone(rec.status) + '">' + esc(rec.status) + '</span></td>' +
+              '<td class="admin-num"><small>' + (rec.matures_at ? new Date(rec.matures_at).toLocaleDateString() : 'Pending Delivery') + '</small></td>' +
             '</tr>').join('') +
-          '</tbody></table></div>' : '<p style="color:var(--muted);padding:25px 0">No escrow records initiated yet.</p>') +
+          '</tbody></table></div>' : empty('clock', 'No escrow records yet', 'Delivered customer suborders will generate T+7 escrow ledger batches here.')) +
       '</div>';
     } else {
-      const fin = state.partnerFinancials || {
-        gross_sales: 0,
-        platform_commission: 0,
-        refund_deductions: 0,
-        net_earnings: 0,
-        settlement_summary: { settled_amount: 0, pending_payout: 0, payout_status: 'pending_cycle' },
-        statements: []
+      const f = {
+        gross_sales: fin.gross_sales || 0,
+        platform_commission: fin.platform_commission || 0,
+        refund_deductions: fin.refund_deductions || 0,
+        net_earnings: fin.net_earnings || 0,
+        settlement_summary: fin.settlement_summary || { payout_status: 'pending_cycle' },
+        statements: fin.statements || []
       };
-      body = '<div class="admin-kpi-grid">' +
-        '<div class="admin-kpi-card"><span>GROSS SALES</span><strong>'+money(fin.gross_sales)+'</strong><small>Total booking / order value</small></div>' +
-        '<div class="admin-kpi-card"><span>COMMISSION (15%)</span><strong>'+money(fin.platform_commission)+'</strong><small>Platform curation & fee</small></div>' +
-        '<div class="admin-kpi-card"><span>REFUND DEDUCTIONS</span><strong>'+money(fin.refund_deductions)+'</strong><small>Cancelled transactions</small></div>' +
-        '<div class="admin-kpi-card"><span>NET EARNINGS</span><strong>'+money(fin.net_earnings)+'</strong><small>Payable to partner</small></div>' +
-      '</div>' +
-      '<div class="dashboard-panel" style="margin-top:20px">' +
+      body = '<section class="admin-kpi-grid">' +
+        '<div class="admin-kpi-card"><span>Gross Sales</span><strong class="admin-num">' + money(f.gross_sales) + '</strong><small>Total completed booking value</small></div>' +
+        '<div class="admin-kpi-card"><span>Commission (15%)</span><strong class="admin-num">' + money(f.platform_commission) + '</strong><small>Platform curation & fee</small></div>' +
+        '<div class="admin-kpi-card"><span>Refund Deductions</span><strong class="admin-num">' + money(f.refund_deductions) + '</strong><small>Cancelled or refunded visits</small></div>' +
+        '<div class="admin-kpi-card admin-kpi-featured"><span>Net Earnings</span><strong class="admin-num">' + money(f.net_earnings) + '</strong><small>Payable to partner</small></div>' +
+      '</section>' +
+      '<div class="dashboard-panel" style="margin-top:18px">' +
         '<div class="account-heading">' +
-          '<div>' +
-            '<h3>Settlement Ledger & Statements</h3>' +
-            '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Verified payout accounting across completed transactions.</p>' +
-          '</div>' +
-          '<span class="badge badge-info">Status: '+esc(fin.settlement_summary?.payout_status || 'Pending cycle')+'</span>' +
+          '<div><h3>Settlement Ledger & Statements</h3><p class="partner-panel-sub">Verified payout accounting across completed appointments.</p></div>' +
+          '<span class="badge badge-info">Status: ' + esc(f.settlement_summary?.payout_status || 'Pending cycle') + '</span>' +
         '</div>' +
-        (fin.statements?.length ? 
-          '<div class="admin-table-wrap" style="margin-top:20px"><table class="admin-table"><thead><tr><th>Txn ID</th><th>Date</th><th>Item / Service</th><th>Gross</th><th>15% Fee</th><th>Net Payout</th><th>Status</th></tr></thead><tbody>' +
-            fin.statements.map(s => '<tr>' +
-              '<td><code>'+esc(s.transaction_id)+'</code></td>' +
-              '<td>'+esc(s.date)+'</td>' +
-              '<td><strong>'+esc(s.title)+'</strong></td>' +
-              '<td>'+money(s.gross_amount)+'</td>' +
-              '<td>'+money(s.commission_amount)+'</td>' +
-              '<td><strong>'+money(s.net_amount)+'</strong></td>' +
-              '<td><span class="badge badge-'+s.status.toLowerCase()+'">'+esc(s.status)+'</span></td>' +
+        (f.statements?.length ?
+          '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Txn ID</th><th>Date</th><th>Service</th><th>Gross</th><th>15% Fee</th><th>Net Payout</th><th>Status</th></tr></thead><tbody>' +
+            f.statements.map(s => '<tr>' +
+              '<td><code class="admin-ip">' + esc(s.transaction_id) + '</code></td>' +
+              '<td class="admin-num">' + esc(s.date) + '</td>' +
+              '<td><strong>' + esc(s.title) + '</strong></td>' +
+              '<td class="admin-num">' + money(s.gross_amount) + '</td>' +
+              '<td class="admin-num">' + money(s.commission_amount) + '</td>' +
+              '<td class="admin-num"><strong>' + money(s.net_amount) + '</strong></td>' +
+              '<td><span class="badge badge-' + statusTone(s.status) + '">' + esc(s.status) + '</span></td>' +
             '</tr>').join('') +
-          '</tbody></table></div>' : '<p style="color:var(--muted);padding:25px 0">No transaction statements recorded yet.</p>') +
+          '</tbody></table></div>' : empty('clock', 'No statements recorded yet', 'Completed appointments will appear in your settlement ledger.')) +
       '</div>';
     }
+
   } else if(tab === 'Customer reviews' || tab === 'Reviews'){
     body = '<div class="dashboard-panel">' +
-      '<h3>Client Feedback & Reviews</h3>' +
-      (state.reviews.length ? state.reviews.map(r => '<div class="dash-row"><div><strong>'+r.rating+' ★ · '+esc(r.comment)+'</strong><small>'+esc(r.user_name||'Customer')+' · '+formatDate(r.created_at)+'</small></div><span class="status">'+esc(r.item_type)+'</span></div>').join('') : empty('star','No reviews yet','Verified customer reviews will appear after treatments or deliveries are completed.')) +
+      '<div class="account-heading">' +
+        '<div><h3>Client Feedback & Reviews</h3><p class="partner-panel-sub">Verified ratings from recent GlamGo bookings and product orders.</p></div>' +
+        '<span class="admin-metric-pill">' + (state.reviews || []).length + ' Reviews</span>' +
+      '</div>' +
+      ((state.reviews || []).length ? '<div class="partner-feed">' + state.reviews.map(r =>
+        '<div class="dash-row"><div><strong>' + r.rating + ' ★ · ' + esc(r.comment) + '</strong><small>' + esc(r.user_name || 'Customer') + ' · ' + formatDate(r.created_at) + '</small></div><span class="badge badge-info">' + esc(r.item_type) + '</span></div>'
+      ).join('') + '</div>' : empty('star', 'No reviews yet', 'Verified customer reviews will appear after treatments or deliveries are completed.')) +
     '</div>';
+
   } else {
-    body = '<div class="dashboard-panel"><h3>'+tab+'</h3><p>Your '+tab.toLowerCase()+' workspace is ready.</p>'+empty('grid','A clean slate','Activity for this section will appear here as your GlamGo presence grows.')+'</div>';
+    body = '<div class="dashboard-panel"><h3>' + esc(tab) + '</h3><p class="partner-panel-sub">Your ' + esc(tab.toLowerCase()) + ' workspace is ready.</p>' + empty('grid', 'Clean workspace', 'Activity for this section will populate as your GlamGo presence grows.') + '</div>';
   }
 
-  return '<main class="partner-page">' +
-    '<div class="partner-top">' +
-      '<button class="back-link" data-action="landing">← Back to GlamGo</button>' +
-      '<div>' +
-        '<h1>'+esc(role)+' Studio</h1>' +
-        '<p>'+roleDesc+'</p>' +
+  return '<div class="partner-shell">' +
+    '<aside class="partner-nav-sidebar" aria-label="' + esc(roleDisplay) + ' navigation">' +
+      '<div class="partner-side-head">' +
+        '<span class="partner-side-role">' + esc(roleDisplay) + ' Studio</span>' +
+        '<p class="partner-side-desc">' + esc(roleDesc) + '</p>' +
       '</div>' +
-    '</div>' +
-    '<div class="role-picker">' +
-      roles.map(r => '<button class="'+(r===role?'active':'')+'" data-action="partner-role" data-id="'+r+'">'+r+'</button>').join('') +
-    '</div>' +
-    '<div class="partner-layout">' +
-      '<aside class="partner-sidebar">' +
-        '<strong>'+role+'</strong>' +
-        tabs.map(t => '<button class="'+(t===state.partnerTab?'active':'')+'" data-action="partner-tab" data-id="'+t+'">'+t+'</button>').join('') +
-      '</aside>' +
-      '<div class="partner-main">' +
-        '<div class="dashboard-heading">' +
-          '<div><p class="eyebrow">'+role.toUpperCase()+' DASHBOARD</p><h2>'+state.partnerTab+'</h2></div>' +
-          '<span>Live Partner Sync</span>' +
+      '<div class="partner-role-switcher" role="tablist" aria-label="Switch partner role">' +
+        roles.map(r => {
+          const shortLabel = r === 'Professional' ? 'Specialist' : r === 'Salon Owner' ? 'Salon' : 'Seller';
+          const fullLabel = r === 'Professional' ? 'Specialist' : r;
+          return '<button type="button" role="tab" aria-label="' + fullLabel + '" title="' + fullLabel + '" aria-selected="' + (r === role ? 'true' : 'false') + '" class="' + (r === role ? 'active' : '') + '" data-action="partner-role" data-id="' + r + '">' + shortLabel + '</button>';
+        }).join('') +
+      '</div>' +
+      '<nav class="partner-nav-groups">' +
+        sidebarGroups.map(g =>
+          '<div class="partner-nav-group">' +
+            '<div class="partner-nav-group-label">' + esc(g.label) + '</div>' +
+            g.items.map(renderNavBtn).join('') +
+          '</div>'
+        ).join('') +
+      '</nav>' +
+      '<div class="partner-side-foot">' +
+        '<button type="button" class="partner-nav-btn" data-action="landing">' + icon('arrow', 15) + '<span class="partner-nav-label">Back to GlamGo</span></button>' +
+      '</div>' +
+    '</aside>' +
+    '<main class="partner-workspace">' +
+      '<header class="partner-topbar">' +
+        '<div>' +
+          '<h1>' + esc(currentMeta.title) + '</h1>' +
+          '<p>' + esc(currentMeta.sub) + (state.partnerLastSynced ? ' · Synced ' + esc(state.partnerLastSynced) : '') + '</p>' +
         '</div>' +
-        body +
-      '</div>' +
-    '</div>' +
-  '</main>';
+        '<div class="partner-topbar-actions">' +
+          '<button type="button" class="btn btn-outline btn-sm admin-refresh-btn" data-action="partner-refresh">Refresh</button>' +
+          '<span class="badge badge-' + (isRoleMatched ? 'approved' : 'pending') + '">' + (isRoleMatched ? 'Live Studio' : 'Preview Mode') + '</span>' +
+        '</div>' +
+      '</header>' +
+      '<div class="partner-content">' + body + '</div>' +
+    '</main>' +
+  '</div>';
 }
 
 async function loadAdminData(){
@@ -2985,7 +3351,25 @@ async function action(el){
     render();
     loadPartnerData();
   }
-  else if(a==='partner-tab'){ state.partnerTab=id; render(); loadPartnerData(); }
+  else if(a==='partner-tab'){
+    state.partnerTab=id;
+    state.partnerBookingFilter='ALL';
+    state.partnerOrderFilter='ALL';
+    render();
+    loadPartnerData();
+  }
+  else if(a==='partner-refresh'){
+    await loadPartnerData();
+    toast('Studio metrics refreshed');
+  }
+  else if(a==='partner-booking-filter'){
+    state.partnerBookingFilter = id;
+    render();
+  }
+  else if(a==='partner-order-filter'){
+    state.partnerOrderFilter = id;
+    render();
+  }
   else if(a==='partner-pro-assign-service'){
     const sEl = document.getElementById('partner-service-select');
     if(sEl && sEl.value){
@@ -3740,7 +4124,10 @@ document.addEventListener('input', e => {
     'admin-booking-search': 'adminBookingSearch',
     'admin-order-search': 'adminOrderSearch',
     'admin-catalog-search': 'adminCatalogSearch',
-    'admin-audit-search': 'adminAuditSearch'
+    'admin-audit-search': 'adminAuditSearch',
+    'partner-booking-search': 'partnerBookingSearch',
+    'partner-order-search': 'partnerOrderSearch',
+    'partner-catalog-search': 'partnerCatalogSearch'
   };
   if(adminSearchMap[e.target.id]){
     const targetId = e.target.id;
