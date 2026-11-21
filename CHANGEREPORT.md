@@ -1,5 +1,40 @@
 # Change Report
 
+## Prompt Entry #20 — 2026-11-21 23:59 IST — Full 4-Dashboard Operational Suite (Admin, Specialist, Salon Owner, Product Seller)
+**Objective:** Plan (`/gsd-plan-phase`, `/graphify`, `/ui-ux-pro-max`) and implement the full industry-standard feature set across all 4 operational GlamGo dashboards while preserving the warm ivory/champagne aesthetic and `localStorage` + API compatibility:
+1. **Admin Command Centre:**
+   - **Promos & Commissions (`promotions`):** Platform commission rules (`homePct`, `salonPct`, `retailPct`, `escrowDays`, `noShowFeePct`), promo coupon creation (`#ops-coupon-form`), and active/paused toggle + delete controls.
+   - **Disputes & Review Moderation (`disputes`):** 4-card KPI strip, ticket resolution desk (Full Refund / 50% Split / Reject), and flagged review moderation queue (Approve / Hide).
+   - **Escrow & Partner Payouts (`payouts`):** Held/Matured/Disbursed KPI cards, batch payout disbursement actions, and RFC-4180 CSV payout ledger export.
+2. **At-Home Specialist (Professional) Studio:**
+   - **Topbar Status & Safety:** Live `Online / On Break / Offline` segmented toggle and red `Emergency SOS` panic button dispatching timestamped GPS check-in alerts.
+   - **Job Lifecycle & Territory:** 5-step job progress bar (`Accepted → En Route → Arrived (OTP) → In Progress → Done`) on confirmed bookings and inter-visit travel buffer + pin-code territory settings under Availability.
+   - **Client CRM & Portfolio:** Dedicated `Client CRM & Safety` tab (allergy alerts, skin/hair profile notes, SOS incident ledger) and `Lookbook Portfolio` tab (before/after gallery + uploader).
+3. **Salon Owner Studio:**
+   - **Multi-Stylist Chair Calendar (`Chair Calendar`):** Visual time × stylist schedule matrix with 1-tap chair status cycling (`Booked → Checked-In → In-Chair → Completed`) and walk-in assignment form.
+   - **Front-Desk POS (`Front-Desk POS`):** Today Z-Report strip (UPI / Card / Cash totals), combined service + retail checkout form, and live receipt feed.
+   - **Inventory, Formulas, Multi-Branch & Payroll:** Dual `Backbar & Retail Stock` tracker (`Use -1` / `Restock +5` + reorder alerts), `Client Formulas & CRM` (color formulas, allergies, LTV), multi-branch management in `Branches`, and `Staff Commission & Monthly Payroll Summary` in `Staff management`.
+4. **Product Seller Studio:**
+   - **Batch & Expiry FIFO (`Batch & Expiry`):** Earliest-expiry-first (FIFO) cosmetic lot ledger with color-coded shelf-life health pills (`Green >90d`, `Yellow ≤90d` with 1-click `20% Clearance`, `Red Expired` auto-delisted) and lot registration form.
+   - **Fulfillment Handling & Returns Hygiene QC:** Dispatch SLA timers + Fragile/Liquid/Cold-Chain badges on order cards, plus interactive Hygiene & Safety Seal QC checklist (`Restockable` vs `Write-Off`) inside `Returns & refunds`.
+   - **Compliance Vault (`Compliance Vault`):** CDSCO/INCI/cruelty-free regulatory vault, HSN/GST schedule table, and downloadable GST/HSN CSV ledger export.
+
+### Files changed
+- `src/dashboards-suite.js` *(created)*: Modular `DEFAULT_DASHBOARD_OPS`, 18 UI renderers, RFC-4180 CSV exporter, and `handleDashboardOpsAction` / `handleDashboardOpsSubmit` state handlers.
+- `src/app.js`: Wired `dashboards-suite.js` imports, extended `roleSections` and persisted `defaults`, integrated new sidebar nav items and tab renderers in `adminPage()` and `partnerPage()`, and connected early `ops-*` click/submit delegation.
+- `styles.css`: Added `.ops-*` styles (status segmented toggle, SOS button, lifecycle stepper, chair calendar grid, shelf-life pills, hygiene QC card, portfolio grid) plus `@media (max-width:960px)`, `@media (max-width:640px)` (mobile header/grid overflow fixes), and `prefers-reduced-motion` support.
+
+### Verification
+- `node -c src/dashboards-suite.js` and `node -c src/app.js`: Clean JS syntax (exit code 0).
+- `npm run build`: Clean Vite production bundle in `1.92s` (`dist/assets/index-DDHDNjtq.css` 165.65 kB, `dist/assets/index-BRgKxemi.js` 472.09 kB, 11 modules transformed, 0 errors).
+- End-to-End Playwright Verification against `http://127.0.0.1:5173/`:
+  - Verified Admin Overview (`3` Partner Salons), `FESTIVE25` coupon creation, dispute refund resolution, and `PAY-701` payout disbursement (`verify_4dash_admin.png`).
+  - Verified Specialist `Online/On Break/Offline` toggle, `Emergency SOS` dispatch log, Travel Buffer settings, Portfolio, and Client CRM (`verify_4dash_pro.png`).
+  - Verified Salon Chair Calendar status cycling, Front-Desk POS checkout (`Meera Test`), Backbar & Retail Stock, Client Formulas, and Staff Payroll (`verify_4dash_salon.png`).
+  - Verified Seller Batch & Expiry FIFO health states (Green/Yellow/Red), Returns Hygiene QC (`RESTOCKED`), and Compliance Vault HSN table (`verify_4dash_seller.png`).
+  - Verified `0` uncaught page errors and `0` horizontal overflow at both desktop (`1440 <= 1440`) and mobile (`375 <= 375`).
+
+
 ## Prompt Entry #19 — 2026-11-21 18:10 IST — Partner Salons Catalog Tab & Product Inventory Stock Telemetry in Admin Panel
 **Objective:** Address user feedback regarding salon visibility ("why is only ivory room in the admin panel..why not these two") and product stock visibility ("wht abt how many products are available for an item..admin shd see all these things na"):
 1. **Partner Salons Catalog in Admin Command Centre:**

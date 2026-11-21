@@ -79,6 +79,30 @@ import {
   apiDecideSellerReturn,
   apiGetSellerMultiVendorFinancials
 } from './api.js';
+import {
+  DEFAULT_DASHBOARD_OPS,
+  SAMPLE_SELLER_RETURNS_FALLBACK,
+  renderAdminPromotionsTab,
+  renderAdminDisputesTab,
+  renderAdminPayoutsTab,
+  renderProTopbarControls,
+  renderProLifecycleBar,
+  renderProTravelControls,
+  renderProClientCrmTab,
+  renderProPortfolioTab,
+  renderSalonChairCalendarTab,
+  renderSalonPosTab,
+  renderSalonBackbarTab,
+  renderSalonFormulasTab,
+  renderSalonStaffPayrollAddon,
+  renderSalonBranchesEnhanced,
+  renderSellerBatchExpiryTab,
+  renderSellerComplianceTab,
+  renderSellerFulfillmentBadges,
+  renderSellerQcAddon,
+  handleDashboardOpsAction,
+  handleDashboardOpsSubmit
+} from './dashboards-suite.js';
 
 const HOME_IMG = './assets/home-editorial.webp';
 const SALON_IMG = './assets/salon-editorial.webp';
@@ -475,9 +499,9 @@ const shopCategoryLabel = c => (c === 'Beauty Tools' ? 'Tools' : c);
 const salonCategories = ['All','Hair','Skin','Nails','Makeup','Spa'];
 const roles = ['Professional','Salon Owner','Product Seller'];
 const roleSections = {
-  Professional:['Overview','Registration','Identity verification','Profile management','Services & pricing','Availability calendar','Booking requests','Upcoming appointments','Booking history','Earnings','Customer reviews'],
-  'Salon Owner':['Overview','Registration','Salon profile','Branches','Service catalogue','Staff management','Appointments','Availability','Revenue analytics','Customer reviews'],
-  'Product Seller':['Overview','Registration','Marketplace listings','Products','Inventory & stock','Orders & fulfillment','Returns & refunds','Escrow & settlement']
+  Professional:['Overview','Registration','Identity verification','Profile management','Services & pricing','Availability calendar','Booking requests','Upcoming appointments','Booking history','Client CRM & Safety','Portfolio','Earnings','Customer reviews'],
+  'Salon Owner':['Overview','Registration','Salon profile','Branches','Service catalogue','Staff management','Chair Calendar','Front-Desk POS','Backbar & Retail Stock','Client Formulas & CRM','Appointments','Availability','Revenue analytics','Customer reviews'],
+  'Product Seller':['Overview','Registration','Marketplace listings','Products','Inventory & stock','Batch & Expiry','Orders & fulfillment','Returns & refunds','Compliance Vault','Escrow & settlement']
 };
 
 const defaults = {
@@ -539,7 +563,8 @@ const defaults = {
   partnerOrderFilter: 'ALL',
   partnerOrderSearch: '',
   partnerCatalogSearch: '',
-  partnerLastSynced: ''
+  partnerLastSynced: '',
+  ...DEFAULT_DASHBOARD_OPS
 };
 
 let saved = {};
@@ -2014,50 +2039,70 @@ function partnerPage(){
 
   const statusTone = (status) => {
     const s = String(status || '').toLowerCase();
-    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail')) return 'rejected';
-    if(s.includes('pend') || s.includes('pack') || s.includes('transit') || s.includes('request')) return 'pending';
-    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('refunded') || s.includes('matured') || s.includes('settled')) return 'approved';
+    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail') || s.includes('writeoff')) return 'rejected';
+    if(s.includes('pend') || s.includes('pack') || s.includes('transit') || s.includes('request') || s.includes('escrow') || s.includes('checked') || s.includes('chair')) return 'pending';
+    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('refunded') || s.includes('matured') || s.includes('settled') || s.includes('disburs') || s.includes('restock') || s.includes('verified')) return 'approved';
     return 'info';
   };
+  const hOps = { esc, money, icon, empty, formatDate, statusTone, services, salons, products };
 
   const tabMetaMap = {
     'Overview': { title: roleDisplay + ' Overview', sub: 'At-a-glance metrics, next actions, and studio health.' },
     'Registration': { title: 'Partner Registration', sub: 'Submit credentials and track onboarding verification.' },
     'Salon profile': { title: 'Salon Profile', sub: 'Public studio name, neighbourhood, hours, and gallery image.' },
-    'Staff management': { title: 'Staff Management', sub: 'Curate your stylist roster so clients can select their expert.' },
+    'Staff management': { title: 'Staff Management', sub: 'Curate your stylist roster, commissions, and payroll splits.' },
     'Service catalogue': { title: 'Service Catalogue', sub: 'Doorstep & studio rituals synced with customer booking.' },
-    'Branches': { title: 'Studio Branches', sub: 'Location details and hours served across GlamGo.' },
+    'Branches': { title: 'Studio Branches', sub: 'Multi-branch locations, chair capacities, and operating hours.' },
+    'Chair Calendar': { title: 'Chair Calendar & Walk-Ins', sub: 'Visual multi-stylist slot board with live chair check-in & status updates.' },
+    'Front-Desk POS': { title: 'Front-Desk POS & Z-Report', sub: 'Point-of-sale checkout combining treatments, retail add-ons, tips, and UPI/Card settlement.' },
+    'Backbar & Retail Stock': { title: 'Backbar & Retail Stock', sub: 'Dual inventory tracking for consumable salon backbar bottles vs. retail shelf stock.' },
+    'Client Formulas & CRM': { title: 'Client Formulas & CRM', sub: 'Shared hair color formulas, allergy notes, and lifetime value records.' },
     'Appointments': { title: 'Salon Appointments', sub: 'Manage confirmed, completed, and cancelled chair bookings.' },
     'Availability': { title: 'Availability Calendar', sub: 'Toggle active weekly days for 30-minute client slot generation.' },
-    'Availability calendar': { title: 'Availability Calendar', sub: 'Toggle active weekly days for 30-minute client slot generation.' },
+    'Availability calendar': { title: 'Availability Calendar', sub: 'Weekly working days, commute buffer time, and service radius.' },
     'Revenue analytics': { title: 'Revenue Analytics', sub: 'Gross sales, 15% platform curation fee, and net payout ledger.' },
     'Customer reviews': { title: 'Client Reviews', sub: 'Verified post-appointment and post-delivery client feedback.' },
     'Identity verification': { title: 'Identity & Credentials', sub: 'Onboarding compliance and live profile verification status.' },
     'Profile management': { title: 'Specialist Profile', sub: 'Public artist bio, certified specialty, and base ticket.' },
     'Services & pricing': { title: 'Services & Pricing', sub: 'Link or unlink signature treatments to your artist profile.' },
-    'Booking requests': { title: 'Booking Requests', sub: 'Active client appointments awaiting completion or updates.' },
-    'Upcoming appointments': { title: 'Upcoming Appointments', sub: 'Scheduled doorstep visits requiring specialist attendance.' },
+    'Booking requests': { title: 'Booking Requests', sub: 'Active client appointments with step-by-step arrival and service progress.' },
+    'Upcoming appointments': { title: 'Upcoming Appointments', sub: 'Scheduled doorstep visits with OTP arrival & completion tracker.' },
     'Booking history': { title: 'Booking History', sub: 'Completed and cancelled client visits archived for reference.' },
+    'Client CRM & Safety': { title: 'Client CRM & Field Safety', sub: 'Client skin sensitivity notes, allergy alerts, and live Emergency SOS log.' },
+    'Portfolio': { title: 'Lookbook Portfolio', sub: 'Publish verified before/after transformations to boost bookings.' },
     'Earnings': { title: 'Earnings & Payouts', sub: 'Track gross bookings, 15% fee, and net specialist earnings.' },
     'Marketplace listings': { title: 'Marketplace Listings', sub: 'List verified stock and competitive prices on master SKUs.' },
-    'Products': { title: 'Brand Products', sub: 'Create and publish original beauty cosmetics and skincare.' },
+    'Products': { title: 'Brand Product Catalog', sub: 'Create and publish original beauty cosmetics and skincare.' },
     'Inventory & stock': { title: 'Inventory & Stock', sub: 'Real-time SKU stock levels with low-stock alerts at ≤ 5 units.' },
-    'Orders & fulfillment': { title: 'Orders & Fulfillment', sub: 'Pack suborders, attach carrier tracking AWB, and confirm delivery.' },
-    'Returns & refunds': { title: 'Returns & Refunds', sub: 'Inspect client return requests and orchestrate gateway refunds.' },
+    'Batch & Expiry': { title: 'Batch & Expiry (FIFO)', sub: 'Track cosmetic lot numbers, shelf-life color health, clearance discounts, and auto-delisting.' },
+    'Orders & fulfillment': { title: 'Orders & Fulfillment', sub: 'Pack suborders, check dispatch SLA & fragile/liquid tags, and attach courier AWB.' },
+    'Returns & refunds': { title: 'Returns & Hygiene QC', sub: 'Inspect safety seals, verify untampered condition, classify Restock vs. Write-Off, and refund.' },
+    'Compliance Vault': { title: 'Compliance Vault & GST/HSN', sub: 'CDSCO/INCI certificates, cruelty-free proofs, and HSN tax ledger CSV export.' },
     'Escrow & settlement': { title: 'Escrow & Settlement', sub: 'T+7 return-aligned escrow holds, maturity dates, and payouts.' }
   };
   const currentMeta = tabMetaMap[tab] || { title: tab, sub: 'Manage your ' + roleDisplay.toLowerCase() + ' workspace.' };
 
+  const salonChairsCount = (state.salonChairBookings || DEFAULT_DASHBOARD_OPS.salonChairBookings).length;
+  const salonPosCount = (state.salonPosBills || DEFAULT_DASHBOARD_OPS.salonPosBills).length;
+  const sellerBatchesCount = (state.sellerBatches || DEFAULT_DASHBOARD_OPS.sellerBatches).length;
+  const sellerDocsCount = (state.sellerComplianceDocs || DEFAULT_DASHBOARD_OPS.sellerComplianceDocs).length;
+  const proClientsCount = (state.proClientNotes || DEFAULT_DASHBOARD_OPS.proClientNotes).length;
+  const proPortfolioCount = (state.proPortfolio || DEFAULT_DASHBOARD_OPS.proPortfolio).length;
+
   const sidebarGroups = role === 'Salon Owner' ? [
     { label: 'Overview', items: [{ id: 'Overview', icon: 'grid', text: 'Salon Overview' }] },
     { label: 'Operations', items: [
-      { id: 'Appointments', icon: 'calendar', text: 'Appointments', count: salonBookings.length, alert: salonUpcomingCount },
-      { id: 'Availability', icon: 'clock', text: 'Availability' },
-      { id: 'Staff management', icon: 'user', text: 'Staff Roster', count: salonStaff.length }
+      { id: 'Chair Calendar', icon: 'calendar', text: 'Chair Calendar', count: salonChairsCount },
+      { id: 'Front-Desk POS', icon: 'bag', text: 'Front-Desk POS', count: salonPosCount },
+      { id: 'Appointments', icon: 'clock', text: 'Appointments', count: salonBookings.length, alert: salonUpcomingCount },
+      { id: 'Availability', icon: 'spark', text: 'Availability' },
+      { id: 'Staff management', icon: 'user', text: 'Staff & Payroll', count: salonStaff.length }
     ]},
-    { label: 'Studio', items: [
-      { id: 'Salon profile', icon: 'spark', text: 'Salon Profile' },
-      { id: 'Service catalogue', icon: 'scissors', text: 'Service Catalogue', count: services.length },
+    { label: 'Studio & Stock', items: [
+      { id: 'Salon profile', icon: 'salon', text: 'Salon Profile' },
+      { id: 'Service catalogue', icon: 'filter', text: 'Service Catalogue', count: services.length },
+      { id: 'Backbar & Retail Stock', icon: 'truck', text: 'Backbar & Retail' },
+      { id: 'Client Formulas & CRM', icon: 'heart', text: 'Client Formulas' },
       { id: 'Branches', icon: 'pin', text: 'Branches' }
     ]},
     { label: 'Business', items: [
@@ -2069,8 +2114,9 @@ function partnerPage(){
     { label: 'Overview', items: [{ id: 'Overview', icon: 'grid', text: 'Seller Overview' }] },
     { label: 'Commerce', items: [
       { id: 'Orders & fulfillment', icon: 'bag', text: 'Orders & Packing', count: sellerSuborders.length || sellerLegacyOrders.length, alert: pendingOrdersCount },
-      { id: 'Returns & refunds', icon: 'shield', text: 'Returns & Refunds', count: sellerReturns.length, alert: openReturnsCount },
-      { id: 'Inventory & stock', icon: 'truck', text: 'Inventory Alerts', count: sellerListings.length + sellerProds.length, alert: lowStockCount }
+      { id: 'Returns & refunds', icon: 'shield', text: 'Returns & QC', count: sellerReturns.length || SAMPLE_SELLER_RETURNS_FALLBACK.length, alert: openReturnsCount },
+      { id: 'Inventory & stock', icon: 'truck', text: 'Inventory Alerts', count: sellerListings.length + sellerProds.length, alert: lowStockCount },
+      { id: 'Batch & Expiry', icon: 'clock', text: 'Batch & Expiry (FIFO)', count: sellerBatchesCount }
     ]},
     { label: 'Catalog', items: [
       { id: 'Marketplace listings', icon: 'spark', text: 'Marketplace Listings', count: sellerListings.length },
@@ -2078,6 +2124,7 @@ function partnerPage(){
     ]},
     { label: 'Finance & Trust', items: [
       { id: 'Escrow & settlement', icon: 'check', text: 'Escrow & T+7 Payouts' },
+      { id: 'Compliance Vault', icon: 'shield', text: 'Compliance & GST', count: sellerDocsCount },
       { id: 'Registration', icon: 'user', text: 'Registration', alert: pendingDraft ? 1 : 0 }
     ]}
   ] : [
@@ -2086,11 +2133,13 @@ function partnerPage(){
       { id: 'Upcoming appointments', icon: 'calendar', text: 'Upcoming Visits', count: proUpcomingCount, alert: proUpcomingCount },
       { id: 'Booking requests', icon: 'clock', text: 'Booking Requests', count: proBookings.length },
       { id: 'Booking history', icon: 'check', text: 'Booking History', count: proBookings.filter(b => b.status !== 'confirmed').length },
-      { id: 'Availability calendar', icon: 'spark', text: 'Weekly Availability' }
+      { id: 'Availability calendar', icon: 'spark', text: 'Availability & Buffer' }
     ]},
-    { label: 'Practice', items: [
+    { label: 'Practice & CRM', items: [
       { id: 'Profile management', icon: 'user', text: 'Artist Profile' },
-      { id: 'Services & pricing', icon: 'scissors', text: 'Services & Pricing', count: proServices.length }
+      { id: 'Services & pricing', icon: 'filter', text: 'Services & Pricing', count: proServices.length },
+      { id: 'Client CRM & Safety', icon: 'shield', text: 'Client CRM & Safety', count: proClientsCount },
+      { id: 'Portfolio', icon: 'sparkle', text: 'Lookbook Portfolio', count: proPortfolioCount }
     ]},
     { label: 'Business & Trust', items: [
       { id: 'Earnings', icon: 'star', text: 'Earnings & Ledger' },
@@ -2214,7 +2263,7 @@ function partnerPage(){
         '</div>' +
         (confirmedBookings.length ? '<div class="partner-feed">' + confirmedBookings.map(b =>
           '<div class="dash-row">' +
-            '<div><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small></div>' +
+            '<div style="flex:1"><strong>' + esc(b.title) + '</strong><small>' + formatDate(b.date) + ' · ' + esc(b.time) + ' · ' + esc(b.customer_name || 'Client') + ' · ' + money(b.price) + '</small>' + renderProLifecycleBar(b.id, (state.proJobStages || {})[b.id]) + '</div>' +
             '<div class="admin-actions"><button type="button" class="btn btn-success btn-sm" data-action="partner-pro-complete" data-id="' + b.id + '">Complete</button><button type="button" class="btn btn-danger btn-sm" data-action="partner-pro-cancel" data-id="' + b.id + '">Cancel</button></div>' +
           '</div>'
         ).join('') + '</div>' : empty('calendar', 'No upcoming visits', 'Confirmed doorstep treatment bookings will appear here.')) +
@@ -2329,19 +2378,7 @@ function partnerPage(){
     '</div>';
 
   } else if(tab === 'Branches'){
-    const sal = state.partnerSalonProfile || {};
-    body = '<div class="dashboard-panel">' +
-      '<div class="account-heading">' +
-        '<div><h3>Studio Flagship Location</h3><p class="partner-panel-sub">Primary salon address and service hours currently published to customers.</p></div>' +
-        '<button type="button" class="btn btn-outline btn-sm" data-action="partner-tab" data-id="Salon profile">Edit location</button>' +
-      '</div>' +
-      '<div class="partner-callout">' +
-        '<span class="badge badge-approved">PRIMARY BRANCH ACTIVE</span>' +
-        '<h4>' + esc(sal.name || 'Your GlamGo Flagship Salon') + '</h4>' +
-        '<p><strong>Locality:</strong> ' + esc(sal.area || 'Bandra West') + ' · <strong>Hours:</strong> ' + esc(sal.hours || '10:00 AM - 8:00 PM') + ' · <strong>Starting Ticket:</strong> ' + money(sal.price || 2000) + '</p>' +
-        '<small>Note: Multi-branch location management is scheduled for a future platform update; your studio profile currently manages your flagship location.</small>' +
-      '</div>' +
-    '</div>';
+    body = renderSalonBranchesEnhanced(state, hOps);
 
   } else if(tab === 'Staff management'){
     body = '<div class="dashboard-panel">' +
@@ -2358,6 +2395,7 @@ function partnerPage(){
       (salonStaff.length ? '<div class="partner-feed">' + salonStaff.map(st =>
         '<div class="dash-row"><div><strong>' + esc(st.name) + '</strong><small>' + esc(st.specialty) + '</small></div><button type="button" class="btn btn-danger btn-sm" data-action="partner-staff-delete" data-id="' + st.id + '">Remove</button></div>'
       ).join('') + '</div>' : empty('user', 'No staff assigned yet', 'Add your stylists and specialists above to let clients select their preferred expert.')) +
+      renderSalonStaffPayrollAddon(state, salonStaff, hOps) +
     '</div>';
 
   } else if(tab === 'Service catalogue'){
@@ -2410,7 +2448,7 @@ function partnerPage(){
         ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(day => '<button type="button" data-action="availability" data-id="' + day + '" class="' + (state.availability.includes(day) ? 'active' : '') + '"><strong>' + day + '</strong><span>' + (state.availability.includes(day) ? 'Available' : 'Unavailable') + '</span></button>').join('') +
       '</div>' +
       '<p class="dashboard-note">Appointment intervals run in 30-minute blocks between 09:00 AM and 07:00 PM.</p>' +
-    '</div>';
+    '</div>' + (role === 'Professional' ? renderProTravelControls(state, hOps) : '');
 
   } else if(tab.toLowerCase().includes('booking') || tab.toLowerCase().includes('appointment')){
     const rawList = role === 'Professional' ? proBookings : salonBookings;
@@ -2449,7 +2487,7 @@ function partnerPage(){
       (bList.length ? '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Treatment</th><th>Client</th><th>Date & Time</th><th>Location</th><th>Price</th><th>Status</th><th>Action</th></tr></thead><tbody>' +
         bList.map(b => '<tr>' +
           '<td class="admin-num admin-muted">#' + b.id + '</td>' +
-          '<td><strong>' + esc(b.title) + '</strong></td>' +
+          '<td><strong>' + esc(b.title) + '</strong>' + (role === 'Professional' && b.status === 'confirmed' ? renderProLifecycleBar(b.id, (state.proJobStages || {})[b.id]) : '') + '</td>' +
           '<td>' + esc(b.customer_name || 'Client') + '</td>' +
           '<td class="admin-num">' + formatDate(b.date) + ' · ' + esc(b.time) + '</td>' +
           '<td><small>' + esc(b.location) + '</small></td>' +
@@ -2593,6 +2631,7 @@ function partnerPage(){
             '<span class="badge badge-' + statusTone(s.status) + '">' + esc(s.status) + '</span>' +
           '</div>' +
           '<div class="partner-order-addr">Deliver to: <strong>' + esc(s.shipping_address_label || 'Home') + '</strong> — ' + esc(s.shipping_address_text || '') + '</div>' +
+          renderSellerFulfillmentBadges(s.items, state) +
           (s.shipment ? '<div class="partner-order-box">Carrier: <strong>' + esc(s.shipment.carrier_name) + '</strong> · Tracking AWB: <strong>' + esc(s.shipment.tracking_number) + '</strong>' + (s.shipment.tracking_url ? ' · <a href="' + esc(s.shipment.tracking_url) + '" target="_blank" rel="noopener">Live Courier Tracking</a>' : '') + '</div>' : '') +
           '<div class="partner-order-box">' +
             (s.items || []).map(i => '<div class="partner-order-item"><span>' + esc(i.name) + (i.variant_name ? ' (' + esc(i.variant_name) + ')' : '') + (i.sku ? ' · SKU ' + esc(i.sku) : '') + '</span><strong class="admin-num">× ' + i.qty + ' · ' + money(i.price) + '</strong></div>').join('') +
@@ -2615,6 +2654,7 @@ function partnerPage(){
             '<span class="badge badge-' + statusTone(o.status) + '">' + esc(o.status) + '</span>' +
           '</div>' +
           '<div class="partner-order-addr">Deliver to: ' + esc(o.address_text) + '</div>' +
+          renderSellerFulfillmentBadges(o.items, state) +
           '<div class="partner-order-box">' +
             (o.items || []).map(i => '<div class="partner-order-item"><span>' + esc(i.name) + (i.variant_name ? ' (' + esc(i.variant_name) + ')' : '') + '</span><strong class="admin-num">× ' + i.qty + ' · ' + money(i.price) + '</strong></div>').join('') +
           '</div>' +
@@ -2629,15 +2669,17 @@ function partnerPage(){
     '</div>';
 
   } else if(tab === 'Returns & refunds' || tab.toLowerCase().includes('return')){
+    const usingSampleReturns = !sellerReturns.length;
+    const displayReturns = usingSampleReturns ? SAMPLE_SELLER_RETURNS_FALLBACK : sellerReturns;
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
-        '<div><h3>Customer Returns & Reverse Logistics</h3><p class="partner-panel-sub">Review return requests, approve restocking & gateway refunds, or decline invalid claims.</p></div>' +
-        '<span class="admin-metric-pill">' + sellerReturns.length + ' Requests</span>' +
+        '<div><h3>Customer Returns & Hygiene QC</h3><p class="partner-panel-sub">Inspect cosmetic seal integrity, verify untampered condition, classify Restockable vs. Disposal Write-Off, and issue gateway refunds.</p></div>' +
+        '<span class="admin-metric-pill">' + displayReturns.length + (usingSampleReturns ? ' QC Samples' : ' Requests') + '</span>' +
       '</div>' +
-      (sellerReturns.length ? '<div class="partner-order-stack">' + sellerReturns.map(r => {
+      (displayReturns.length ? '<div class="partner-order-stack">' + displayReturns.map(r => {
         const needsOp = r.refund_status === 'REQUIRES_OPERATOR';
         const isPendingSync = r.status === 'REFUND_PENDING' && !needsOp;
-        const actionable = !needsOp && (r.status === 'REQUESTED' || r.status === 'PENDING' || r.status === 'REFUND_FAILED' || isPendingSync);
+        const actionable = !usingSampleReturns && !needsOp && (r.status === 'REQUESTED' || r.status === 'PENDING' || r.status === 'REFUND_FAILED' || isPendingSync);
         const badgeCls = (r.status === 'REFUNDED' || r.status === 'APPROVED') ? 'approved' : (r.status === 'REJECTED' || r.status === 'REFUND_FAILED' || needsOp) ? 'rejected' : 'pending';
         const approveLabel = r.status === 'REFUND_FAILED' ? 'Retry Refund' : (isPendingSync ? 'Reconcile Status' : 'Approve & Restock');
         const allowReject = ['REQUESTED', 'PENDING', 'APPROVED'].includes(r.status);
@@ -2653,6 +2695,7 @@ function partnerPage(){
             (r.detailed_explanation ? '<div class="admin-muted"><strong>Customer note:</strong> ' + esc(r.detailed_explanation) + '</div>' : '') +
             (r.rejection_reason ? '<div class="partner-block-note"><strong>Seller decision reason:</strong> ' + esc(r.rejection_reason) + '</div>' : '') +
           '</div>' +
+          renderSellerQcAddon(r, state, hOps) +
           (actionable ? '<div class="partner-order-foot">' +
             '<button type="button" class="btn btn-success btn-sm" data-action="partner-return-approve" data-id="' + esc(r.id) + '">' + approveLabel + '</button>' +
             (allowReject ? '<button type="button" class="btn btn-danger btn-sm" data-action="partner-return-reject" data-id="' + esc(r.id) + '">Reject Return</button>' : '') +
@@ -2732,6 +2775,30 @@ function partnerPage(){
       ).join('') + '</div>' : empty('star', 'No reviews yet', 'Verified customer reviews will appear after treatments or deliveries are completed.')) +
     '</div>';
 
+  } else if(tab === 'Client CRM & Safety'){
+    body = renderProClientCrmTab(state, hOps);
+
+  } else if(tab === 'Portfolio'){
+    body = renderProPortfolioTab(state, hOps);
+
+  } else if(tab === 'Chair Calendar'){
+    body = renderSalonChairCalendarTab(state, hOps);
+
+  } else if(tab === 'Front-Desk POS'){
+    body = renderSalonPosTab(state, hOps);
+
+  } else if(tab === 'Backbar & Retail Stock'){
+    body = renderSalonBackbarTab(state, hOps);
+
+  } else if(tab === 'Client Formulas & CRM'){
+    body = renderSalonFormulasTab(state, hOps);
+
+  } else if(tab === 'Batch & Expiry'){
+    body = renderSellerBatchExpiryTab(state, hOps);
+
+  } else if(tab === 'Compliance Vault'){
+    body = renderSellerComplianceTab(state, hOps);
+
   } else {
     body = '<div class="dashboard-panel"><h3>' + esc(tab) + '</h3><p class="partner-panel-sub">Your ' + esc(tab.toLowerCase()) + ' workspace is ready.</p>' + empty('grid', 'Clean workspace', 'Activity for this section will populate as your GlamGo presence grows.') + '</div>';
   }
@@ -2768,6 +2835,7 @@ function partnerPage(){
           '<p>' + esc(currentMeta.sub) + (state.partnerLastSynced ? ' · Synced ' + esc(state.partnerLastSynced) : '') + '</p>' +
         '</div>' +
         '<div class="partner-topbar-actions">' +
+          (role === 'Professional' ? renderProTopbarControls(state, hOps) : '') +
           '<button type="button" class="btn btn-outline btn-sm admin-refresh-btn" data-action="partner-refresh">Refresh</button>' +
           '<span class="badge badge-' + (isRoleMatched ? 'approved' : 'pending') + '">' + (isRoleMatched ? 'Live Studio' : 'Preview Mode') + '</span>' +
         '</div>' +
@@ -2837,11 +2905,12 @@ function adminPage(){
 
   const statusTone = (status) => {
     const s = String(status || '').toLowerCase();
-    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail')) return 'rejected';
-    if(s.includes('pend') || s.includes('progress') || s.includes('process') || s.includes('hold')) return 'pending';
-    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('paid')) return 'approved';
+    if(s.includes('cancel') || s.includes('reject') || s.includes('suspend') || s.includes('fail') || s.includes('hidden')) return 'rejected';
+    if(s.includes('pend') || s.includes('progress') || s.includes('process') || s.includes('hold') || s.includes('open') || s.includes('escrow') || s.includes('partial')) return 'pending';
+    if(s.includes('approv') || s.includes('active') || s.includes('complet') || s.includes('deliver') || s.includes('confirm') || s.includes('paid') || s.includes('refunded') || s.includes('matured') || s.includes('disburs')) return 'approved';
     return 'info';
   };
+  const hOps = { esc, money, icon, empty, formatDate, statusTone, services, salons, products };
 
   const formatAuditAction = (action) => String(action || 'EVENT').replace(/_/g, ' ');
 
@@ -2855,15 +2924,21 @@ function adminPage(){
     }).join('') + '</div>';
   };
 
+  const openDisputesCount = (state.adminDisputes || DEFAULT_DASHBOARD_OPS.adminDisputes).filter(d => d.status === 'OPEN').length + (state.adminReviewQueue || DEFAULT_DASHBOARD_OPS.adminReviewQueue).filter(r => r.status === 'PENDING').length;
+  const maturedPayoutsCount = (state.adminPayoutBatches || DEFAULT_DASHBOARD_OPS.adminPayoutBatches).filter(b => b.escrowStatus === 'MATURED').length;
+
   const TAB_META = {
     overview: { title: 'Executive Overview', subtitle: 'Platform GMV, vertical revenue mix, pending approvals, and governance signals.' },
     moderation: { title: 'Partner Moderation', subtitle: 'Verify and approve incoming salon owners, beauty specialists, and product sellers.' },
-    users: { title: 'User Governance', subtitle: 'Manage customer, partner, and administrator roles and account access.' },
     bookings: { title: 'Global Bookings', subtitle: 'Monitor doorstep beauty rituals and in-parlour salon appointments.' },
     orders: { title: 'Global Orders', subtitle: 'Track beauty e-commerce checkouts, payment states, and fulfillment.' },
+    disputes: { title: 'Disputes & Review Moderation', subtitle: 'Resolve customer claims, no-show fee splits, and moderate flagged reviews.' },
     services: { title: 'Service Catalog', subtitle: 'Curated doorstep treatments and salon service listings across GlamGo.' },
     salons: { title: 'Partner Salons & Studios', subtitle: 'Verified partner salons, operating hours, specialist rosters, and service pricing.' },
     products: { title: 'Product Inventory & Stock', subtitle: 'Live warehouse stock telemetry, variant unit breakdowns, valuation, and SKU health.' },
+    promotions: { title: 'Promotions & Commissions', subtitle: 'Manage platform-wide coupon codes, vertical commission rates, and T+7 escrow policies.' },
+    payouts: { title: 'Escrow & Partner Payouts', subtitle: 'Approve matured settlements across specialists, salons, and sellers with CSV export.' },
+    users: { title: 'User Governance', subtitle: 'Manage customer, partner, and administrator roles and account access.' },
     'audit-logs': { title: 'Audit Trail', subtitle: 'Immutable record of administrative actions, targets, and client IPs.' }
   };
   const currentMeta = TAB_META[tab] || TAB_META.overview;
@@ -2894,15 +2969,18 @@ function adminPage(){
         navBtn('moderation', 'shield', 'Partner Moderation', allDrafts.length, pendingCount) +
         navBtn('bookings', 'calendar', 'Global Bookings', allBookings.length, 0) +
         navBtn('orders', 'bag', 'Global Orders', allOrders.length, 0) +
+        navBtn('disputes', 'shield', 'Disputes & Reviews', (state.adminDisputes || DEFAULT_DASHBOARD_OPS.adminDisputes).length, openDisputesCount) +
       '</div>' +
       '<div class="admin-nav-group">' +
         '<div class="admin-nav-group-label">Catalog</div>' +
         navBtn('services', 'spark', 'Service Catalog', services.length, 0) +
         navBtn('salons', 'home', 'Partner Salons', salons.length, 0) +
         navBtn('products', 'truck', 'Product Inventory', products.length, 0) +
+        navBtn('promotions', 'spark', 'Promos & Commissions', (state.adminCoupons || DEFAULT_DASHBOARD_OPS.adminCoupons).length, 0) +
       '</div>' +
       '<div class="admin-nav-group">' +
         '<div class="admin-nav-group-label">Governance</div>' +
+        navBtn('payouts', 'check', 'Escrow & Payouts', (state.adminPayoutBatches || DEFAULT_DASHBOARD_OPS.adminPayoutBatches).length, maturedPayoutsCount) +
         navBtn('users', 'user', 'User Governance', allUsers.length, 0) +
         navBtn('audit-logs', 'clock', 'Audit Trail', allLogs.length, 0) +
       '</div>' +
@@ -3518,6 +3596,15 @@ function adminPage(){
         '</tr>').join('') +
       '</tbody></table></div>' : '<div class="admin-empty-inline">No audit events match your search.</div>') +
     '</div>';
+
+  } else if(tab === 'promotions'){
+    mainContent = renderAdminPromotionsTab(state, hOps);
+
+  } else if(tab === 'disputes'){
+    mainContent = renderAdminDisputesTab(state, hOps);
+
+  } else if(tab === 'payouts'){
+    mainContent = renderAdminPayoutsTab(state, hOps);
   }
 
   return '<div class="admin-shell">' +
@@ -3817,6 +3904,9 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
+  if(a && a.startsWith('ops-')){
+    if(handleDashboardOpsAction(a, id, el, state, { persist, render, toast, services, salons, products })) return;
+  }
   if(a==='toggle-ai-chat'){
     state.aiChatOpen = !state.aiChatOpen;
     render();
@@ -4945,6 +5035,9 @@ function applyPostAuthNavigation(role) {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, d = new FormData(f);
+  if(f.id && f.id.startsWith('ops-')){
+    if(handleDashboardOpsSubmit(f, d, state, { persist, render, toast, services, salons, products })) return;
+  }
   if(f.id === 'ai-chat-form'){
     const input = document.getElementById('ai-chat-input');
     const msg = input ? input.value : '';
