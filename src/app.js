@@ -1001,13 +1001,13 @@ async function loadCatalogFeeds() {
     Promise.resolve()
       .then(fetcher)
       .then(data => {
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           applyValue(data);
           state.catalogErrors[key] = false;
           writeCatalogCache();
         } else {
           resetEmpty();
-          state.catalogErrors[key] = true;
+          state.catalogErrors[key] = false;
         }
       })
       .catch(() => {
@@ -1020,8 +1020,8 @@ async function loadCatalogFeeds() {
       });
 
   await Promise.allSettled([
-    fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = []; }),
-    fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = []; }),
+    fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = DEFAULT_SERVICES; }),
+    fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = DEFAULT_PROFESSIONALS; }),
     fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
     fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
   ]);
