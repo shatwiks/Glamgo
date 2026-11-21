@@ -1289,7 +1289,7 @@ function footer(){
     : { heading: 'Book a verified home specialist', sub: 'Facials, waxing, hair, and nails brought to '+esc(state.location)+' 7 days a week.', cta: 'Book a service', act: 'scroll', target: 'popular' };
   const ctaAttr = state.view === 'landing' ? 'data-target="'+closeCfg.target+'"' : '';
   const ctaAct = state.view === 'landing' ? closeCfg.act : 'landing';
-  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div>' + brandWordmark(true) + '<p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button></div><div><h3>Portals</h3><button data-action="partners">Partner Portal</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button><button data-action="notifications">Notifications</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
+  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div>' + brandWordmark(true) + '<p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">List your salon</button><button data-action="partners-apply" data-role="Product Seller">Sell your beauty brand</button><button data-action="partners-apply" data-role="Professional">Join as a specialist</button><button data-action="partners">Open Partner Portal</button></div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
 }
 
 function mobileNav(){
@@ -2286,7 +2286,7 @@ function partnerPage(){
       '</div>';
     }
 
-    body = (!isRoleMatched ? '<div class="payment-notice payment-notice-warn" style="margin-bottom:18px"><strong>Partner Application Required</strong><p>You are viewing the ' + esc(roleDisplay) + ' workspace while signed in as <strong>' + esc(state.user?.role || 'guest') + '</strong>. Submit an application in Registration to activate live role write permissions.</p></div>' : '') +
+    body = (!isRoleMatched ? '<div class="payment-notice payment-notice-warn" style="margin-bottom:18px;display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap"><div><strong>List Your Salon, Practice, or Beauty Brand on GlamGo</strong><p style="margin:4px 0 0">You are exploring the ' + esc(roleDisplay) + ' Studio as <strong>' + esc(state.user?.name || state.user?.email || 'Guest') + '</strong>. Submit your onboarding details to unlock live bookings, payouts, and catalog publishing.</p></div><button type="button" class="btn btn-primary btn-sm" data-action="partner-tab" data-id="Registration">Complete Application ' + icon('arrow', 14) + '</button></div>' : '') +
       '<section class="admin-kpi-grid" aria-label="Role metrics">' +
         kpiCards.map(k => '<div class="admin-kpi-card ' + (k.featured ? 'admin-kpi-featured' : '') + '">' +
           '<div class="admin-kpi-top"><span>' + esc(k.label) + '</span><span class="admin-kpi-tag">' + esc(k.tag) + '</span></div>' +
@@ -3715,10 +3715,10 @@ const defaultAiWelcome = [
     text: "Welcome to GlamGo! I'm your AI Beauty Concierge. Whether you need a recommendation for radiant skin, want details on our hospital-grade hygiene protocol, or want to connect with our team on WhatsApp, I'm here to guide you.",
     time: 'Just now',
     actions: [
-      { label: '✨ Recommend a facial', prompt: 'Recommend a facial for glowing skin' },
-      { label: '💇 Hair blowout at home', prompt: 'Tell me about at-home hair styling' },
-      { label: '👰 Complete Glow package', prompt: 'What is the Complete Glow package?' },
-      { label: '💬 Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20booking%20a%20treatment.' }
+      { label: 'Recommend a facial', prompt: 'Recommend a facial for glowing skin' },
+      { label: 'Hair blowout at home', prompt: 'Tell me about at-home hair styling' },
+      { label: 'Complete Glow package', prompt: 'What is the Complete Glow package?' },
+      { label: 'Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20booking%20a%20treatment.' }
     ]
   }
 ];
@@ -3754,11 +3754,11 @@ function aiChatDrawer() {
       ).join('') +
     '</div>' +
     '<div class="ai-chat-suggestions">' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Recommend a facial for glowing skin">✨ Glowing facial</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about at-home hair styling">💇 Hair blowout</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about bridal and occasion makeup">👰 Bridal makeup</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="What is the Complete Glow package?">👑 Complete Glow</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="How do at-home appointments work?">🛡️ How it works</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Recommend a facial for glowing skin">' + icon('spark', 13) + ' Glowing facial</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about at-home hair styling">' + icon('sparkle', 13) + ' Hair blowout</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about bridal and occasion makeup">' + icon('star', 13) + ' Bridal makeup</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="What is the Complete Glow package?">' + icon('check', 13) + ' Complete Glow</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="How do at-home appointments work?">' + icon('shield', 13) + ' How it works</button>' +
     '</div>' +
     '<form class="ai-chat-input-bar" id="ai-chat-form">' +
       '<input type="text" id="ai-chat-input" placeholder="Ask about facials, makeup, pricing, hair…" autocomplete="off" />' +
@@ -3840,9 +3840,9 @@ function handleAiUserMessage(query) {
   } else {
     replyText = "I'm delighted to assist you with GlamGo! We offer certified at-home beauty treatments, local salon chair bookings, and clean beauty store products across " + (state.location || 'your area') + ". What service can I help you book today?";
     actions = [
-      { label: '✨ The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
-      { label: '💇 Hair Blowout & Styling (₹899)', action: 'book-home', id: 's2' },
-      { label: '💬 Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hi%20GlamGo!%20I%20would%20like%20more%20information.' }
+      { label: 'The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
+      { label: 'Hair Blowout & Styling (₹899)', action: 'book-home', id: 's2' },
+      { label: 'Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hi%20GlamGo!%20I%20would%20like%20more%20information.' }
     ];
   }
 

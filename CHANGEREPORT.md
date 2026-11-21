@@ -1,5 +1,20 @@
 # Change Report
 
+## Prompt Entry #21 — 2026-11-22 00:20 IST — Refine Flagship Consumer Website (`main`) Copy, Partner Invite CTA & Icon Hygiene
+**Objective:** Keep `main` sharply focused as the flagship customer-facing beauty marketplace (zero turnkey demo bar, real auth guards preserved) while upgrading consumer-to-partner onboarding CTAs and icon consistency:
+1. **Partner Onboarding & Footer Refinement (`src/app.js`):**
+   - Upgraded the Partner Studio preview banner (`partnerPage()`) to an inviting *"List Your Salon, Practice, or Beauty Brand on GlamGo"* CTA with a direct `Complete Application ->` button linking to Registration.
+   - Reorganized `footer()` columns to surface a dedicated **For Partners** column (*List your salon*, *Sell your beauty brand*, *Join as a specialist*, *Open Partner Portal*) alongside **Experiences** and **Account**.
+2. **UI/UX Icon Hygiene (`src/app.js`):**
+   - Replaced raw Unicode emojis inside AI Concierge welcome/fallback action pills and suggestion chips (`aiChatDrawer`, `defaultAiWelcome`, `handleAiUserMessage`) with crisp SVG icons (`icon('spark')`, `icon('star')`, `icon('check')`, `icon('shield')`).
+
+### Files changed
+- `src/app.js`: Updated `footer()`, non-partner banner in `partnerPage()`, and AI Concierge icons.
+
+### Verification
+- `node -c src/dashboards-suite.js` & `node -c src/app.js`: Exit code 0.
+- `npm run build`: Clean Vite production build in `2.60s` (`dist/assets/index-CBlN6PB9.js` 472.65 kB).
+
 ## Prompt Entry #20 — 2026-11-21 23:59 IST — Full 4-Dashboard Operational Suite (Admin, Specialist, Salon Owner, Product Seller)
 **Objective:** Plan (`/gsd-plan-phase`, `/graphify`, `/ui-ux-pro-max`) and implement the full industry-standard feature set across all 4 operational GlamGo dashboards while preserving the warm ivory/champagne aesthetic and `localStorage` + API compatibility:
 1. **Admin Command Centre:**
