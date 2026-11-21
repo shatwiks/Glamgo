@@ -1,5 +1,13 @@
 # Change Report
 
+## Prompt Entry #18 — 2026-11-21 16:42 IST — Isolate Turnkey Platform & Trigger Clean Production Deployment
+**Objective:** Maintain `main` on the core luxury editorial release (Prompt Entry #17) and branch out experimental turnkey platform features to dedicated branch `feat/turnkey-platform`:
+1. **Branch Architecture:**
+   - Isolated turnkey evaluation suite, persistent preview ribbon, and mock metrics to branch `feat/turnkey-platform`.
+   - Maintained clean, production-ready core codebase on `main` branch.
+2. **Production Deployment Trigger:**
+   - Triggered fresh Vercel production deployment of `main` to ensure live production URL (`glamgo-ricoz.vercel.app`) serves the clean editorial experience with zero turnkey preview bar.
+
 ## Prompt Entry #17 — 2026-11-21 14:35 IST — Container Edge Alignment & Concierge Suite Redesign (/design-taste-frontend)
 **Objective:** Address the user's feedback ("fix this its not alligned nicely and use some nice place for whatsapp and ai coverage") adhering to `tasteskill 2.5` (Rule 4: Equal left and right content edges; anti-slop luxury UI):
 1. **Container Alignment & Equal Margins (`#ritual.package-section`):**
