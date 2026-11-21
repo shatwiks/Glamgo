@@ -115,6 +115,8 @@ def seed_database(db: Session):
         {"email": "aanya@example.com", "name": "Aanya Mehta", "phone": "98765 43210", "role": UserRole.CUSTOMER, "pwd": "Password@123"},
         {"email": "nisha@glamgo.com", "name": "Nisha Kapoor", "phone": "98765 11111", "role": UserRole.PROFESSIONAL, "pwd": "Pro@123456"},
         {"email": "salon@glamgo.com", "name": "The Ivory Room Owner", "phone": "98765 22222", "role": UserRole.SALON_OWNER, "pwd": "Salon@123456"},
+        {"email": "atelier@glamgo.com", "name": "Atelier Beauty House Owner", "phone": "98765 22223", "role": UserRole.SALON_OWNER, "pwd": "Atelier@123456"},
+        {"email": "maison@glamgo.com", "name": "Maison de Glow Owner", "phone": "98765 22224", "role": UserRole.SALON_OWNER, "pwd": "Maison@123456"},
         {"email": "seller@glamgo.com", "name": "Lumière Brand Manager", "phone": "98765 33333", "role": UserRole.SELLER, "pwd": "Seller@123456"},
     ]
 
@@ -179,13 +181,19 @@ def seed_database(db: Session):
     db.commit()
 
     # 4. Seed Salons
-    salon_owner = created_users.get("salon@glamgo.com")
+    salon_owners = {
+        "l1": created_users.get("salon@glamgo.com"),
+        "l2": created_users.get("atelier@glamgo.com"),
+        "l3": created_users.get("maison@glamgo.com"),
+    }
     for s_data in SALONS_DATA:
         salon = db.query(Salon).filter(Salon.id == s_data["id"]).first()
+        owner = salon_owners.get(s_data["id"])
+        owner_id = owner.id if owner else None
         if not salon:
             salon = Salon(
                 id=s_data["id"],
-                owner_id=salon_owner.id if s_data["id"] == "l1" and salon_owner else None,
+                owner_id=owner_id,
                 name=s_data["name"],
                 area=s_data["area"],
                 distance=s_data["distance"],
@@ -209,6 +217,9 @@ def seed_database(db: Session):
                     img=st.get("img")
                 )
                 db.add(staff_member)
+            db.commit()
+        elif not salon.owner_id and owner_id:
+            salon.owner_id = owner_id
             db.commit()
 
     # 5. Seed Products & Variants

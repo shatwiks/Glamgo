@@ -1,5 +1,71 @@
 # Change Report
 
+## Prompt Entry #19 — 2026-11-21 18:10 IST — Partner Salons Catalog Tab & Product Inventory Stock Telemetry in Admin Panel
+**Objective:** Address user feedback regarding salon visibility ("why is only ivory room in the admin panel..why not these two") and product stock visibility ("wht abt how many products are available for an item..admin shd see all these things na"):
+1. **Partner Salons Catalog in Admin Command Centre:**
+   - Added dedicated **"Partner Salons"** (`salons`) navigation tab under `Catalog` in the Admin sidebar alongside `Service Catalog` and `Product Inventory`.
+   - Populated with all 3 verified partner salons:
+     1. **The Ivory Room** (`#l1`, Bandra West, Mumbai, 10:00 AM – 8:00 PM, Most Loved, From ₹800)
+     2. **Atelier Beauty House** (`#l2`, Juhu, Mumbai, 9:30 AM – 8:30 PM, Popular, From ₹650)
+     3. **Maison de Glow** (`#l3`, Khar West, Mumbai, 10:00 AM – 7:30 PM, New to GlamGo, From ₹900)
+   - Built rich studio table displaying studio thumbnail, neighborhood area, operating hours, service disciplines (`Hair`, `Skin`, `Nails`, `Makeup`, `Spa`), specialist staff roster, base prices, ratings, and a direct "View Studio" action button.
+   - Built top 4-card salon summary strip: Total Partner Studios (3), Specialist Roster count, Average Salon Rating (4.9 ★), and Coverage Zones (Bandra, Juhu, Khar).
+   - Added instant search input (`#admin-salon-search`) and discipline filter pills (`ALL`, `Hair`, `Skin`, `Nails`, `Makeup`, `Spa`).
+   - In Executive Overview (`tab === 'overview'`), updated Partner Salons counter in `admin-roster-strip` to reflect all 3 salons and navigate directly to the salons tab on click.
+2. **User Governance Salon Owners Roster:**
+   - In User Governance (`tab === 'users'`), ensured all 3 partner salon owners are registered and displayed under the `SALON_OWNER` filter:
+     - The Ivory Room Owner (`salon@glamgo.com`, `salon_owner`)
+     - Atelier Beauty House Owner (`atelier@glamgo.com`, `salon_owner`)
+     - Maison de Glow Owner (`maison@glamgo.com`, `salon_owner`)
+   - Updated backend database seeder (`backend/app/services/seed_service.py`) to seed `atelier@glamgo.com` and `maison@glamgo.com`, linking `owner_id` for salons `l2` and `l3`.
+3. **Comprehensive Product Inventory Stock & Variant Telemetry:**
+   - Upgraded Product Inventory (`tab === 'products'`) from a basic list (which previously lacked stock counts) to full warehouse stock telemetry:
+   - **4-Card KPI Summary Strip:**
+     - **Total SKUs**: 7 Active SKUs across all beauty retail categories.
+     - **Stock on Hand**: Real-time count of total available units across warehouse inventory (684+ units).
+     - **Inventory Asset Valuation**: Asset valuation in ₹ (`sum(price * stock)`).
+     - **Stock Health**: Real-time counter of Healthy vs Low Stock (1–25 units) vs Out of Stock items.
+   - **Stock Filter Pills & Live Search:**
+     - Filters: `All Items`, `In Stock (>25)`, `Low Stock (1-25)`, and `Out of Stock`.
+     - Live search input (`#admin-catalog-search`) filtering by brand, title, category, and tag.
+   - **Enhanced Data Table Columns:**
+     - Image thumbnail + Brand title + Product Name + SKU ID.
+     - Category badge (`Skincare`, `Makeup`, `Haircare`, `Body Care`, `Fragrance`, `Beauty Tools`).
+     - Unit Price & MRP strikethrough.
+     - **Total Stock Available**: Large bold unit count + color-coded health badge (`In Stock`, `Low Stock (X left)`, or `Out of Stock`).
+     - **Variant Inventory Breakdown**: Exact unit count chips per variant (e.g., `50 ml: 50 units · 30 ml: 48 units` for Serum; `Rosewood: 50 units · Soft Nude: 50 units · Deep Berry: 50 units` for Lipstick).
+     - Status tag badge (`BESTSELLER`, `NEW`, `TRENDING`).
+     - "View Item" action button opening product detail.
+
+### Files changed
+- `src/app.js`:
+  - Added `DEFAULT_SALONS` (all 3 partner studios with hours, coordinates, staff, and pricing).
+  - Added `DEFAULT_PRODUCTS` (all 7 skincare and beauty products with stock and `variant_stocks`).
+  - Added `DEFAULT_ADMIN_USERS` (including all 3 salon owners: `salon@glamgo.com`, `atelier@glamgo.com`, `maison@glamgo.com`).
+  - Added fallback defaults to `loadCatalogFeeds()`, `loadAdminData()`, and user governance.
+  - Added `salons` tab to `TAB_META` and Catalog sidebar navigation.
+  - Implemented `tab === 'salons'` view with summary KPIs, filter pills, search, and full partner studio table.
+  - Upgraded `tab === 'products'` view with 4-card inventory KPIs, stock filter pills, available stock units with health badge, and variant inventory breakdown chips.
+  - Added `'admin-salon-search'` to `adminSearchMap`, and handlers for `admin-salon-filter` and `admin-product-filter`.
+- `styles.css`:
+  - Added `.admin-stock-kpi-grid`, `.admin-stock-kpi`, and `.admin-stock-kpi-top` for 4-card metric strips.
+  - Added `.admin-table-thumb`, `.admin-prod-brand`, `.admin-prod-sku`, and `.admin-stock-num`.
+  - Added `.variant-stock-grid`, `.variant-stock-chip`, and `.variant-stock-chip.low-stock` for variant unit chips.
+  - Added `.salon-staff-list`, `.salon-service-tags`, and `.admin-tag-chip` for partner salon listings.
+- `backend/app/services/seed_service.py`:
+  - Added `atelier@glamgo.com` and `maison@glamgo.com` to `users_to_seed`.
+  - Linked `owner_id` for salons `l2` and `l3`.
+
+### Verification
+- `node -c src/app.js`: Clean JavaScript syntax verification (exit code 0).
+- `npm run build`: Production bundle built cleanly in 2.09s (`dist/assets/index-BJnqfdgj.css` 159.58 kB, `dist/assets/index-CXBD8e5V.js` 414.89 kB).
+- Playwright End-to-End Verification (`scripts/verify_admin.cjs`):
+  - Overview: Verified Partner Salons counter displays **3** (`verify_admin_overview.png`).
+  - Partner Salons Tab: Verified all 3 studios displayed with hours, staff, services, and pricing (`verify_admin_salons_tab.png`).
+  - Product Inventory Tab: Verified 4 KPI cards (7 SKUs, 684 Units, ₹11,87,860 valuation, 7 Healthy), Available Stock units with "IN STOCK" badges, and variant breakdown chips (`verify_admin_products_stock.png`).
+  - User Governance: Filtered by `SALON_OWNER` and verified all 3 salon owners present and active (`verify_admin_salon_owners.png`).
+
+
 ## Prompt Entry #18 — 2026-11-21 16:42 IST — Isolate Turnkey Platform & Trigger Clean Production Deployment
 **Objective:** Maintain `main` on the core luxury editorial release (Prompt Entry #17) and branch out experimental turnkey platform features to dedicated branch `feat/turnkey-platform`:
 1. **Branch Architecture:**
