@@ -1060,7 +1060,7 @@ function header(){
   const subnavHtml = isPartnerView
     ? ''
     : '<nav class="subnav" aria-label="Section navigation"><div class="subnav-inner gg-wrap"><div class="subnav-links">'+subnavLinksHtml+'</div>'+subTagHtml+'</div></nav>';
-  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap">' + brandWordmark(false) + '<button class="mobile-loc-chip" type="button" data-action="location" aria-label="Change location">'+icon('pin',13)+'<span>'+esc(state.location)+'</span>'+icon('chevron',12)+'</button><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap">' + brandWordmark(false) + '<button class="mobile-loc-chip" type="button" data-action="location" aria-label="Change location">'+icon('pin',13)+'<span>'+esc(state.location)+'</span>'+icon('chevron',12)+'</button><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><button type="button" class="btn btn-outline btn-sm concierge-header-btn" data-action="toggle-ai-chat" title="Beauty advisory & WhatsApp concierge"><span class="brand-gold">✦</span> Concierge</button><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div><button data-action="toggle-ai-chat">'+icon('sparkle',20)+'AI Concierge &amp; WhatsApp'+icon('arrow',16)+'</button>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -1206,12 +1206,32 @@ function homePage(){
         '<div class="package-copy">' +
           '<div class="package-brand-tag"><span class="brand-gold">GLAMGO</span> SIGNATURE RITUAL</div>' +
           '<p class="eyebrow">CURATED ALL-IN-ONE PACKAGE</p>' +
-          '<h2>The Complete Glow 150-minute session</h2>' +
-          '<p>Combines a hydrating botanical facial, classic manicure with nail care, and a salon blowout into one seamlessly booked appointment.</p>' +
+          '<h2>The Complete Glow Ritual</h2>' +
+          '<p>Combines a hydrating botanical facial, classic manicure with nail care, and a polished salon blowout into one seamlessly booked appointment.</p>' +
           '<div class="package-price">From '+money(3299)+' <span>· 150 minutes · Single home visit</span></div>' +
-          button('Book Complete Glow '+icon('arrow',17),'book-home','btn-primary','data-id="s8"') +
+          button('Book Complete Glow Ritual '+icon('arrow',17),'book-home','btn-primary','data-id="s8"') +
         '</div>' +
         '<div class="package-image frame-media">'+image(images.spa,'Spa candles and cotton towels arranged for an extended treatment')+'</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="section concierge-suite-section" id="concierge">' +
+      '<div class="gg-wrap">' +
+        '<div class="concierge-suite-card">' +
+          '<div class="concierge-suite-left">' +
+            '<div class="package-brand-tag"><span class="brand-gold">✦</span> GLAMGO CONCIERGE DESK</div>' +
+            '<h2>Personal Advisory &amp; Instant WhatsApp Booking</h2>' +
+            '<p>Not sure which treatment or formula matches your skin? Consult our instant AI Concierge for personalized recommendations, or message our senior beauty consultants directly on WhatsApp for live booking.</p>' +
+            '<div class="concierge-suite-chips">' +
+              '<span class="concierge-chip"><span class="brand-gold">✦</span> Instant AI Routine Advisor</span>' +
+              '<span class="concierge-chip">' + icon('whatsapp', 14) + ' Direct WhatsApp Booking Desk</span>' +
+              '<span class="concierge-chip">' + icon('shield', 14) + ' Verified Beauty Specialists</span>' +
+            '</div>' +
+          '</div>' +
+          '<div class="concierge-suite-actions">' +
+            '<button type="button" class="btn btn-primary btn-lg concierge-open-ai-btn" data-action="toggle-ai-chat"><span class="brand-gold">✦</span> Consult AI Concierge</button>' +
+            '<a href="https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20booking%20an%20appointment." target="_blank" rel="noopener noreferrer" class="btn btn-wa-suite btn-lg">' + icon('whatsapp', 18) + ' Chat on WhatsApp ↗</a>' +
+          '</div>' +
+        '</div>' +
       '</div>' +
     '</section>' +
   '</main>';
@@ -3176,16 +3196,18 @@ function bookingSuccess(){
 function floatingConciergeDock() {
   if (state.view === 'admin') return '';
   return '<aside class="floating-concierge-dock" aria-label="Customer concierge">' +
-    '<a href="https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20at-home%20beauty%20services%20and%20salon%20appointments." target="_blank" rel="noopener noreferrer" class="floating-wa-btn" aria-label="Chat with GlamGo on WhatsApp" title="Chat with GlamGo on WhatsApp">' +
-      '<span class="floating-wa-icon">' + icon('whatsapp', 20) + '</span>' +
-      '<span class="floating-wa-label">WhatsApp</span>' +
-      '<span class="floating-pulse-ring" aria-hidden="true"></span>' +
-    '</a>' +
-    '<button type="button" class="floating-ai-btn ' + (state.aiChatOpen ? 'active' : '') + '" data-action="toggle-ai-chat" aria-label="Open GlamGo AI Beauty Concierge" title="GlamGo AI Beauty Concierge">' +
-      '<span class="floating-ai-icon">' + icon('sparkle', 18) + '</span>' +
-      '<span class="floating-ai-label">AI Concierge</span>' +
-      '<span class="floating-ai-badge">Ask AI</span>' +
-    '</button>' +
+    '<div class="concierge-capsule-island">' +
+      '<button type="button" class="capsule-ai-trigger ' + (state.aiChatOpen ? 'active' : '') + '" data-action="toggle-ai-chat" aria-label="Open GlamGo AI Beauty Concierge" title="GlamGo AI Beauty Concierge">' +
+        '<span class="capsule-sparkle">✦</span>' +
+        '<span class="capsule-label">AI Concierge</span>' +
+        '<span class="capsule-badge">Ask AI</span>' +
+      '</button>' +
+      '<span class="capsule-divider"></span>' +
+      '<a href="https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20beauty%20services%20and%20salon%20appointments." target="_blank" rel="noopener noreferrer" class="capsule-wa-trigger" aria-label="Chat with GlamGo on WhatsApp" title="WhatsApp Chat">' +
+        icon('whatsapp', 16) +
+        '<span class="capsule-wa-label">WhatsApp</span>' +
+      '</a>' +
+    '</div>' +
   '</aside>';
 }
 

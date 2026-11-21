@@ -1,5 +1,44 @@
 # Change Report
 
+## Prompt Entry #17 — 2026-11-21 14:35 IST — Container Edge Alignment & Concierge Suite Redesign (/design-taste-frontend)
+**Objective:** Address the user's feedback ("fix this its not alligned nicely and use some nice place for whatsapp and ai coverage") adhering to `tasteskill 2.5` (Rule 4: Equal left and right content edges; anti-slop luxury UI):
+1. **Container Alignment & Equal Margins (`#ritual.package-section`):**
+   - **Root Cause:** In the previous update, `.package-section .split-pair` was styled with `width: 100% !important;`, which overrode `.gg-wrap`'s max-width constraint and margin centering (`margin-inline: auto`). This caused the package container to span `width: 1440px` with `left: 0px` (touching the literal screen bezel), while every other section on the page (such as `.closing-cta`) had `left: 80px` and `width: 1280px`.
+   - **Fix:** Restored strict container parity: `.package-section .split-pair` now adheres to `width: min(100% - 2 * var(--gut, 24px), 1280px) !important; max-width: 1280px !important; margin-inline: auto !important;`. The package section now aligns with mathematical precision with the footer closing section and the rest of the site (`left: 80px`, `width: 1280px`, `right: 1360px`).
+   - Refined heading from `"The Complete Glow 150-minute session"` to `"The Complete Glow Ritual"` with natural 2-line Cormorant Garamond typography to eliminate the awkward hyphen break (`150-` / `minute`).
+2. **Prestigious, High-End Placement for WhatsApp & AI Concierge:**
+   - **Header Navigation:** Added a luxury `.concierge-header-btn` (`✦ Concierge`) directly inside `.header-actions` in the top navigation bar, giving the AI Concierge top-tier visibility and instant 1-click access across all views.
+   - **Dedicated Page Suite:** Created a dedicated luxury editorial section, `.concierge-suite-section` (`#concierge`), right after the Signature Ritual and before the closing footer:
+     - Includes Cormorant Garamond title *"Personal Advisory & Instant WhatsApp Booking"*, brand badges, and two prominent buttons: `[ ✦ Consult AI Concierge ]` and `[ Chat on WhatsApp ↗ ]`.
+     - Completely integrated into the page grid (`width: 1280px`, `left: 80px`, `right: 1360px`).
+   - **Horizontal Luxury Capsule (Floating Dock Replacement):** Replaced the clunky, vertically stacked 110px-tall pills with an ultra-sleek, compact 45px horizontal capsule island (`.concierge-capsule-island`) featuring unified AI Concierge consultation trigger, vertical divider, and direct WhatsApp launcher with zero footer overlap.
+
+### Files changed
+- `src/app.js`
+  - Added `.concierge-header-btn` inside `.header-actions` in `header()`.
+  - Added `AI Concierge & WhatsApp` shortcut in `mobile-menu`.
+  - Updated `#ritual` heading to `"The Complete Glow Ritual"`.
+  - Added `#concierge` editorial suite section right after `#ritual` on `homePage()`.
+  - Upgraded `floatingConciergeDock()` into a streamlined horizontal capsule island with `.capsule-ai-trigger` and `.capsule-wa-trigger`.
+- `styles.css`
+  - Fixed `.package-section .split-pair` alignment to match `.gg-wrap` (1280px width, centered).
+  - Added styles for `.concierge-header-btn`.
+  - Added complete luxury card styles for `.concierge-suite-section`, `.concierge-suite-card`, and badges.
+  - Added styles for `.concierge-capsule-island`.
+
+### Verification
+- `npm run build`: built cleanly in 4.47s (`dist/assets/index-BBENOUc-.css` 157.77 kB, `index-OTibHNi4.js` 401.54 kB).
+- Playwright Desktop Telemetry (1440×900):
+  - `packageWrap`: `x = 80px`, `width = 1280px`, `right = 1360px`
+  - `conciergeCard`: `x = 80px`, `width = 1280px`, `right = 1360px`
+  - `closing`: `x = 80px`, `width = 1280px`, `right = 1360px`
+  - **Verdict:** All three containers match identically with 80px left and right margins (100% equal edges).
+  - `dockBox`: `width = 294px`, `height = 45px` (down from 110px height stack), `ctaOverlap = false`.
+  - Header concierge button opens AI drawer: `true`.
+  - Concierge suite card button opens AI drawer: `true`.
+- Visual Artifacts Generated:
+  - `verify_aligned_package_and_concierge.png`
+
 ## Prompt Entry #16 — 2026-11-21 13:57 IST — Package Section Full-Width Grid & Closing CTA Dock Clearance Fix
 **Objective:** Resolve the visual bugs captured in the desktop user screenshot at `https://glamgo-ricoz.vercel.app/#home`:
 1. **Package Section Whitespace & Layout Fix (`#ritual.package-section`):**

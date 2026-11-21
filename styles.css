@@ -816,28 +816,34 @@
 .package-section,
 #ritual.package-section {
   display: block !important;
-  padding-top: 56px !important;
-  padding-bottom: 0 !important;
+  padding: 60px 0 0 !important;
   margin-bottom: 0 !important;
 }
 .package-section .split-pair {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr) !important;
-  gap: clamp(32px, 5vw, 64px) !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) !important;
+  gap: clamp(32px, 4.5vw, 64px) !important;
   align-items: center !important;
-  width: 100% !important;
+  max-width: 1280px !important;
+  width: min(100% - 2 * var(--gut, 24px), 1280px) !important;
+  margin-inline: auto !important;
+  padding: 0 !important;
+}
+.package-copy {
+  padding: 0 !important;
 }
 .package-copy h2 {
-  font-size: clamp(36px, 3.8vw, 54px) !important;
+  font-family: var(--serif) !important;
+  font-size: clamp(38px, 4vw, 54px) !important;
   line-height: 1.15 !important;
-  max-width: 20ch !important;
+  max-width: 18ch !important;
   margin: 0 0 16px !important;
 }
 .package-copy > p:not(.eyebrow) {
   font-size: 16px !important;
   line-height: 1.68 !important;
   color: var(--muted) !important;
-  max-width: 48ch !important;
+  max-width: 44ch !important;
   margin: 0 0 22px !important;
 }
 .package-image {
@@ -845,7 +851,7 @@
   width: 100% !important;
   border-radius: 18px !important;
   overflow: hidden !important;
-  box-shadow: 0 18px 48px rgba(30, 28, 26, 0.1) !important;
+  box-shadow: 0 16px 44px rgba(30, 28, 26, 0.1) !important;
 }
 .package-image img,
 .package-image .card-img {
@@ -1793,5 +1799,271 @@
   .gg-map-modal {
     height: 175px !important;
     margin-bottom: 12px !important;
+  }
+}
+
+/* ==========================================================================
+   CONCIERGE SUITE SECTION (Editorial Luxury Hub for AI & WhatsApp)
+   ========================================================================== */
+.concierge-header-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid rgba(197, 160, 89, 0.45);
+  color: var(--ink);
+  background: rgba(197, 160, 89, 0.08);
+  transition: border-color 0.2s, background 0.2s, color 0.2s;
+  cursor: pointer;
+}
+.concierge-header-btn:hover {
+  border-color: var(--champagne);
+  background: var(--champagne);
+  color: var(--ink);
+}
+@media (max-width: 1080px) {
+  .concierge-header-btn {
+    display: none;
+  }
+}
+
+.concierge-suite-section {
+  padding: 56px 0 20px !important;
+  margin: 0 !important;
+}
+.concierge-suite-card {
+  background: linear-gradient(135deg, #1C1A18 0%, #2A2622 100%);
+  border: 1px solid rgba(197, 160, 89, 0.35);
+  border-radius: 20px;
+  padding: 44px 48px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 40px;
+  box-shadow: 0 20px 50px rgba(30, 28, 26, 0.22);
+  position: relative;
+  overflow: hidden;
+}
+.concierge-suite-card::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(197, 160, 89, 0.16) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.concierge-suite-left {
+  max-width: 680px;
+}
+.concierge-suite-left .package-brand-tag {
+  color: var(--champagne);
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  font-weight: 800;
+}
+.concierge-suite-left h2 {
+  font-family: var(--serif);
+  font-size: clamp(30px, 3.2vw, 44px);
+  font-weight: 500;
+  line-height: 1.15;
+  color: #FFFFFF;
+  margin: 0 0 12px;
+}
+.concierge-suite-left p {
+  font-size: 15px;
+  line-height: 1.65;
+  color: rgba(247, 244, 239, 0.82);
+  margin: 0 0 20px;
+  max-width: 58ch;
+}
+.concierge-suite-chips {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.concierge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(197, 160, 89, 0.28);
+  color: var(--champagne);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.concierge-suite-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 240px;
+  flex-shrink: 0;
+}
+.concierge-open-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 24px;
+  background: var(--champagne) !important;
+  color: var(--ink) !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  font-family: var(--sans) !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(197, 160, 89, 0.35) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+}
+.concierge-open-ai-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 30px rgba(197, 160, 89, 0.5) !important;
+}
+.btn-wa-suite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 24px;
+  background: rgba(37, 211, 102, 0.16);
+  border: 1.5px solid #25D366;
+  color: #25D366 !important;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.btn-wa-suite:hover {
+  background: #25D366;
+  color: #FFFFFF !important;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 26px rgba(37, 211, 102, 0.4);
+}
+@media (max-width: 960px) {
+  .concierge-suite-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 32px 24px;
+  }
+  .concierge-suite-actions {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .concierge-suite-actions .btn {
+    flex: 1;
+    min-width: 200px;
+  }
+}
+
+/* ==========================================================================
+   FLOATING CONCIERGE CAPSULE (Horizontal Luxury Pill)
+   ========================================================================== */
+.floating-concierge-dock {
+  position: fixed;
+  bottom: 24px;
+  right: 28px;
+  z-index: 95;
+  display: flex;
+  align-items: center;
+}
+.concierge-capsule-island {
+  display: inline-flex;
+  align-items: center;
+  background: var(--ink);
+  border: 1.5px solid rgba(197, 160, 89, 0.5);
+  border-radius: 999px;
+  box-shadow: 0 12px 36px rgba(30, 28, 26, 0.35);
+  padding: 4px;
+  gap: 2px;
+  backdrop-filter: blur(12px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.concierge-capsule-island:hover {
+  border-color: var(--champagne);
+  box-shadow: 0 16px 44px rgba(30, 28, 26, 0.45);
+  transform: translateY(-2px);
+}
+.capsule-ai-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  background: transparent;
+  color: var(--card);
+  border: 0;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+.capsule-ai-trigger:hover,
+.capsule-ai-trigger.active {
+  background: rgba(197, 160, 89, 0.18);
+  color: var(--champagne);
+}
+.capsule-sparkle {
+  color: var(--champagne);
+  font-size: 14px;
+}
+.capsule-badge {
+  font-size: 9px;
+  background: rgba(197, 160, 89, 0.25);
+  color: var(--champagne);
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.capsule-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.18);
+}
+.capsule-wa-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  background: rgba(37, 211, 102, 0.16);
+  color: #25D366 !important;
+  border-radius: 999px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.18s, color 0.18s;
+}
+.capsule-wa-trigger:hover {
+  background: #25D366;
+  color: #FFFFFF !important;
+}
+@media (max-width: 700px) {
+  .floating-concierge-dock {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+  }
+  .capsule-ai-trigger {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+  .capsule-wa-trigger {
+    padding: 7px 10px;
+    font-size: 11px;
   }
 }
