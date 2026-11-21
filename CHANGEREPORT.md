@@ -1,6 +1,53 @@
 # Change Report
 
-## Prompt Entry #13 — 2026-11-21 10:28 IST — Free Live Location Search Autocomplete
+## Prompt Entry #14 â€” 2026-11-21 13:08 IST â€” Client Feedback: Editorial Polish, AI Concierge, WhatsApp & Admin Panel Refinements
+**Objective:** Implement client feedback from Meghana across the front page, concierge communication, and Admin Command Centre, and synchronize localhost (`127.0.0.1:5173`) and Vercel production:
+1. **Space Elimination After Package:** Removed bottom padding and margins on `#ritual.package-section` and tightened `.footer.closing .closing-cta` to remove awkward whitespace.
+2. **GlamGo Brand Highlight:** Highlighted GLAMGO wordmark and hero badge with luxury champagne gold accent (`.brand-gold` and `.hero-brand-pill`).
+3. **Services on Front Page with Pictures:** Added high-definition Unsplash photography to all 8 core services with full-bleed media cards, category pills, descriptions, and direct booking buttons.
+4. **Upgraded 'How It Works':** Enhanced the 4-step process with interactive step pills, guarantee overlays, safety standards, and instant booking shortcuts.
+5. **AI Chatbot & WhatsApp Floating Dock:** Added a floating customer concierge launcher dock featuring a pulsing WhatsApp direct button and an interactive GlamGo AI Beauty Concierge drawer with consultation suggestions and direct booking flows.
+6. **Admin Panel Refinements:**
+   - Replaced text 'Exit to Store' / 'Back to GlamGo' with an icon-only button (`.admin-exit-icon-btn`) and tooltip.
+   - Prominently highlighted 'GlamGo Partner Studio' (`.admin-partner-highlight-card`) with champagne gradient, badge, and arrow.
+   - Fixed number font styling: strictly applied modern sans-serif lining figures (`Manrope`, tabular-nums) to all KPI metrics, GMV amounts, percentages, and table counters, while preserving luxury `Cormorant Garamond` serif headings.
+7. **Location Modal Map Sync:** Ensured Leaflet OpenStreetMap interactive pin picker and free location autocomplete render tiles immediately on localhost and production.
+
+### Files changed
+- `src/app.js`
+  - Added SVG icons for WhatsApp, sparkle, bot, and send.
+  - Added `brandWordmark(isLight)` helper and applied across header, footer, and onboarding.
+  - Injected `DEFAULT_SERVICES` and `DEFAULT_PROFESSIONALS` fallbacks to ensure rich media cards render immediately.
+  - Upgraded `homeCard()` with photography, category pills, and book action.
+  - Enhanced `homePage()`: added Hero brand pill, interactive 'How It Works' tabs, and tightened package section.
+  - Added `floatingConciergeDock()` and `aiChatDrawer()` with consultation logic answering skin, hair, nails, bridal, massage, waxing, and WhatsApp handover.
+  - Upgraded `adminPage()` sidebar: icon-only exit button and highlighted Partner Studio hub card.
+  - Added `map.invalidateSize()` in `mountSalonMaps()` for instant Leaflet tile layout.
+- `styles.css`
+  - Zeroed padding and margin for `#ritual.package-section` and tightened `.footer.closing`.
+  - Added `.wordmark`, `.wordmark-text`, `.brand-gold`, and `.hero-brand-pill` styles.
+  - Styled `.service-card`, `.service-card-media`, `.service-cat-pill`, and `.service-book-btn`.
+  - Styled `.floating-concierge-dock`, `.floating-wa-btn`, `.floating-ai-btn`, and complete `.ai-chat-drawer`.
+  - Styled `.admin-partner-highlight-card` and `.admin-exit-icon-btn`.
+  - Refined typography in `.admin-shell`: forced `Manrope` tabular lining figures on all numbers and metrics while preserving `Cormorant Garamond` on headings (`h1`, `h2`, `h3`, `.admin-brand-word`).
+
+### Verification
+- `npm run build`: passed cleanly in 2.62s (`dist/assets/index-BCe_zZ2c.css` 147.62 kB, `index-BrS9H8Ts.js` 399.63 kB).
+- Playwright Headless Browser Verification:
+  - Admin Panel (`#admin`):
+    - `h1Font` = `"Cormorant Garamond", Georgia, serif`
+    - `h2Font` = `"Cormorant Garamond", Georgia, serif`
+    - `kpiFont` = `Manrope, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif`
+    - `hasExitIcon` = `true` (icon-only home button, title: "Back to GlamGo Store", no text)
+    - `hasPartnerCard` = `true` (text: "PARTNER HUB GlamGo Partner Studio â†—")
+  - Location Modal (`#salons`):
+    - Interactive Leaflet map container mounted with tiles rendered, pin set to Bandra West, Mumbai, and live autocomplete functional.
+  - Home Page (`/`):
+    - 8 service cards with photography rendered.
+    - Floating concierge dock visible with pulsing WhatsApp button and AI Concierge button.
+    - AI Chat drawer opened and interactive.
+
+## Prompt Entry #13 â€” 2026-11-21 10:28 IST â€” Free Live Location Search Autocomplete
 **Objective:** Add free real-time location search autocomplete inside the **Where should we find you?** modal so typing any area, road, or city suggests live place names and moves the map pin on selection.
 
 ### Files changed
@@ -18,7 +65,7 @@
   - Typed `Indiranagar` ? rendered 5 live Indian location suggestions inside `.gg-loc-dropdown`.
   - Clicked first suggestion ? filled `Indira Nagar, F/N Ward, Mumbai City District, Maharashtra, India`, moved map marker, hid dropdown.
   - `0` console errors, `0` page errors, `desktopNoOverflow: true`, `mobileNoOverflow: true`; visually inspected screenshot.
-## Prompt Entry #12 — 2026-11-21 10:14 IST — Allow Browser Geolocation on Vercel Production
+## Prompt Entry #12 â€” 2026-11-21 10:14 IST â€” Allow Browser Geolocation on Vercel Production
 **Objective:** Fix `Use my location` auto-denying geolocation on Vercel (`glamgo-ricoz.vercel.app`) caused by a restrictive `Permissions-Policy` header.
 
 ### Files changed
@@ -30,7 +77,7 @@
 ### Verification
 - `npm run build` ? passed (vite 7.3.7).
 - Playwright geolocation verification on `http://127.0.0.1:5173/#salons` with granted coordinates (19.0607, 72.8362): clicking **Use my location** updated input to `Khar, Mumbai` and displayed `Pinned your current location on the map.`.
-## Prompt Entry #11 — 2026-11-21 10:09 IST — Interactive Location Picker Map Moved Into Location Modal
+## Prompt Entry #11 â€” 2026-11-21 10:09 IST â€” Interactive Location Picker Map Moved Into Location Modal
 **Objective:** Remove the map from the Salons Directory listing page (`#salons`) and move the interactive Leaflet + OpenStreetMap picker inside the **Where should we find you?** location modal (while keeping the interactive map on individual Salon Detail pages).
 
 ### Files changed
@@ -49,7 +96,7 @@
   - Opened **Where should we find you?** modal: `#location-picker-map` mounted cleanly with `6/6` loaded OpenStreetMap tiles.
   - Clicked inside the map canvas: `Enter area or city` auto-updated from `Bandra West, Mumbai` to `Bandra East, Mumbai`.
   - `0` console errors, `0` page errors, `noOverflowDesktop: true`, `noOverflowMobile: true`; visually inspected desktop & mobile screenshots.
-## Prompt Entry #10 — 2026-11-21 10:03 IST — Real Interactive Salon Maps (Leaflet + OpenStreetMap)
+## Prompt Entry #10 â€” 2026-11-21 10:03 IST â€” Real Interactive Salon Maps (Leaflet + OpenStreetMap)
 **Objective:** Replace static location placeholders with real interactive Leaflet + OpenStreetMap maps across the Salons Directory and Salon Detail views, verify interactively at desktop & mobile sizes, update `CHANGEREPORT.md`, and push to `origin/main`.
 
 ### Files changed
@@ -70,7 +117,7 @@ pm install leaflet).
   - `dirMapInfo`: `mounted: true`, `pinCount: 3` (`?800`, `?650`, `?900`), `12/12` map tiles loaded, clicking marker opened popup (`The Ivory Room`), clicking `View salon ->` navigated cleanly to Salon Detail.
   - `detailMapInfo`: `mounted: true`, `6/6` tiles loaded, `hasDirectionsLink: true`, `popupOpen: true`.
   - `0` console errors, `0` page errors, `0` failed requests, `scrollWidth <= innerWidth` at both `1440px` and `390px`. Visually inspected rendered map screenshots.
-## Prompt Entry #9 — 2026-11-21 09:47 IST — Full-Site UI/UX Audit Remediation (ui-ux-pro-max)
+## Prompt Entry #9 â€” 2026-11-21 09:47 IST â€” Full-Site UI/UX Audit Remediation (ui-ux-pro-max)
 **Objective:** Resolve all 4 findings from the full-site Playwright + ui-ux-pro-max UI/UX audit across consumer storefront, Partner Portal, and Admin Command Centre, verify on desktop & mobile, and push to origin/main.
 
 ### Files changed
@@ -78,7 +125,7 @@ pm install leaflet).
   - Removed the duplicate secondary role switcher bar (`<nav class="subnav">`) inside `header()` when `state.view === 'partner'` so Partner Portal uses a single unified `Specialist | Salon | Seller` sidebar switcher.
   - Standardized 'Professional' display label in `auth()` to 'Specialist' to match Partner Portal headings.
 - `styles.css`
-  - Raised storefront action & navigation touch targets (`.card-bottom button`, `.pro-book`, `.salon-bar button`, `.subnav-links button` = 36px; `.mobile-menu-button`, `.icon-button` = 40×40px; mobile `<= 960px` Admin/Partner nav items = 38px).
+  - Raised storefront action & navigation touch targets (`.card-bottom button`, `.pro-book`, `.salon-bar button`, `.subnav-links button` = 36px; `.mobile-menu-button`, `.icon-button` = 40Ã—40px; mobile `<= 960px` Admin/Partner nav items = 38px).
   - Enforced an `11px` minimum readable floor on micro-labels (`.eyebrow`, `.subnav-tag`, `.hero-proof`, `.card-body small`, `.product-brand`, `.product-old`, `.cat-count`, `.footer-bottom`, `.mobile-bar span`, `.badge`).
   - Applied `var(--sans)` (Manrope) with `tabular-nums` consistently to `.product-price`, `.product-bottom strong`, `.card-bottom strong`, `.package-price`, `.step > span`, `.chapter-btn > span`, and `.shelf-count strong`.
 
@@ -88,7 +135,7 @@ pm install leaflet).
   - `0` horizontal overflow, `0` broken images, `0` missing `alt`, `0` console/page/HTTP errors.
   - Partner Portal confirmed `hasSubnav: false` (no duplicate switcher).
   - Mobile Admin small touch targets reduced from `10` ? `0`; Mobile Partner `30` ? `11`; Mobile Home `38` ? `20`; Desktop Home `23` ? `11`; Shop tiny text nodes cut `18` ? `9`.
-## Prompt Entry #8 — 2026-11-21 09:34 IST — Dashboard & Analytics Numerals in Clean Sans-Serif
+## Prompt Entry #8 â€” 2026-11-21 09:34 IST â€” Dashboard & Analytics Numerals in Clean Sans-Serif
 **Objective:** Replace old-style serif KPI/metric numerals across Admin Command Centre & Partner Portal with crisp standard sans-serif numerals (Manrope, 	abular-nums), update CHANGEREPORT.md, and push to origin/main.
 
 ### Files changed
@@ -98,7 +145,7 @@ pm install leaflet).
 ### Verification
 - `npm run build` ? passed (vite 7.3.7).
 - Playwright verification on `http://127.0.0.1:5173/#admin` confirmed clean rendering with `0` console errors, `0` page errors, and `0` failed requests; visually inspected rendered Admin overview screenshot.
-## Prompt Entry #7 — 2026-11-21 09:30 IST — Treatment Category Photos & Main Branch Sync
+## Prompt Entry #7 â€” 2026-11-21 09:30 IST â€” Treatment Category Photos & Main Branch Sync
 **Objective:** Replace placeholder icon boxes in the Home "Treatment categories" grid with curated beauty photography, update `CHANGEREPORT.md`, merge verified branch work into `main`, and push to GitHub `origin/main`.
 
 ### Files changed
@@ -111,7 +158,7 @@ pm install leaflet).
 ### Verification
 - `npm run build` ? passed (vite 7.3.7, `dist/assets/index-ColD8ze5.js` + `index-AOSmRoHB.css`).
 - Playwright check (`verify_categories_photos.mjs`) on `http://127.0.0.1:5173/#home` confirmed all 8 category card images loaded with `complete: true` and non-zero `naturalWidth` (`900px` / `1600px`), `mobileNoOverflow: true`, `0` console errors, and `0` page errors at both `1440px` and `390px`.
-## Prompt Entry #6 — 2026-11-21 09:22 IST — Partner Portal Multi-Role Redesign (Salon Owner, Product Seller, Specialist)
+## Prompt Entry #6 â€” 2026-11-21 09:22 IST â€” Partner Portal Multi-Role Redesign (Salon Owner, Product Seller, Specialist)
 **Objective:** Study and redesign the multi-role Partner Portal (`Salon Owner`, `Product Seller`, and `Specialist`) using `ui-ux-pro-max` design intelligence while preserving GlamGo's ivory/cream/espresso/champagne/terracotta palette, backend API contracts, forms, and `data-action` workflows.
 
 ### Files changed
@@ -132,7 +179,7 @@ pm install leaflet).
   - Verified all 3 roles (`Salon Owner`, `Product Seller`, `Professional`/Specialist) across 22 total tab switches: `0` console errors, `0` page errors, `0` failed HTTP requests.
   - Verified live search input `#partner-catalog-search` preserved focus and narrowed `Service Catalogue` to `1` row on `"Facial"`.
   - Verified zero horizontal overflow (`scrollWidth === innerWidth`) at desktop (`1440px`), tablet (`768px`), and mobile (`390px`) across tested roles and visually inspected rendered screenshots.
-## Prompt Entry #5 — 2026-11-21 03:58 IST — Admin Panel Redesign
+## Prompt Entry #5 â€” 2026-11-21 03:58 IST â€” Admin Panel Redesign
 **Objective:** Redesign the full admin panel to look better and be easier to use while keeping the existing GlamGo colour theme. References: Stripe Dashboard, Linear, Shopify Admin.
 
 ### Files changed
@@ -191,7 +238,7 @@ pm install leaflet).
 **Branch:** `fix/commerce-review-remediation` *(pushed to `origin/fix/commerce-review-remediation` for review; `main` and `master` kept untouched at `54ba3db` so production Render/Vercel deployments remain unchanged)*  
 **Objectives:**
 1. Resolve independent code-review findings: eliminate inventory duplication during canonical listing backfill, guarantee idempotent/durable refunds across lost gateway responses and OOS late captures, add strictly read-only `--dry-run` + refund recovery to `maintenance_runner`, and make `/health/ready` honor `REDIS_REQUIRED`.
-2. Upgrade GlamGo's customer landing experience (`onboarding`, `home`, `salon`, `shop`) using editorial layout discipline, viewport-filling split heroes, interactive `#how` step chapters, responsive breakpoint fixes (`320pxâ€“1440px`), and crisp non-slop copy while preserving all commerce, variant, partner, and admin workflows.
+2. Upgrade GlamGo's customer landing experience (`onboarding`, `home`, `salon`, `shop`) using editorial layout discipline, viewport-filling split heroes, interactive `#how` step chapters, responsive breakpoint fixes (`320pxÃ¢â‚¬â€œ1440px`), and crisp non-slop copy while preserving all commerce, variant, partner, and admin workflows.
 
 ### 1. Database Migration, Models & Schemas
 - **[backend/alembic/versions/06c3f5e92d34_durable_refund_ledger_and_constraints.py](backend/alembic/versions/06c3f5e92d34_durable_refund_ledger_and_constraints.py)** *(new)* â€” Added `refund_records` and `refund_accounting_entries` tables, `return_requests.refunded_at`, positive-amount `CHECK` constraints (`ck_refund_records_amount_positive`, `ck_refund_accounting_amount_positive`), and unique indexes (`uq_refund_records_logical_key`, `uq_refund_records_idempotency_key`, `uq_refund_records_receipt`, partial `uq_refund_records_return_request_id`, partial `uq_refund_records_provider_refund_id`, `uq_refund_accounting_refund_record_id`, partial `uq_refund_accounting_provider_refund_id`, and partial `uq_payment_tx_refund_id`).

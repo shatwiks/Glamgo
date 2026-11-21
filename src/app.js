@@ -105,15 +105,20 @@ const icons = {
   calendar: '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M7 3v4M17 3v4M3 10h18"/>',
   shield: '<path d="M12 2 4 5v6c0 6 4 9 8 11 4-2 8-5 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
   spark: '<path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2ZM19 17l.5 1.5L21 19l-1.5.5L19 21l-.5-1.5L17 19l1.5-.5L19 17Z"/>',
+  sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/>',
   home: '<path d="m3 10 9-7 9 7v11H3V10Z"/><path d="M9 21v-7h6v7"/>',
   salon: '<path d="M4 21V7l8-4 8 4v14H4Z"/><path d="M4 10h16M9 21v-6h6v6"/>',
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
   truck: '<path d="M2 6h12v11H2V6ZM14 10h4l3 3v4h-7v-7Z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
-  logout: '<path d="M10 3H4v18h6M14 7l5 5-5 5M8 12h11"/>'
+  logout: '<path d="M10 3H4v18h6M14 7l5 5-5 5M8 12h11"/>',
+  whatsapp: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/><path d="M16.5 14.5c-.3-.2-1.6-.8-1.9-.9-.2-.1-.4-.2-.5.1-.2.2-.6.8-.7 1-.1.1-.3.2-.5.1-.3-.2-1.2-.4-2.3-1.4-.8-.8-1.4-1.7-1.6-2-.2-.3 0-.4.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.4.1-.2 0-.3 0-.5s-.5-1.3-.7-1.7c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s1 2.5 1.1 2.7c.2.2 2 3.1 4.8 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.7-.7 1.9-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.5Z"/>',
+  bot: '<rect width="18" height="12" x="3" y="6" rx="2"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><path d="M12 2v4M2 12h1M21 12h1M7 18v2M17 18v2"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'
 };
 
 const icon = (name, size = 20, extra = '') => '<svg class="icon ' + (name === 'arrow' ? 'm-arrow ' : '') + extra + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (icons[name] || '') + '</svg>';
 const brandMark = '<span class="gg-mark" data-mark="dots" aria-hidden="true"><i></i><i></i><i></i></span>';
+const brandWordmark = (isLight = false) => '<a class="wordmark' + (isLight ? ' light' : '') + '" href="#" data-action="onboarding">' + brandMark + '<span class="wordmark-text">GLAM<span class="brand-gold">GO</span></span></a>';
 const money = n => '₹' + Number(n).toLocaleString('en-IN');
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -164,9 +169,106 @@ function writeCatalogCache() {
     }));
   } catch {}
 }
+const DEFAULT_SERVICES = [
+  {
+    id: "s1",
+    name: "The Signature Facial",
+    category: "Skin",
+    price: 1499,
+    duration: "75 min",
+    rating: 4.9,
+    reviews: 126,
+    img: photo("photo-1570172619644-dfd03ed5d881", 900),
+    desc: "A restorative botanical cleanse, lymphatic massage, and glow infusion tailored to your skin."
+  },
+  {
+    id: "s2",
+    name: "Express Hair Styling",
+    category: "Hair",
+    price: 899,
+    duration: "45 min",
+    rating: 4.8,
+    reviews: 98,
+    img: photo("photo-1562322140-8baeececf3df", 900),
+    desc: "A polished blowout, silk press, or event-ready waves by a vetted hairstylist."
+  },
+  {
+    id: "s3",
+    name: "Classic Manicure & Gel",
+    category: "Nails",
+    price: 699,
+    duration: "50 min",
+    rating: 4.9,
+    reviews: 84,
+    img: photo("photo-1604654894610-df63bc536371", 900),
+    desc: "Nail shaping, cuticle care, hydrating hand massage, and long-wear chip-free polish."
+  },
+  {
+    id: "s4",
+    name: "Occasion & Bridal Makeup",
+    category: "Makeup",
+    price: 2499,
+    duration: "90 min",
+    rating: 4.9,
+    reviews: 112,
+    img: photo("photo-1487412720507-e7ab37603c6f", 900),
+    desc: "Tailored makeup looks from soft radiant day finish to high-definition evening glamour."
+  },
+  {
+    id: "s5",
+    name: "Relax & Restore Massage",
+    category: "Spa",
+    price: 1799,
+    duration: "60 min",
+    rating: 4.8,
+    reviews: 71,
+    img: photo("photo-1540555700478-4be289fbecef", 900),
+    desc: "Deeply relaxing full body ritual with botanical oils in the sanctuary of your home."
+  },
+  {
+    id: "s6",
+    name: "Smooth Botanical Waxing",
+    category: "Waxing",
+    price: 599,
+    duration: "40 min",
+    rating: 4.8,
+    reviews: 63,
+    img: photo("photo-1519823551278-64ac92734fb1", 900),
+    desc: "Gentle, painless peel waxing with chamomile soothing lotion for silky smooth finish."
+  },
+  {
+    id: "s7",
+    name: "Brow & Threading Precision",
+    category: "Threading",
+    price: 299,
+    duration: "25 min",
+    rating: 4.9,
+    reviews: 103,
+    img: photo("photo-1516975080664-ed2fc6a32937", 900),
+    desc: "Precise eyebrow mapping, clean threading, and optional tint for defined natural arches."
+  },
+  {
+    id: "s8",
+    name: "The Complete Glow Ritual",
+    category: "Packages",
+    price: 3299,
+    duration: "150 min",
+    rating: 4.9,
+    reviews: 56,
+    img: photo("photo-1515377905703-c4788e51af15", 900),
+    desc: "Botanical facial, classic manicure, and blowout bundled into one seamless session."
+  }
+];
+
+const DEFAULT_PROFESSIONALS = [
+  {"id": 1, "name": "Nisha Kapoor", "experience": "8 years of experience", "rating": 4.9, "reviews": 212, "price": 699, "img": photo("photo-1559839734-2b71ea197ec2", 500), "specialty": "Skin & makeup"},
+  {"id": 2, "name": "Riya Malhotra", "experience": "6 years of experience", "rating": 4.9, "reviews": 186, "price": 599, "img": photo("photo-1534528741775-53994a69daeb", 500), "specialty": "Hair & styling"},
+  {"id": 3, "name": "Meera Shah", "experience": "10 years of experience", "rating": 4.8, "reviews": 241, "price": 799, "img": photo("photo-1580489944761-15a19d654956", 500), "specialty": "Spa & wellness"}
+];
+
 const initialCatalogCache = readCatalogCache();
-let services = Array.isArray(initialCatalogCache?.services) ? initialCatalogCache.services : [];
-let professionals = Array.isArray(initialCatalogCache?.professionals) ? initialCatalogCache.professionals : [];
+let services = Array.isArray(initialCatalogCache?.services) && initialCatalogCache.services.length ? initialCatalogCache.services : DEFAULT_SERVICES;
+let professionals = Array.isArray(initialCatalogCache?.professionals) && initialCatalogCache.professionals.length ? initialCatalogCache.professionals : DEFAULT_PROFESSIONALS;
 let salons = Array.isArray(initialCatalogCache?.salons) ? initialCatalogCache.salons : [];
 let products = Array.isArray(initialCatalogCache?.products) ? initialCatalogCache.products : [];
 
@@ -708,10 +810,46 @@ const dateOptions = () => Array.from({length:6},(_,i)=>{const d=new Date();d.set
 const formatDate = value => new Date(value+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
 const heroChapters = [
-  {num:'01', title:'Pick a treatment and fixed price', desc:'Browse facials, waxing, nails, hair, and full 150-minute home sessions with upfront pricing.', img:images.facial, alt:'A beautician preparing a hydrating facial mask'},
-  {num:'02', title:'Choose a verified specialist', desc:'Inspect years of experience, verified ratings, and past customer reviews before booking.', img:images.hair, alt:'Hair stylist finishing waves in natural light'},
-  {num:'03', title:'Lock date, slot, and address', desc:'Reserve an appointment window 7 days a week for your saved home or office address.', img:images.nails, alt:'Manicure preparation with neutral polish tones'},
-  {num:'04', title:'Clean kits arrive at your door', desc:'Single-use applicators, fresh linens, and treatment formulas come directly with your artist.', img:images.makeup, alt:'Brush set and cosmetic palette arranged for an appointment'}
+  {
+    num: '01',
+    iconName: 'spark',
+    badge: 'UPFRONT TRANSPARENCY',
+    guarantee: 'Fixed pricing · Zero travel fees',
+    title: 'Select treatment and fixed price',
+    desc: 'Browse customized facials, blowout styling, gentle waxing, and luxury spa packages with crystal-clear pricing.',
+    img: photo('photo-1570172619644-dfd03ed5d881', 1000),
+    alt: 'Beautician preparing botanical facial mask with sterile tools'
+  },
+  {
+    num: '02',
+    iconName: 'shield',
+    badge: '100% BACKGROUND VERIFIED',
+    guarantee: 'Trade-certified & vetted specialists',
+    title: 'Choose your rated beauty specialist',
+    desc: 'Inspect real customer reviews, verified skill credentials, and portfolios before locking your artist.',
+    img: photo('photo-1562322140-8baeececf3df', 1000),
+    alt: 'Hair specialist providing premium styling with natural light'
+  },
+  {
+    num: '03',
+    iconName: 'calendar',
+    badge: 'SEAMLESS SCHEDULING',
+    guarantee: 'Live calendar & instant confirmation',
+    title: 'Lock date, time slot, and address',
+    desc: 'Reserve your visit 7 days a week (8:00 AM – 9:00 PM) for your home, studio, or private hotel suite.',
+    img: photo('photo-1604654894610-df63bc536371', 1000),
+    alt: 'Manicure appointment with neutral polish tones and hand care'
+  },
+  {
+    num: '04',
+    iconName: 'check',
+    badge: 'HOSPITAL-GRADE PROTOCOL',
+    guarantee: 'Sealed single-use kits & linens',
+    title: 'Sterile tools arrive at your door',
+    desc: 'Single-use applicators, fresh linens, and salon equipment arrive spotless and packaged for your appointment.',
+    img: photo('photo-1487412720507-e7ab37603c6f', 1000),
+    alt: 'Cosmetics set and sterilized applicators arranged for an appointment'
+  }
 ];
 let heroAnimKey = null;
 function heroEnterAttr(key) {
@@ -757,7 +895,7 @@ function onboarding(){
     '<section class="onboarding-first" aria-labelledby="onboard-hero-h">' +
       '<a class="skip-link" href="#top-choices">Skip to marketplace</a>' +
       '<header class="onboard-top gg-wrap">' +
-        '<a class="wordmark" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a>' +
+        brandWordmark(false) +
         '<nav class="onboard-nav" aria-label="Audience navigation">' +
           '<button type="button" data-action="experience" data-id="home">At-home care</button>' +
           '<button type="button" data-action="experience" data-id="salon">Salons</button>' +
@@ -875,7 +1013,7 @@ function onboarding(){
         '</div>' +
       '</div>' +
       '<div class="footer-grid gg-wrap">' +
-        '<div><a class="wordmark light" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a><p>At-home beauty visits, local salons, skincare shopping, and partner software.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div>' +
+        '<div>' + brandWordmark(true) + '<p>At-home beauty visits, local salons, skincare shopping, and partner software.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div>' +
         '<div><h3>For Shoppers</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div>' +
         '<div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">Salon Owner Studio</button><button data-action="partners-apply" data-role="Product Seller">Product Seller Studio</button><button data-action="partners-apply" data-role="Professional">Specialist Studio</button></div>' +
         '<div><h3>Account</h3><button data-action="account">Sign in / My account</button><button data-action="partners">Open Partner Portal</button></div>' +
@@ -898,7 +1036,7 @@ function auth(){
     ? 'Sign in or create an account to access your '+partnerRoleLabel+' application and workspace.'
     : 'Access saved addresses, live order tracking, and upcoming appointments.';
   const leftImg = isPartnerAuth ? SALON_IMG : HOME_IMG;
-  return '<div class="auth-layout"><div class="auth-image">'+image(leftImg,isPartnerAuth?'Partner salon studio interior':'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">'+brandMark+'<span>GLAMGO</span></a><h1>'+leftTitle+'</h1><p>'+leftSub+'</p></div></div><div class="auth-panel"><div class="auth-box"><h2>'+rightHeading+'</h2><p>'+rightCopy+'</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p><p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing</button></p></div></div></div>';
+  return '<div class="auth-layout"><div class="auth-image">'+image(leftImg,isPartnerAuth?'Partner salon studio interior':'At-home beauty treatment')+'<div class="auth-image-copy">' + brandWordmark(true) + '<h1>'+leftTitle+'</h1><p>'+leftSub+'</p></div></div><div class="auth-panel"><div class="auth-box"><h2>'+rightHeading+'</h2><p>'+rightCopy+'</p><form id="auth-form">'+(state.authMode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(state.authMode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(state.authMode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form><p class="auth-switch">'+(state.authMode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(state.authMode==='signup'?'Sign in':'Create an account')+'</button></p><p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing</button></p></div></div></div>';
 }
 
 function header(){
@@ -919,7 +1057,7 @@ function header(){
   const subnavHtml = isPartnerView
     ? ''
     : '<nav class="subnav" aria-label="Section navigation"><div class="subnav-inner gg-wrap"><div class="subnav-links">'+subnavLinksHtml+'</div><span class="subnav-tag">'+subTag+'</span></div></nav>';
-  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap"><a class="wordmark" href="#" data-action="onboarding">'+brandMark+'<span>GLAMGO</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><a class="skip-link" href="#top">Skip to content</a><header class="header"><div class="header-inner gg-wrap">' + brandWordmark(false) + '<div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',18)+'<span>Search treatments, salons, or products</span><kbd>⌘K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,17)+'</span><span>Experience<small>'+current.eyebrow+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>SWITCH PORTAL</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,18)+'<span>'+x.eyebrow+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'<button data-action="partners">'+icon('shield',18)+'<span>FOR BUSINESSES<small>Salon owners &amp; product sellers</small></span></button></div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',20)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',20)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-expanded="'+(state.mobileMenu?'true':'false')+'" aria-label="Open menu">'+icon('menu',23)+'</button></div></header>'+subnavHtml+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>SWITCH PORTAL</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow+icon('arrow',16)+'</button>').join('')+'<button data-action="partners">'+icon('shield',20)+'Partner Portal'+icon('arrow',16)+'</button><button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -930,7 +1068,7 @@ function footer(){
     : { heading: 'Book a verified home specialist', sub: 'Facials, waxing, hair, and nails brought to '+esc(state.location)+' 7 days a week.', cta: 'Book a service', act: 'scroll', target: 'popular' };
   const ctaAttr = state.view === 'landing' ? 'data-target="'+closeCfg.target+'"' : '';
   const ctaAct = state.view === 'landing' ? closeCfg.act : 'landing';
-  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div><a class="wordmark light" href="#" data-action="landing">'+brandMark+'<span>GLAMGO</span></a><p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button></div><div><h3>Portals</h3><button data-action="partners">Partner Portal</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button><button data-action="notifications">Notifications</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
+  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div>' + brandWordmark(true) + '<p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button></div><div><h3>Portals</h3><button data-action="partners">Partner Portal</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button><button data-action="notifications">Notifications</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
 }
 
 function mobileNav(){
@@ -938,7 +1076,20 @@ function mobileNav(){
 }
 
 function homeCard(s){
-  return '<article class="service-card">'+image(s.img,s.name,'card-img')+'<button class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+s.id+'" aria-label="Save '+esc(s.name)+'">'+icon('heart',18)+'</button><div class="card-body"><span class="card-kicker">'+esc(s.category)+'</span><h3>'+esc(s.name)+'</h3><div class="card-meta">'+icon('clock',15)+'<span>'+esc(s.duration)+'</span>'+rating(s.rating,s.reviews)+'</div><div class="card-bottom"><strong>From '+money(s.price)+'</strong><button data-action="book-home" data-id="'+s.id+'">Book now '+icon('arrow',16)+'</button></div></div></article>';
+  const img = s.img || homeCategoryImages[s.category] || images.facial;
+  return '<article class="service-card">' +
+    '<div class="service-card-media">' +
+      image(img, s.name, 'card-img') +
+      '<span class="service-cat-pill">' + esc(s.category) + '</span>' +
+      '<button class="wishlist-on-card ' + (state.wishlist.includes(s.id) ? 'saved' : '') + '" data-action="wish" data-id="' + s.id + '" aria-label="Save ' + esc(s.name) + '">' + icon('heart', 18) + '</button>' +
+    '</div>' +
+    '<div class="card-body">' +
+      '<div class="card-meta">' + icon('clock', 15) + '<span>' + esc(s.duration) + '</span>' + rating(s.rating, s.reviews) + '</div>' +
+      '<h3>' + esc(s.name) + '</h3>' +
+      (s.desc ? '<p class="service-desc">' + esc(s.desc) + '</p>' : '') +
+      '<div class="card-bottom"><strong>From ' + money(s.price) + '</strong><button class="service-book-btn" data-action="book-home" data-id="' + s.id + '">Book now ' + icon('arrow', 16) + '</button></div>' +
+    '</div>' +
+  '</article>';
 }
 
 function professionalCard(p){
@@ -949,9 +1100,10 @@ function homePage(){
   let filtered = services.filter(s => state.homeCategory === 'All' || s.category === state.homeCategory);
   if(state.sort === 'rating') filtered = [...filtered].sort((a,b) => Number(b.rating) - Number(a.rating));
   if(state.sort === 'price') filtered = [...filtered].sort((a,b) => a.price - b.price);
-  const minPrice = getCatalogMinPrice(services, 799);
+  const minPrice = getCatalogMinPrice(services, 299);
   const serviceCount = services.length || 8;
   const activeStep = Math.max(0, Math.min(heroChapters.length - 1, Number(state.activeChapter || 0)));
+  const currentChapter = heroChapters[activeStep] || heroChapters[0];
   const servicesSection = !services.length && state.catalogFeedsLoading.services
     ? catalogLoadingState('home treatments')
     : !services.length && state.catalogErrors.services
@@ -962,7 +1114,104 @@ function homePage(){
     : !professionals.length && state.catalogErrors.professionals
       ? catalogUnavailableState('Professionals directory')
       : '<div class="pro-grid">'+professionals.map(professionalCard).join('')+'</div>';
-  return '<main id="top"><section class="hero-stage"'+heroEnterAttr('home')+' aria-labelledby="home-hero-h"><div class="home-hero gg-wrap"><div class="hero-copy"><p class="hero-fact-line enter-line">'+esc(state.location)+' · '+serviceCount+' treatments from '+money(minPrice)+'</p><h1 id="home-hero-h" class="enter-line">At-home beauty treatments at your door</h1><p class="hero-lead enter-fade">Verified specialists bring sterile tools, botanical skincare, and salon furnishings to '+esc(state.location)+' in 45 to 150 minute appointments.</p><div class="hero-buttons enter-fade">'+button('Book a service '+icon('arrow',17),'scroll','btn-primary','data-target="popular"')+button('How bookings work','scroll','btn-outline','data-target="how"')+'</div><dl class="hero-proof enter-fade"><div><dt>Appointments</dt><dd>45–150 min visits</dd></div><div><dt>Specialists</dt><dd>Background checked</dd></div><div><dt>Hours</dt><dd>Daily, 8:00–21:00</dd></div></dl></div><div class="hero-visual enter-media">'+image(HOME_IMG,'Beautician applying a facial treatment inside a bright living space')+'</div></div></section><section class="section" id="categories"><div class="gg-wrap">'+sectionHead('CATEGORIES','Treatment categories','Filter the home menu by facials, hair, nails, waxing, or full-body rituals.','<button class="text-jump" data-action="search-open">'+icon('search',16)+' Search catalog</button>')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c] || HOME_IMG, c+' at-home treatment')+'</div><span>'+c+'</span>'+icon('arrow',15)+'</button>').join('')+'</div></div></section><section class="section soft-section" id="popular"><div class="gg-wrap">'+sectionHead('MENU','At-home treatments & packages','Fixed upfront rates with no home-visit travel fee.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</div></section><section class="section" id="professionals"><div class="gg-wrap">'+sectionHead('TEAM','Verified beauty specialists','Rated practitioners equipped for home visits across '+esc(state.location)+'.','<span class="section-aside">Background-checked artists</span>')+' '+prosSection+'</div></section><section class="how-section dark-band" id="how" data-moment="pinned-chapters" aria-labelledby="how-h"><div class="gg-wrap chapters-layout"><div class="chapters-text"><p class="eyebrow">HOW IT WORKS</p><h2 id="how-h">Booking a home visit in four steps</h2><ol class="chapters-steps">'+heroChapters.map((ch, idx)=>'<li class="chapter-step'+(idx===activeStep?' active':'')+'" data-step="'+idx+'"><button type="button" class="chapter-btn" data-action="chapter-select" data-step="'+idx+'" aria-pressed="'+(idx===activeStep?'true':'false')+'"><span>'+ch.num+'</span><div><h3>'+ch.title+'</h3><p>'+ch.desc+'</p></div></button></li>').join('')+'</ol></div><div class="chapters-stage"><div class="chapters-frame">'+heroChapters.map((ch, idx)=>'<img class="chapter-img'+(idx===activeStep?' active':'')+'" src="'+ch.img+'" alt="'+esc(ch.alt)+'" loading="eager" decoding="async" onerror="this.style.opacity=0.15">').join('')+'</div></div></div></section><section class="section package-section" id="ritual"><div class="gg-wrap split-pair"><div class="package-copy"><p class="eyebrow">SIGNATURE PACKAGE</p><h2>The Complete Glow 150-minute session</h2><p>Combines a hydrating botanical facial, classic manicure with nail care, and a salon blowout into one booked appointment.</p><div class="package-price">From '+money(3299)+' <span>· 150 minutes · Single visit</span></div>'+button('Book Complete Glow '+icon('arrow',17),'book-home','btn-primary','data-id="s8"')+'</div><div class="package-image frame-media">'+image(images.spa,'Spa candles and cotton towels arranged for an extended treatment')+'</div></div></section></main>';
+  return '<main id="top">' +
+    '<section class="hero-stage"'+heroEnterAttr('home')+' aria-labelledby="home-hero-h">' +
+      '<div class="home-hero gg-wrap">' +
+        '<div class="hero-copy">' +
+          '<div class="hero-brand-pill enter-fade">' +
+            '<span class="gg-mark" data-mark="dots"><i></i><i></i><i></i></span>' +
+            '<span>GLAMGO LUXURY DOORSTEP BEAUTY</span>' +
+          '</div>' +
+          '<p class="hero-fact-line enter-line">'+esc(state.location)+' · '+serviceCount+' treatments from '+money(minPrice)+'</p>' +
+          '<h1 id="home-hero-h" class="enter-line">At-home beauty treatments at your door</h1>' +
+          '<p class="hero-lead enter-fade">Verified specialists bring sterile tools, botanical skincare, and salon furnishings to '+esc(state.location)+' in 45 to 150 minute appointments.</p>' +
+          '<div class="hero-buttons enter-fade">' +
+            button('Book a service '+icon('arrow',17),'scroll','btn-primary','data-target="popular"') +
+            button('How bookings work','scroll','btn-outline','data-target="how"') +
+          '</div>' +
+          '<dl class="hero-proof enter-fade">' +
+            '<div><dt>Appointments</dt><dd>45–150 min visits</dd></div>' +
+            '<div><dt>Specialists</dt><dd>Background checked</dd></div>' +
+            '<div><dt>Hours</dt><dd>Daily, 8:00–21:00</dd></div>' +
+          '</dl>' +
+        '</div>' +
+        '<div class="hero-visual enter-media">'+image(HOME_IMG,'Beautician applying a facial treatment inside a bright living space')+'</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="section" id="categories">' +
+      '<div class="gg-wrap">' +
+        sectionHead('CATEGORIES','Treatment categories','Filter the home menu by facials, hair, nails, waxing, or full-body rituals.','<button class="text-jump" data-action="search-open">'+icon('search',16)+' Search catalog</button>') +
+        '<div class="category-grid home-categories">' +
+          homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c] || HOME_IMG, c+' at-home treatment')+'</div><span>'+c+'</span>'+icon('arrow',15)+'</button>').join('') +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="section soft-section" id="popular">' +
+      '<div class="gg-wrap">' +
+        sectionHead('MENU','At-home treatments & packages','Fixed upfront rates with verified specialists and zero travel fee.') +
+        '<div class="listing-tools">' +
+          '<div class="filter-row">' +
+            homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('') +
+          '</div>' +
+          '<label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label>' +
+        '</div>' +
+        servicesSection +
+      '</div>' +
+    '</section>' +
+    '<section class="section" id="professionals">' +
+      '<div class="gg-wrap">' +
+        sectionHead('TEAM','Verified beauty specialists','Rated practitioners equipped for home visits across '+esc(state.location)+'.','<span class="section-aside">Background-checked artists</span>') +
+        ' ' + prosSection +
+      '</div>' +
+    '</section>' +
+    '<section class="how-section dark-band" id="how" data-moment="pinned-chapters" aria-labelledby="how-h">' +
+      '<div class="gg-wrap chapters-layout">' +
+        '<div class="chapters-text">' +
+          '<div class="how-top-meta">' +
+            '<p class="eyebrow">HOW IT WORKS</p>' +
+            '<div class="how-step-tabs" role="tablist" aria-label="Booking steps">' +
+              heroChapters.map((ch, idx) =>
+                '<button type="button" class="how-step-pill ' + (idx === activeStep ? 'active' : '') + '" data-action="chapter-select" data-step="' + idx + '" role="tab" aria-selected="' + (idx === activeStep ? 'true' : 'false') + '">Step ' + ch.num + '</button>'
+              ).join('') +
+            '</div>' +
+          '</div>' +
+          '<h2 id="how-h">Booking a doorstep specialist in four simple steps</h2>' +
+          '<ol class="chapters-steps">' +
+            heroChapters.map((ch, idx)=>'<li class="chapter-step'+(idx===activeStep?' active':'')+'" data-step="'+idx+'"><button type="button" class="chapter-btn" data-action="chapter-select" data-step="'+idx+'" aria-pressed="'+(idx===activeStep?'true':'false')+'"><div class="chapter-num-badge"><span>'+ch.num+'</span><span class="chapter-icon">'+icon(ch.iconName || 'spark', 18)+'</span></div><div><div class="chapter-meta-line"><span class="chapter-guarantee-tag">'+esc(ch.badge)+'</span></div><h3>'+ch.title+'</h3><p>'+ch.desc+'</p></div></button></li>').join('') +
+          '</ol>' +
+          '<div class="how-cta-row">' +
+            button('Book in 60 seconds '+icon('arrow',17),'scroll','btn-primary','data-target="popular"') +
+            '<span class="how-cta-note">Hospital-grade sanitized kit guaranteed</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="chapters-stage">' +
+          '<div class="chapters-frame">' +
+            heroChapters.map((ch, idx)=>'<img class="chapter-img'+(idx===activeStep?' active':'')+'" src="'+ch.img+'" alt="'+esc(ch.alt)+'" loading="eager" decoding="async" onerror="this.style.opacity=0.15">').join('') +
+            '<div class="how-guarantee-card">' +
+              '<div class="how-guarantee-copy">' +
+                '<span class="how-guarantee-badge">' + esc(currentChapter.badge) + '</span>' +
+                '<p class="how-guarantee-text">' + esc(currentChapter.guarantee) + '</p>' +
+              '</div>' +
+              '<button type="button" class="btn btn-outline btn-sm btn-how-book" data-action="scroll" data-target="popular">Book visit</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</section>' +
+    '<section class="section package-section" id="ritual">' +
+      '<div class="gg-wrap split-pair">' +
+        '<div class="package-copy">' +
+          '<div class="package-brand-tag"><span class="brand-gold">GLAMGO</span> SIGNATURE RITUAL</div>' +
+          '<p class="eyebrow">CURATED ALL-IN-ONE PACKAGE</p>' +
+          '<h2>The Complete Glow 150-minute session</h2>' +
+          '<p>Combines a hydrating botanical facial, classic manicure with nail care, and a salon blowout into one seamlessly booked appointment.</p>' +
+          '<div class="package-price">From '+money(3299)+' <span>· 150 minutes · Single home visit</span></div>' +
+          button('Book Complete Glow '+icon('arrow',17),'book-home','btn-primary','data-id="s8"') +
+        '</div>' +
+        '<div class="package-image frame-media">'+image(images.spa,'Spa candles and cotton towels arranged for an extended treatment')+'</div>' +
+      '</div>' +
+    '</section>' +
+  '</main>';
 }
 
 const AREA_COORDS = {
@@ -1110,6 +1359,7 @@ function mountSalonMaps(){
       if(freshInput) freshInput.value = label;
     });
     activeLeafletMaps.push(map);
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
   }
 
   const detailEl = document.getElementById('salon-detail-map');
@@ -1132,6 +1382,7 @@ function mountSalonMaps(){
       });
       L.marker(coords, { icon: pinIcon }).addTo(map).bindPopup('<div class="gg-map-popup"><strong>' + esc(s.name) + '</strong><span>' + esc(s.area) + ' · ' + esc(s.hours) + '</span></div>').openPopup();
       activeLeafletMaps.push(map);
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
     }
   }
 }
@@ -2431,8 +2682,17 @@ function adminPage(){
         '</div>' +
       '</div>' +
       '<div class="admin-footer-links">' +
-        '<button class="admin-nav-item" data-action="partners">' + icon('spark', 15) + '<span class="admin-nav-label">Partner Portal</span></button>' +
-        '<button class="admin-nav-item" data-action="landing">' + icon('arrow', 15) + '<span class="admin-nav-label">Exit to Store</span></button>' +
+        '<button class="admin-partner-highlight-card" data-action="partners" title="Launch GlamGo Partner Studio">' +
+          '<div class="admin-partner-hl-icon">' + icon('sparkle', 16) + '</div>' +
+          '<div class="admin-partner-hl-meta">' +
+            '<span class="admin-partner-hl-tag">PARTNER HUB</span>' +
+            '<strong class="admin-partner-hl-name">GlamGo Partner Studio</strong>' +
+          '</div>' +
+          '<span class="admin-partner-hl-arrow" aria-hidden="true">↗</span>' +
+        '</button>' +
+        '<button class="admin-exit-icon-btn" data-action="landing" title="Back to GlamGo Store" aria-label="Back to GlamGo Store">' +
+          icon('home', 18) +
+        '</button>' +
       '</div>' +
     '</div>' +
   '</aside>';
@@ -2910,6 +3170,173 @@ function bookingSuccess(){
   return '<main class="success-page"><div class="success-mark">'+icon('check',34)+'</div><p class="eyebrow">BOOKING CONFIRMED</p><h1>Your moment is <em>all set.</em></h1><p>'+esc(b.title)+' is booked for '+formatDate(b.date)+' at '+b.time+'. We have added the details to your account.</p><div class="success-details"><span>EXPERIENCE <strong>'+(b.type==='home'?'At-home beauty':'Salon & parlour')+'</strong></span><span>PROFESSIONAL <strong>'+esc(b.professional)+'</strong></span></div><div class="success-actions">'+button('View my bookings '+icon('arrow',17),'account-bookings','btn-primary')+button('Keep exploring','landing','btn-outline')+'</div></main>';
 }
 
+function floatingConciergeDock() {
+  if (state.view === 'admin') return '';
+  return '<aside class="floating-concierge-dock" aria-label="Customer concierge">' +
+    '<a href="https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20at-home%20beauty%20services%20and%20salon%20appointments." target="_blank" rel="noopener noreferrer" class="floating-wa-btn" aria-label="Chat with GlamGo on WhatsApp" title="Chat with GlamGo on WhatsApp">' +
+      '<span class="floating-wa-icon">' + icon('whatsapp', 20) + '</span>' +
+      '<span class="floating-wa-label">WhatsApp</span>' +
+      '<span class="floating-pulse-ring" aria-hidden="true"></span>' +
+    '</a>' +
+    '<button type="button" class="floating-ai-btn ' + (state.aiChatOpen ? 'active' : '') + '" data-action="toggle-ai-chat" aria-label="Open GlamGo AI Beauty Concierge" title="GlamGo AI Beauty Concierge">' +
+      '<span class="floating-ai-icon">' + icon('sparkle', 18) + '</span>' +
+      '<span class="floating-ai-label">AI Concierge</span>' +
+      '<span class="floating-ai-badge">Ask AI</span>' +
+    '</button>' +
+  '</aside>';
+}
+
+const defaultAiWelcome = [
+  {
+    sender: 'ai',
+    text: "Welcome to GlamGo! I'm your AI Beauty Concierge. Whether you need a recommendation for radiant skin, want details on our hospital-grade hygiene protocol, or want to connect with our team on WhatsApp, I'm here to guide you.",
+    time: 'Just now',
+    actions: [
+      { label: '✨ Recommend a facial', prompt: 'Recommend a facial for glowing skin' },
+      { label: '💇 Hair blowout at home', prompt: 'Tell me about at-home hair styling' },
+      { label: '👰 Complete Glow package', prompt: 'What is the Complete Glow package?' },
+      { label: '💬 Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hello%20GlamGo!%20I%20would%20like%20to%20inquire%20about%20booking%20a%20treatment.' }
+    ]
+  }
+];
+
+function aiChatDrawer() {
+  if (state.view === 'admin') return '';
+  const messages = (state.aiChatMessages && state.aiChatMessages.length) ? state.aiChatMessages : defaultAiWelcome;
+  return '<div class="ai-chat-drawer ' + (state.aiChatOpen ? 'open' : '') + '" role="dialog" aria-modal="true" aria-label="GlamGo AI Concierge">' +
+    '<div class="ai-chat-header">' +
+      '<div class="ai-chat-profile">' +
+        '<div class="ai-chat-avatar"><span>✦</span><i class="ai-online-dot"></i></div>' +
+        '<div><h4>GlamGo AI Concierge</h4><p>Online · Instant Beauty Advisor</p></div>' +
+      '</div>' +
+      '<div class="ai-chat-actions">' +
+        '<a href="https://wa.me/919876543210?text=Hello%20GlamGo!%20Connecting%20from%20AI%20chat%20for%20assistance." target="_blank" rel="noopener noreferrer" class="ai-wa-link" title="Open WhatsApp">' + icon('whatsapp', 14) + ' WhatsApp</a>' +
+        '<button type="button" class="ai-chat-close-btn" data-action="toggle-ai-chat" aria-label="Close chat">' + icon('close', 18) + '</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ai-chat-body" id="ai-chat-body">' +
+      messages.map(m =>
+        '<div class="ai-msg msg-' + m.sender + '">' +
+          '<div class="ai-bubble">' + esc(m.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') + '</div>' +
+          (m.actions && m.actions.length ?
+            '<div class="ai-actions-wrap">' +
+              m.actions.map(act =>
+                act.url ?
+                  '<a href="' + esc(act.url) + '" target="_blank" rel="noopener noreferrer" class="ai-action-btn ai-action-wa">' + icon('whatsapp', 14) + ' ' + esc(act.label) + ' ↗</a>' :
+                  '<button type="button" class="ai-action-btn" data-action="' + (act.action || 'ai-prompt') + '" ' + (act.id ? 'data-id="' + esc(act.id) + '"' : '') + (act.prompt ? 'data-prompt="' + esc(act.prompt) + '"' : '') + '>' + esc(act.label) + ' →</button>'
+              ).join('') +
+            '</div>' : '') +
+          '<span class="ai-time">' + esc(m.time || 'Just now') + '</span>' +
+        '</div>'
+      ).join('') +
+    '</div>' +
+    '<div class="ai-chat-suggestions">' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Recommend a facial for glowing skin">✨ Glowing facial</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about at-home hair styling">💇 Hair blowout</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about bridal and occasion makeup">👰 Bridal makeup</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="What is the Complete Glow package?">👑 Complete Glow</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="How do at-home appointments work?">🛡️ How it works</button>' +
+    '</div>' +
+    '<form class="ai-chat-input-bar" id="ai-chat-form">' +
+      '<input type="text" id="ai-chat-input" placeholder="Ask about facials, makeup, pricing, hair…" autocomplete="off" />' +
+      '<button type="submit" class="ai-send-btn" aria-label="Send message">' + icon('arrow', 18) + '</button>' +
+    '</form>' +
+  '</div>';
+}
+
+function handleAiUserMessage(query) {
+  const q = String(query || '').trim();
+  if (!q) return;
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (!state.aiChatMessages) state.aiChatMessages = [...defaultAiWelcome];
+  state.aiChatMessages.push({
+    sender: 'user',
+    text: q,
+    time: now
+  });
+
+  const low = q.toLowerCase();
+  let replyText = '';
+  let actions = [];
+
+  if (low.includes('facial') || low.includes('skin') || low.includes('glow')) {
+    replyText = "For an instant radiant complexion, I recommend **The Signature Facial** (75 min, ₹1,499). It includes a gentle botanical cleanse, lymphatic massage, and an antioxidant vitamin infusion. Our verified specialists arrive with a sterile kit and fresh linens directly at your door.";
+    actions = [
+      { label: 'Book The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
+      { label: 'View Skin Category', action: 'home-category', id: 'Skin' }
+    ];
+  } else if (low.includes('hair') || low.includes('blowout') || low.includes('styling')) {
+    replyText = "Our **Express Hair Styling** (45 min, ₹899) is ideal for polished blowouts, silk presses, or event curls. Our vetted hair stylists bring professional heat tools and styling serums to your home.";
+    actions = [
+      { label: 'Book Hair Styling (₹899)', action: 'book-home', id: 's2' },
+      { label: 'View Hair Category', action: 'home-category', id: 'Hair' }
+    ];
+  } else if (low.includes('nail') || low.includes('manicure') || low.includes('pedicure')) {
+    replyText = "Treat your hands with the **Classic Manicure & Gel** (50 min, ₹699). Includes gentle cuticle care, shape refinement, nourishing hand massage, and long-wear chip-free polish.";
+    actions = [
+      { label: 'Book Classic Manicure (₹699)', action: 'book-home', id: 's3' },
+      { label: 'View Nails Category', action: 'home-category', id: 'Nails' }
+    ];
+  } else if (low.includes('makeup') || low.includes('bridal') || low.includes('wedding') || low.includes('party')) {
+    replyText = "For special celebrations, our **Occasion & Bridal Makeup** (90 min, ₹2,499) provides bespoke high-definition looks using luxury, non-comedogenic cosmetics matched to your undertones.";
+    actions = [
+      { label: 'Book Occasion Makeup (₹2,499)', action: 'book-home', id: 's4' },
+      { label: 'Explore Complete Glow Ritual', action: 'book-home', id: 's8' }
+    ];
+  } else if (low.includes('massage') || low.includes('spa') || low.includes('relax')) {
+    replyText = "Unwind with our **Relax & Restore Massage** (60 min, ₹1,799). A soothing, rhythmic full-body ritual using warm aromatic botanical oils.";
+    actions = [
+      { label: 'Book Relax Massage (₹1,799)', action: 'book-home', id: 's5' }
+    ];
+  } else if (low.includes('wax') || low.includes('waxing')) {
+    replyText = "Our **Smooth Botanical Waxing** (40 min, ₹599) uses gentle, low-heat strip-less peel wax and soothing aloe post-treatment care.";
+    actions = [
+      { label: 'Book Botanical Waxing (₹599)', action: 'book-home', id: 's6' }
+    ];
+  } else if (low.includes('thread') || low.includes('brow')) {
+    replyText = "Define your arches with the **Brow & Threading Precision Edit** (25 min, ₹299). Clean mapping and threading for a crisp, natural frame.";
+    actions = [
+      { label: 'Book Brow Threading (₹299)', action: 'book-home', id: 's7' }
+    ];
+  } else if (low.includes('package') || low.includes('complete glow')) {
+    replyText = "The **Complete Glow Ritual** (150 min, ₹3,299) is our premier head-to-toe package: combines a botanical facial, classic manicure, and polished salon blowout in a single visit.";
+    actions = [
+      { label: 'Book Complete Glow (₹3,299)', action: 'book-home', id: 's8' }
+    ];
+  } else if (low.includes('how') || low.includes('safe') || low.includes('sterile') || low.includes('hygiene') || low.includes('work')) {
+    replyText = "Booking with GlamGo takes 60 seconds: 1) Pick your treatment with upfront pricing, 2) Select your verified specialist, 3) Choose date, time slot & address, 4) Specialist arrives with hospital-grade sanitized tools in sealed pouches.";
+    actions = [
+      { label: 'Browse Treatments', action: 'scroll', id: 'popular' },
+      { label: 'Chat with Support on WhatsApp', url: 'https://wa.me/919876543210?text=Hi%20GlamGo!%20I%20have%20a%20question%20about%20at-home%20treatments.' }
+    ];
+  } else if (low.includes('whatsapp') || low.includes('contact') || low.includes('call') || low.includes('human') || low.includes('support')) {
+    replyText = "Our dedicated customer care team is available on WhatsApp daily from 8:00 AM to 9:00 PM for custom bridal bookings, urgent questions, or personalized requests.";
+    actions = [
+      { label: 'Chat on WhatsApp ↗', url: 'https://wa.me/919876543210?text=Hello%20GlamGo!%20Connecting%20from%20AI%20chat%20for%20assistance.' }
+    ];
+  } else {
+    replyText = "I'm delighted to assist you with GlamGo! We offer certified at-home beauty treatments, local salon chair bookings, and clean beauty store products across " + (state.location || 'your area') + ". What service can I help you book today?";
+    actions = [
+      { label: '✨ The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
+      { label: '💇 Hair Blowout & Styling (₹899)', action: 'book-home', id: 's2' },
+      { label: '💬 Chat on WhatsApp', url: 'https://wa.me/919876543210?text=Hi%20GlamGo!%20I%20would%20like%20more%20information.' }
+    ];
+  }
+
+  state.aiChatMessages.push({
+    sender: 'ai',
+    text: replyText,
+    actions: actions,
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+
+  render();
+  setTimeout(() => {
+    const el = document.getElementById('ai-chat-body');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+
 function render(){
   destroyActiveMaps();
   if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); return; }
@@ -2925,7 +3352,7 @@ function render(){
     }
   }
   let page = state.view==='landing' ? (state.experience==='home'?homePage():state.experience==='salon'?salonPage():shopPage()) : state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
-  app.innerHTML = header() + page + footer() + mobileNav() + modal();
+  app.innerHTML = header() + page + footer() + mobileNav() + modal() + floatingConciergeDock() + aiChatDrawer();
   document.body.classList.toggle('modal-open', !!state.modal);
   requestAnimationFrame(mountSalonMaps);
 }
@@ -2954,7 +3381,22 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
-  if(a==='map-locate'){
+  if(a==='toggle-ai-chat'){
+    state.aiChatOpen = !state.aiChatOpen;
+    render();
+    if(state.aiChatOpen){
+      setTimeout(()=>{
+        document.getElementById('ai-chat-input')?.focus();
+        const b = document.getElementById('ai-chat-body');
+        if(b) b.scrollTop = b.scrollHeight;
+      }, 50);
+    }
+  }
+  else if(a==='ai-prompt'){
+    const p = el.dataset.prompt;
+    if(p) handleAiUserMessage(p);
+  }
+  else if(a==='map-locate'){
     if(!navigator.geolocation){
       toast('Geolocation is not supported in this browser.');
       return;
@@ -4057,6 +4499,15 @@ function applyPostAuthNavigation(role) {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, d = new FormData(f);
+  if(f.id === 'ai-chat-form'){
+    const input = document.getElementById('ai-chat-input');
+    const msg = input ? input.value : '';
+    if(msg){
+      input.value = '';
+      handleAiUserMessage(msg);
+    }
+    return;
+  }
   if(f.id === 'auth-form'){
     const email = String(d.get('email')).trim();
     const password = String(d.get('password')).trim();
