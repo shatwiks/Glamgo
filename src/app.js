@@ -1015,44 +1015,53 @@ function addTileLayerWithFallback(map){
   }).addTo(map);
 }
 
+async function reverseGeocodeCoords(lat, lng){
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`, {
+      headers: { Accept: 'application/json' }
+    });
+    if(!res.ok) throw new Error('nominatim');
+    const data = await res.json();
+    const a = data.address || {};
+    const area = a.suburb || a.neighbourhood || a.city_district || a.town || a.village || '';
+    const city = a.city || a.state_district || a.state || '';
+    const formatted = [area, city].filter(Boolean).join(', ');
+    if(formatted) return formatted;
+  } catch {}
+  return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+}
+
 function mountSalonMaps(){
-  const dirEl = document.getElementById('salon-directory-map');
-  if(dirEl && !dirEl._leaflet_id){
-    let list = salons.filter(s => state.salonCategory === 'All' || s.services.includes(state.salonCategory));
-    const center = list.length ? resolveSalonCoords(list[0]) : [19.065, 72.831];
-    const map = L.map(dirEl, {
+  const locEl = document.getElementById('location-picker-map');
+  if(locEl && !locEl._leaflet_id){
+    const center = Array.isArray(state.userCoords)
+      ? state.userCoords
+      : resolveSalonCoords({ area: state.location });
+    const map = L.map(locEl, {
       scrollWheelZoom: false,
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false
     }).setView(center, 13);
     addTileLayerWithFallback(map);
-    const bounds = [];
-    list.forEach(s => {
-      const coords = resolveSalonCoords(s);
-      bounds.push(coords);
-      const pinIcon = L.divIcon({
-        className: 'gg-map-pin-wrap',
-        html: '<span class="gg-map-pin">' + esc(money(s.price)) + '</span>',
-        iconSize: [58, 28],
-        iconAnchor: [29, 14]
-      });
-      const popupHtml = '<div class="gg-map-popup">' +
-        '<strong>' + esc(s.name) + '</strong>' +
-        '<span>' + esc(s.area) + ' · ' + esc(s.rating) + ' ★</span>' +
-        '<button type="button" class="gg-map-popup-btn" data-action="salon-detail" data-id="' + esc(s.id) + '">View salon →</button>' +
-      '</div>';
-      L.marker(coords, { icon: pinIcon }).addTo(map).bindPopup(popupHtml);
+    const pinIcon = L.divIcon({
+      className: 'gg-map-pin-wrap',
+      html: '<span class="gg-map-pin gg-map-pin-active">Selected</span>',
+      iconSize: [74, 28],
+      iconAnchor: [37, 14]
     });
-    if(Array.isArray(state.userCoords)){
-      L.circleMarker(state.userCoords, {
-        radius: 7, color: '#1E1C1A', weight: 2, fillColor: '#C5A059', fillOpacity: 0.95
-      }).addTo(map).bindPopup('<strong>Your current location</strong>');
-      bounds.push(state.userCoords);
-    }
-    if(bounds.length > 1){
-      map.fitBounds(bounds, { padding: [36, 36], maxZoom: 14 });
-    }
+    const marker = L.marker(center, { icon: pinIcon }).addTo(map);
+    map.on('click', async (ev) => {
+      const { lat, lng } = ev.latlng;
+      state.userCoords = [lat, lng];
+      marker.setLatLng([lat, lng]);
+      const input = document.querySelector('#location-form input[name="location"]');
+      if(input) input.value = 'Updating location…';
+      const label = await reverseGeocodeCoords(lat, lng);
+      state.location = label;
+      const freshInput = document.querySelector('#location-form input[name="location"]');
+      if(freshInput) freshInput.value = label;
+    });
     activeLeafletMaps.push(map);
   }
 
@@ -1094,7 +1103,7 @@ function salonPage(){
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-map-card"><div class="salon-map-head"><div><strong>Partner salons on the map</strong><span>'+list.length+' curated studios near '+esc(state.location)+'</span></div><button type="button" class="btn btn-outline btn-sm" data-action="map-locate">'+icon('pin',14)+' '+(state.userCoords ? 'Location pinned' : 'Use my location')+'</button></div><div id="salon-directory-map" class="gg-map-canvas" role="region" aria-label="Interactive map of partner salons"></div></div><div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another treatment filter to view more studios.'));
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons in this category','Try another treatment filter to view more studios.'));
   return '<main id="top"><section class="hero-stage"'+heroEnterAttr('salon')+' aria-labelledby="salon-hero-h"><div class="salon-hero gg-wrap"><div class="salon-hero-copy"><p class="hero-fact-line enter-line">'+esc(state.location)+' · '+salonCount+' partner studios from '+money(minSalonPrice)+'</p><h1 id="salon-hero-h" class="enter-line">Local salon studios with live booking slots</h1><p class="hero-lead enter-fade">Review menus, specialist rosters, and verified customer ratings before locking your appointment time.</p><div class="hero-buttons enter-fade">'+button('Browse salons '+icon('arrow',17),'scroll','btn-primary','data-target="salons"')+button('Pick visit date','salon-date','btn-outline')+'</div></div><div class="salon-hero-image enter-media">'+image(SALON_IMG,'Contemporary salon chairs and warm daylight mirrors')+'</div></div></section><section class="salon-search-wrap"><div class="gg-wrap"><div class="salon-search-box"><div><label>AREA</label><button data-action="location">'+icon('pin',17)+esc(state.location)+'</button></div><div><label>TREATMENT</label><button data-action="search-open">'+icon('search',17)+' Service or studio name</button></div><div><label>DATE</label><button data-action="salon-date">'+icon('calendar',17)+' '+(state.salonDate?formatDate(state.salonDate):'Select a date')+'</button></div>'+button('Find salons '+icon('arrow',17),'scroll','btn-primary','data-target="salons"')+'</div></div></section><section class="section" id="salon-categories"><div class="gg-wrap">'+sectionHead('DISCIPLINES','Appointments by specialty','Choose a discipline to jump straight to participating salons.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' salon treatments')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></div></section><section class="section soft-section" id="salons"><div class="gg-wrap">'+sectionHead('DIRECTORY','Partner salons near '+esc(state.location),'Verified studios with transparent opening hours and upfront service menus.')+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+salonsSection+'</div></section></main>';
 }
 
@@ -2798,7 +2807,7 @@ function modal(){
     const draft = (state.adminDrafts || []).find(d => d.id === state.selectedDraftId);
     inner='<div class="modal-head"><p class="eyebrow">PARTNER MODERATION</p><h2>Reject application.</h2><p>Please provide a formal rejection reason for '+esc(draft?.applicant_name || 'the applicant')+'.</p></div><form id="admin-reject-form"><label>Rejection reason<textarea name="reason" required placeholder="e.g. Incomplete training credentials or invalid salon trade license" style="min-height:90px"></textarea></label><button class="btn btn-danger full" type="submit">Confirm rejection '+icon('arrow',17)+'</button></form>';
   }
-  if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>Discover services and salons around your neighbourhood.</p></div><form id="location-form"><label>Enter area or city<input name="location" required value="'+esc(state.location)+'" placeholder="e.g. Bandra West, Mumbai" autofocus></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Bandra West, Mumbai','Juhu, Mumbai','Khar West, Mumbai','Andheri West, Mumbai'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
+  if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>Discover services and salons around your neighbourhood.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<input name="location" required value="'+esc(state.location)+'" placeholder="e.g. Bandra West, Mumbai" autofocus></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Bandra West, Mumbai','Juhu, Mumbai','Khar West, Mumbai','Andheri West, Mumbai'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
@@ -2905,12 +2914,15 @@ async function action(el){
     }
     toast('Finding your location…');
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        state.userCoords = [pos.coords.latitude, pos.coords.longitude];
+      async pos => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        state.userCoords = [lat, lng];
+        state.location = await reverseGeocodeCoords(lat, lng);
         render();
         toast('Pinned your current location on the map.');
       },
-      () => toast('Location permission denied — showing studio areas instead.')
+      () => toast('Location permission denied — tap the map or type your area.')
     );
   }
   else if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); window.scrollTo({top:0,behavior:'instant'}); }
@@ -2953,7 +2965,7 @@ async function action(el){
   }
   else if(a==='mobile-toggle'){ state.mobileMenu=!state.mobileMenu; render(); }
   else if(a==='location'){ state.modal='location'; render(); }
-  else if(a==='location-set'){ state.location=id; state.modal=null; persist(); render(); toast('Location updated'); }
+  else if(a==='location-set'){ state.location=id; state.userCoords=null; state.modal=null; persist(); render(); toast('Location updated'); }
   else if(a==='search-open'){ state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
   else if(a==='search-quick'){
     state.query = id || '';

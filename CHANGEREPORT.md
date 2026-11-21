@@ -1,5 +1,24 @@
 # Change Report
 
+## Prompt Entry #11 — 2026-11-21 10:09 IST — Interactive Location Picker Map Moved Into Location Modal
+**Objective:** Remove the map from the Salons Directory listing page (`#salons`) and move the interactive Leaflet + OpenStreetMap picker inside the **Where should we find you?** location modal (while keeping the interactive map on individual Salon Detail pages).
+
+### Files changed
+- `src/app.js`
+  - Removed `.salon-map-card` / `#salon-directory-map` from `salonPage()` and removed directory map mounting from `mountSalonMaps()`.
+  - Added `#location-picker-map` and a **Use my location** geolocation button inside `state.modal === 'location'` ("Where should we find you?").
+  - Added `reverseGeocodeCoords(lat, lng)` using Nominatim so clicking anywhere on `#location-picker-map` (or using current GPS location) moves the marker and auto-fills `Enter area or city` in `#location-form` (e.g., `Bandra East, Mumbai`).
+  - Kept `#salon-detail-map` interactive on individual Salon Detail views.
+- `styles.css`
+  - Added `.gg-location-map-bar`, `.gg-map-modal`, and `.gg-locate-btn` styles with warm neutral OSM tile tinting.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7, `dist/assets/index-1Ujv6Smw.js` + `index-C89aLsks.css`).
+- Playwright verification on `http://127.0.0.1:5173/#salons` & Location modal:
+  - Confirmed `hasDirMap: 0` (removed from `#salons` directory).
+  - Opened **Where should we find you?** modal: `#location-picker-map` mounted cleanly with `6/6` loaded OpenStreetMap tiles.
+  - Clicked inside the map canvas: `Enter area or city` auto-updated from `Bandra West, Mumbai` to `Bandra East, Mumbai`.
+  - `0` console errors, `0` page errors, `noOverflowDesktop: true`, `noOverflowMobile: true`; visually inspected desktop & mobile screenshots.
 ## Prompt Entry #10 — 2026-11-21 10:03 IST — Real Interactive Salon Maps (Leaflet + OpenStreetMap)
 **Objective:** Replace static location placeholders with real interactive Leaflet + OpenStreetMap maps across the Salons Directory and Salon Detail views, verify interactively at desktop & mobile sizes, update `CHANGEREPORT.md`, and push to `origin/main`.
 
