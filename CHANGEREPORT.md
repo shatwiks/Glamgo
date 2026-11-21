@@ -1,5 +1,15 @@
 # Change Report
 
+## Prompt Entry #8 — 2026-11-21 09:34 IST — Dashboard & Analytics Numerals in Clean Sans-Serif
+**Objective:** Replace old-style serif KPI/metric numerals across Admin Command Centre & Partner Portal with crisp standard sans-serif numerals (Manrope, 	abular-nums), update CHANGEREPORT.md, and push to origin/main.
+
+### Files changed
+- `styles.css`
+  - Changed `.admin-kpi-card strong`, `.admin-vertical-card strong`, `.analytics-summary strong`, and `.admin-num` to use `var(--sans)` (Manrope) bold tabular numerals instead of `Cormorant Garamond` old-style figures.
+
+### Verification
+- `npm run build` ? passed (vite 7.3.7).
+- Playwright verification on `http://127.0.0.1:5173/#admin` confirmed clean rendering with `0` console errors, `0` page errors, and `0` failed requests; visually inspected rendered Admin overview screenshot.
 ## Prompt Entry #7 — 2026-11-21 09:30 IST — Treatment Category Photos & Main Branch Sync
 **Objective:** Replace placeholder icon boxes in the Home "Treatment categories" grid with curated beauty photography, update `CHANGEREPORT.md`, merge verified branch work into `main`, and push to GitHub `origin/main`.
 
