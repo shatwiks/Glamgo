@@ -437,9 +437,12 @@
 @media(max-width:700px){
   .header-actions .admin-portal-btn{display:none}
   .toast{top:auto;bottom:72px;right:14px;left:14px;justify-content:center}
-  .subnav{height:auto;min-height:40px;padding:0 12px;overflow:visible}
-  .subnav-links{flex-wrap:wrap;gap:4px 14px;min-width:0;padding:4px 0}
-  .subnav button{font-size:11px;padding:6px 0}
+  .subnav{height:44px;min-height:44px;padding:0 12px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .subnav::-webkit-scrollbar{display:none}
+  .subnav-inner{display:flex;align-items:center;justify-content:space-between;width:max-content;min-width:100%;gap:12px}
+  .subnav-links{display:flex;align-items:center;flex-wrap:nowrap;gap:12px;min-width:0;padding:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .subnav-links::-webkit-scrollbar{display:none}
+  .subnav button{font-size:12px;padding:8px 4px;white-space:nowrap;min-height:44px;display:inline-flex;align-items:center}
   .filter-row,.collection-pills{flex-wrap:wrap;overflow:visible;margin-right:0;padding-right:0;gap:6px}
   .filter-chip,.collection-pill{padding:7px 11px;font-size:10.5px}
   .pdp-tabs{gap:2px;flex-wrap:wrap}
@@ -509,7 +512,7 @@
 .header-inner{display:flex;align-items:center;gap:20px;height:100%;min-width:0}
 .subnav{padding:0;min-height:46px;height:auto}
 .subnav-inner{display:flex;align-items:center;justify-content:space-between;min-height:46px;gap:16px}
-.subnav-links{flex-wrap:wrap;min-width:0}
+.subnav-links{flex-wrap:nowrap;min-width:0}
 .subnav button{font-size:13px;font-weight:600;padding:11px 2px;letter-spacing:.005em}
 .subnav-tag{font-size:12px;letter-spacing:.02em;font-weight:600;color:var(--muted);white-space:nowrap}
 
@@ -1529,4 +1532,225 @@
   font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
   font-variant-numeric: tabular-nums lining-nums !important;
   font-feature-settings: "lnum" 1, "tnum" 1, "onum" 0 !important;
+}
+
+/* ==========================================================================
+   MOBILE FIRST REFINEMENTS (iPhone / Android 320px–600px)
+   tasteskill 2.5: Anti-slop mobile UX standard
+   ========================================================================== */
+
+/* 1. Mobile Location Trigger Chips */
+.mobile-loc-chip {
+  display: none;
+}
+.subnav-loc-btn {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.subnav-loc-btn:hover {
+  background: rgba(30, 28, 26, 0.05);
+  color: var(--terracotta);
+}
+
+@media (max-width: 700px) {
+  /* Prevent content clipping behind fixed bottom navigation */
+  body {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* 1-Tap Mobile Location Access in Top Header */
+  .mobile-loc-chip {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 5px;
+    max-width: 140px;
+    padding: 6px 10px;
+    background: rgba(30, 28, 26, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    margin-left: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-height: 36px;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .mobile-loc-chip:hover {
+    background: var(--cream);
+    border-color: var(--champagne);
+  }
+  .mobile-loc-chip span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-loc-chip svg {
+    flex-shrink: 0;
+    color: var(--terracotta);
+  }
+
+  /* Dock Elevation: Prevent collision with 58px fixed mobile bottom nav bar */
+  .floating-concierge-dock {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px)) !important;
+    right: 14px !important;
+    gap: 8px !important;
+    z-index: 75 !important;
+  }
+
+  /* Horizontal Subnav Scroll on Mobile Without Wrapping */
+  .subnav {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 12px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .subnav::-webkit-scrollbar {
+    display: none !important;
+  }
+  .subnav-inner {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    height: 100% !important;
+    gap: 16px !important;
+  }
+  .subnav-links {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 14px !important;
+    min-width: max-content !important;
+    overflow: visible !important;
+    height: 100% !important;
+    padding: 0 !important;
+  }
+  .subnav button {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    min-height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    padding: 0 4px !important;
+    font-size: 12px !important;
+  }
+  .subnav-tag {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+  }
+}
+
+@media (max-width: 600px) {
+  /* WhatsApp Floating Button: Circular FAB on phones */
+  .floating-wa-btn {
+    width: 48px !important;
+    height: 48px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    justify-content: center !important;
+    box-shadow: 0 8px 24px rgba(37, 211, 102, 0.4) !important;
+  }
+  .floating-wa-btn span {
+    display: none !important;
+  }
+
+  /* Compact AI Concierge Pill */
+  .floating-ai-btn {
+    padding: 9px 13px !important;
+    font-size: 11.5px !important;
+    gap: 6px !important;
+  }
+  .floating-ai-badge {
+    padding: 1px 6px !important;
+    font-size: 9px !important;
+  }
+
+  /* AI Concierge Drawer: Native Mobile Bottom Sheet */
+  .ai-chat-drawer {
+    inset: auto 0 0 0 !important;
+    width: 100vw !important;
+    height: 86vh !important;
+    max-height: 86vh !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    transform: translateY(100%) !important;
+    box-shadow: 0 -16px 50px rgba(30, 28, 26, 0.4) !important;
+    z-index: 120 !important;
+  }
+  .ai-chat-drawer.open {
+    transform: translateY(0) !important;
+  }
+  .ai-chat-header {
+    border-radius: 24px 24px 0 0 !important;
+    padding: 14px 16px !important;
+  }
+  .ai-chat-input-bar {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Single Column Editorial Service Cards */
+  .card-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+  .card-img {
+    height: 200px !important;
+  }
+  .card-body {
+    padding: 20px 18px !important;
+  }
+  .card-body h3 {
+    font-size: 24px !important;
+    line-height: 1.25 !important;
+  }
+  .service-card .btn {
+    min-height: 46px !important;
+    font-size: 13.5px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* Native Mobile Bottom Sheet for Modals (Location, etc.) */
+  .modal-backdrop {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 88vh !important;
+    border-radius: 24px 24px 0 0 !important;
+    border-left: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 0 !important;
+    padding: 24px 18px calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .modal-head h2 {
+    font-size: 27px !important;
+    line-height: 1.2 !important;
+  }
+  .gg-map-modal {
+    height: 175px !important;
+    margin-bottom: 12px !important;
+  }
 }

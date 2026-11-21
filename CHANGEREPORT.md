@@ -1,5 +1,54 @@
 # Change Report
 
+## Prompt Entry #15 — 2026-11-21 13:40 IST — Mobile Phone Experience Polish (/design-taste-frontend)
+**Objective:** Optimize the complete GlamGo customer and salon experience specifically for mobile phones (iPhone/Android, 390×844 down to 320px) complying with `/design-taste-frontend` (`tasteskill 2.5` anti-slop standard):
+1. **Collision Elimination (Floating Dock vs Fixed Mobile Bottom Navigation):**
+   - Elevated `.floating-concierge-dock` on screens `<= 700px` to `bottom: calc(68px + env(safe-area-inset-bottom, 0px))` so the WhatsApp and AI Concierge buttons float cleanly above the 58px fixed `.mobile-bottom` bar with 0 overlap.
+   - Added `body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }` to guarantee page content, footers, and primary buttons never hide behind the bottom bar.
+2. **Compact Floating FABs on Mobile:**
+   - Transformed `.floating-wa-btn` into a sleek 48×48px circular floating action button with pulsing green glow ring and centered icon, keeping screen area unobstructed.
+   - Streamlined `.floating-ai-btn` into a compact 44px luxury pill with micro-badge.
+3. **AI Concierge Drawer Mobile Bottom Sheet:**
+   - Converted `.ai-chat-drawer` on `<= 600px` from a floating card into a native full-width mobile bottom sheet (`height: 86vh; border-radius: 24px 24px 0 0; box-shadow: 0 -16px 50px rgba(30, 28, 26, 0.4); z-index: 120;`) with safe-area inset padding on the input bar.
+4. **Single-Column Luxury Editorial Service Cards:**
+   - Switched `.card-grid` on screens `<= 600px` from cramped 2 columns to a single column (`grid-template-columns: 1fr; gap: 20px;`) with 200px editorial photography, 24px serif titles, clear price/duration pills, and full-width thumb-friendly booking buttons (`min-height: 46px;`).
+5. **Horizontal Subnav Scrolling Without Wrapping:**
+   - Fixed `.subnav-links` wrapping on mobile screens: all navigation links ("Home", "Categories", "Treatments", "Specialists", "How it works") now sit on a smooth single-line horizontally scrollable track (`overflow-x: auto; flex-wrap: nowrap !important; scrollbar-width: none;`).
+6. **1-Tap Mobile Location Access & Native Bottom Sheet Modal:**
+   - Added a `.mobile-loc-chip` button directly beside the brand wordmark in the mobile header for immediate location visibility and 1-tap modal opening.
+   - Converted `.subnav-tag` into an interactive `.subnav-loc-btn` location button.
+   - Styled the location modal on mobile as an anchored bottom sheet (`border-radius: 24px 24px 0 0; max-height: 88vh; padding: 24px 18px;`) with Leaflet map optimized to 175px height.
+7. **Small Viewport (320px) Verification:**
+   - Verified zero horizontal page scroll (`hasHScroll: false`) and min 44px tap targets across iPhone SE / 320px screens.
+
+### Files changed
+- `src/app.js`
+  - Rendered `.mobile-loc-chip` button beside the wordmark in `header()` for 1-tap mobile location access.
+  - Converted `.subnav-tag` into an interactive `.subnav-loc-btn` button when not in shop experience.
+- `styles.css`
+  - Replaced `.subnav-links { flex-wrap: wrap; }` with `flex-wrap: nowrap;` and added smooth touch scrolling.
+  - Added mobile styles for `.mobile-loc-chip` and `.subnav-loc-btn`.
+  - Elevated `.floating-concierge-dock` above `.mobile-bottom` bar on `<= 700px`.
+  - Added safe-area padding to `body` on `<= 700px`.
+  - Converted `.floating-wa-btn` to 48×48px circular FAB on `<= 600px`.
+  - Implemented mobile bottom sheet styles for `.ai-chat-drawer` and `.modal`.
+  - Converted `.card-grid` to single-column luxury layout on `<= 600px`.
+
+### Verification
+- `npm run build`: built cleanly in 2.04s (`dist/assets/index-BHQlBff6.css` 151.94 kB, `index-Cb3dShKK.js` 399.98 kB).
+- Playwright Mobile Phone Audits (iPhone 14/15/16 390×844 & iPhone SE 320×600):
+  - Collision Check: `navTop = 838px`, `dockBottom = 828px`, `overlap = false` (clean 10px clearance above bottom bar).
+  - Subnav Wrapping: `tops = [59.5, 59.5, 59.5, 59.5, 59.5]`, `wraps = false` (all links on single horizontal row).
+  - Card Grid Columns: `gridTemplateColumns = "354px"`, single column full-width editorial cards.
+  - Mobile Location Chip: 1-tap click opens location bottom sheet modal (`modalVisible = true`).
+  - AI Concierge Drawer: 1-tap click opens native 86vh bottom sheet (`drawerOpen = true`).
+  - Small Phone (320px): `hasHScroll = false`, zero horizontal overflow.
+- Visual Artifacts Generated:
+  - `mobile_phone_390_home.png`
+  - `mobile_phone_390_location_sheet.png`
+  - `mobile_phone_390_ai_sheet.png`
+  - `mobile_phone_320_home.png`
+
 ## Prompt Entry #14 — 2026-11-21 13:08 IST — Client Feedback: Editorial Polish, AI Concierge, WhatsApp & Admin Panel Refinements
 **Objective:** Implement client feedback from Meghana across the front page, concierge communication, and Admin Command Centre, and synchronize localhost (`127.0.0.1:5173`) and Vercel production:
 1. **Space Elimination After Package:** Removed bottom padding and margins on `#ritual.package-section` and tightened `.footer.closing .closing-cta` to remove awkward whitespace.
