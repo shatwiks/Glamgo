@@ -1,5 +1,30 @@
 # Change Report
 
+## Prompt Entry #19 — 2026-11-21 15:58 IST — Knowledge Graph Rebuild & Community Clustering (/graphify)
+**Objective:** Execute full-pipeline `/graphify` knowledge graph construction for GlamGo across all code, docs, models, tests, and architectural assets:
+1. **Extraction & Corpus Coverage:**
+   - **Corpus Detected:** 190 files (~180,587 words) spanning AST code extractors (98 files) and semantic documentation/visual chunks (92 files).
+   - **AST Structural Extraction:** 1,301 nodes and 4,281 edges extracted across FastAPI endpoints, SQLAlchemy models, Pydantic schemas, and SPA frontend components.
+   - **Semantic & Documentation Extraction:** 437 semantic nodes and 446 edges extracted (87 files served from cache, 5 updated files extracted via subagent).
+2. **Graph Assembly & Network Clustering:**
+   - **Graph Statistics:** 1,783 total nodes and 4,439 edges partitioned into 144 detected communities.
+   - **Top God Nodes:** `User` (103 edges), `CommerceService` (102 edges), `apiRequest()` (79 edges), `UserRole` (78 edges), `action()` (50 edges), `Order` (43 edges), `Product` (40 edges).
+   - **Community Hubs:** Classified and labeled across Admin Role & Governance, Multi-Vendor Commerce & Escrow, Client API Layer, Frontend SPA UI Components, Razorpay Payments & Settlement, and Alembic Migrations.
+3. **Artifact Generation:**
+   - Generated interactive graph visualizations (`graphify-out/index.html` and `graphify-out/graph.html`), audit report (`graphify-out/GRAPH_REPORT.md`), raw graph export (`graphify-out/graph.json`), and incremental manifest (`graphify-out/manifest.json`).
+
+### Files changed
+- `graphify-out/graph.json`: Full 1,783-node knowledge graph with community labels and edge relationships.
+- `graphify-out/GRAPH_REPORT.md`: Comprehensive audit report with community cohesion metrics, god nodes, and hyperedges.
+- `graphify-out/index.html` & `graphify-out/graph.html`: Interactive web-based knowledge graph viewer.
+- `graphify-out/manifest.json`: Incremental scan manifest for subsequent `--update` passes.
+- `graphify-out/cost.json`: Run tracking telemetry.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #19.
+
+### Verification
+- `graphify.diagnostics`: Verified graph integrity (0 missing endpoint edges, 4,439 post-build edges).
+- HTML visualization generated and validated on disk.
+
 ## Prompt Entry #18 — 2026-11-21 15:45 IST — Turnkey Platform Architecture & Deep Ecosystem Landing Page (/ui-ux-pro-max & Platform Sale Readiness)
 **Objective:** Prepare GlamGo for sale to prospective buyers/investors by removing all sign-in friction across all portals, adding a persistent 1-click Turnkey Tour Switcher, and expanding the landing page with comprehensive marketplace telemetry, partner studio showcases, clinical formulation store, hygiene protocols, testimonials, and interactive FAQ:
 1. **Turnkey Unrestricted Platform Access (Zero Sign-In Friction for Buyers & Investors):**
