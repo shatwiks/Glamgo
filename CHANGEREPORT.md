@@ -1,6 +1,11 @@
 # Change Report
 
-## Prompt Entry #19 — 2026-11-21 17:00 IST — Deployment-Ready Resiliency Hardening for Standalone Turnkey Link
+## Prompt Entry #21 — 2026-11-22 00:05 IST — Sync Full 4-Dashboard Operational Suite to Turnkey Branch (`feat/turnkey-platform`)
+**Objective:** Merge `main`'s complete 4-dashboard operational suite (`30567de`, `e2ade67`) into `feat/turnkey-platform` so the turnkey evaluation link exposes the exact same full-featured Admin, Specialist, Salon Owner, and Product Seller dashboards alongside the turnkey preview bar and landing ecosystem.
+- **Files Synced:** `src/dashboards-suite.js`, `src/app.js`, `styles.css`, `backend/app/services/seed_service.py`.
+- **Verification:** Clean syntax (`node -c`), production bundle build (`npm run build`), and push to `origin/feat/turnkey-platform`.
+
+## Prompt Entry #19b — 2026-11-21 17:00 IST — Deployment-Ready Resiliency Hardening for Standalone Turnkey Link
 **Objective:** Guarantee 100% turnkey deployment readiness when deployed as a standalone link or preview URL on Vercel:
 1. **Catalog Fallback Safeguards:**
    - In `src/app.js` (`loadCatalogFeeds()`), hardened API response handling so if the remote backend database is unseeded, empty (`[]`), or asleep, catalog feeds automatically preserve `DEFAULT_SERVICES`, `DEFAULT_PROFESSIONALS`, `DEFAULT_SALONS`, and `DEFAULT_PRODUCTS`.
@@ -60,6 +65,115 @@
   - `turnkey_mobile_home_top.png`
   - `test_local_location_modal.png`
   - `verify_local_ritual.png`
+
+## Prompt Entry #20 — 2026-11-21 23:59 IST — Full 4-Dashboard Operational Suite (Admin, Specialist, Salon Owner, Product Seller)
+**Objective:** Plan (`/gsd-plan-phase`, `/graphify`, `/ui-ux-pro-max`) and implement the full industry-standard feature set across all 4 operational GlamGo dashboards while preserving the warm ivory/champagne aesthetic and `localStorage` + API compatibility:
+1. **Admin Command Centre:**
+   - **Promos & Commissions (`promotions`):** Platform commission rules (`homePct`, `salonPct`, `retailPct`, `escrowDays`, `noShowFeePct`), promo coupon creation (`#ops-coupon-form`), and active/paused toggle + delete controls.
+   - **Disputes & Review Moderation (`disputes`):** 4-card KPI strip, ticket resolution desk (Full Refund / 50% Split / Reject), and flagged review moderation queue (Approve / Hide).
+   - **Escrow & Partner Payouts (`payouts`):** Held/Matured/Disbursed KPI cards, batch payout disbursement actions, and RFC-4180 CSV payout ledger export.
+2. **At-Home Specialist (Professional) Studio:**
+   - **Topbar Status & Safety:** Live `Online / On Break / Offline` segmented toggle and red `Emergency SOS` panic button dispatching timestamped GPS check-in alerts.
+   - **Job Lifecycle & Territory:** 5-step job progress bar (`Accepted → En Route → Arrived (OTP) → In Progress → Done`) on confirmed bookings and inter-visit travel buffer + pin-code territory settings under Availability.
+   - **Client CRM & Portfolio:** Dedicated `Client CRM & Safety` tab (allergy alerts, skin/hair profile notes, SOS incident ledger) and `Lookbook Portfolio` tab (before/after gallery + uploader).
+3. **Salon Owner Studio:**
+   - **Multi-Stylist Chair Calendar (`Chair Calendar`):** Visual time × stylist schedule matrix with 1-tap chair status cycling (`Booked → Checked-In → In-Chair → Completed`) and walk-in assignment form.
+   - **Front-Desk POS (`Front-Desk POS`):** Today Z-Report strip (UPI / Card / Cash totals), combined service + retail checkout form, and live receipt feed.
+   - **Inventory, Formulas, Multi-Branch & Payroll:** Dual `Backbar & Retail Stock` tracker (`Use -1` / `Restock +5` + reorder alerts), `Client Formulas & CRM` (color formulas, allergies, LTV), multi-branch management in `Branches`, and `Staff Commission & Monthly Payroll Summary` in `Staff management`.
+4. **Product Seller Studio:**
+   - **Batch & Expiry FIFO (`Batch & Expiry`):** Earliest-expiry-first (FIFO) cosmetic lot ledger with color-coded shelf-life health pills (`Green >90d`, `Yellow ≤90d` with 1-click `20% Clearance`, `Red Expired` auto-delisted) and lot registration form.
+   - **Fulfillment Handling & Returns Hygiene QC:** Dispatch SLA timers + Fragile/Liquid/Cold-Chain badges on order cards, plus interactive Hygiene & Safety Seal QC checklist (`Restockable` vs `Write-Off`) inside `Returns & refunds`.
+   - **Compliance Vault (`Compliance Vault`):** CDSCO/INCI/cruelty-free regulatory vault, HSN/GST schedule table, and downloadable GST/HSN CSV ledger export.
+
+### Files changed
+- `src/dashboards-suite.js` *(created)*: Modular `DEFAULT_DASHBOARD_OPS`, 18 UI renderers, RFC-4180 CSV exporter, and `handleDashboardOpsAction` / `handleDashboardOpsSubmit` state handlers.
+- `src/app.js`: Wired `dashboards-suite.js` imports, extended `roleSections` and persisted `defaults`, integrated new sidebar nav items and tab renderers in `adminPage()` and `partnerPage()`, and connected early `ops-*` click/submit delegation.
+- `styles.css`: Added `.ops-*` styles (status segmented toggle, SOS button, lifecycle stepper, chair calendar grid, shelf-life pills, hygiene QC card, portfolio grid) plus `@media (max-width:960px)`, `@media (max-width:640px)` (mobile header/grid overflow fixes), and `prefers-reduced-motion` support.
+
+### Verification
+- `node -c src/dashboards-suite.js` and `node -c src/app.js`: Clean JS syntax (exit code 0).
+- `npm run build`: Clean Vite production bundle in `1.92s` (`dist/assets/index-DDHDNjtq.css` 165.65 kB, `dist/assets/index-BRgKxemi.js` 472.09 kB, 11 modules transformed, 0 errors).
+- End-to-End Playwright Verification against `http://127.0.0.1:5173/`:
+  - Verified Admin Overview (`3` Partner Salons), `FESTIVE25` coupon creation, dispute refund resolution, and `PAY-701` payout disbursement (`verify_4dash_admin.png`).
+  - Verified Specialist `Online/On Break/Offline` toggle, `Emergency SOS` dispatch log, Travel Buffer settings, Portfolio, and Client CRM (`verify_4dash_pro.png`).
+  - Verified Salon Chair Calendar status cycling, Front-Desk POS checkout (`Meera Test`), Backbar & Retail Stock, Client Formulas, and Staff Payroll (`verify_4dash_salon.png`).
+  - Verified Seller Batch & Expiry FIFO health states (Green/Yellow/Red), Returns Hygiene QC (`RESTOCKED`), and Compliance Vault HSN table (`verify_4dash_seller.png`).
+  - Verified `0` uncaught page errors and `0` horizontal overflow at both desktop (`1440 <= 1440`) and mobile (`375 <= 375`).
+
+
+## Prompt Entry #19 — 2026-11-21 18:10 IST — Partner Salons Catalog Tab & Product Inventory Stock Telemetry in Admin Panel
+**Objective:** Address user feedback regarding salon visibility ("why is only ivory room in the admin panel..why not these two") and product stock visibility ("wht abt how many products are available for an item..admin shd see all these things na"):
+1. **Partner Salons Catalog in Admin Command Centre:**
+   - Added dedicated **"Partner Salons"** (`salons`) navigation tab under `Catalog` in the Admin sidebar alongside `Service Catalog` and `Product Inventory`.
+   - Populated with all 3 verified partner salons:
+     1. **The Ivory Room** (`#l1`, Bandra West, Mumbai, 10:00 AM – 8:00 PM, Most Loved, From ₹800)
+     2. **Atelier Beauty House** (`#l2`, Juhu, Mumbai, 9:30 AM – 8:30 PM, Popular, From ₹650)
+     3. **Maison de Glow** (`#l3`, Khar West, Mumbai, 10:00 AM – 7:30 PM, New to GlamGo, From ₹900)
+   - Built rich studio table displaying studio thumbnail, neighborhood area, operating hours, service disciplines (`Hair`, `Skin`, `Nails`, `Makeup`, `Spa`), specialist staff roster, base prices, ratings, and a direct "View Studio" action button.
+   - Built top 4-card salon summary strip: Total Partner Studios (3), Specialist Roster count, Average Salon Rating (4.9 ★), and Coverage Zones (Bandra, Juhu, Khar).
+   - Added instant search input (`#admin-salon-search`) and discipline filter pills (`ALL`, `Hair`, `Skin`, `Nails`, `Makeup`, `Spa`).
+   - In Executive Overview (`tab === 'overview'`), updated Partner Salons counter in `admin-roster-strip` to reflect all 3 salons and navigate directly to the salons tab on click.
+2. **User Governance Salon Owners Roster:**
+   - In User Governance (`tab === 'users'`), ensured all 3 partner salon owners are registered and displayed under the `SALON_OWNER` filter:
+     - The Ivory Room Owner (`salon@glamgo.com`, `salon_owner`)
+     - Atelier Beauty House Owner (`atelier@glamgo.com`, `salon_owner`)
+     - Maison de Glow Owner (`maison@glamgo.com`, `salon_owner`)
+   - Updated backend database seeder (`backend/app/services/seed_service.py`) to seed `atelier@glamgo.com` and `maison@glamgo.com`, linking `owner_id` for salons `l2` and `l3`.
+3. **Comprehensive Product Inventory Stock & Variant Telemetry:**
+   - Upgraded Product Inventory (`tab === 'products'`) from a basic list (which previously lacked stock counts) to full warehouse stock telemetry:
+   - **4-Card KPI Summary Strip:**
+     - **Total SKUs**: 7 Active SKUs across all beauty retail categories.
+     - **Stock on Hand**: Real-time count of total available units across warehouse inventory (684+ units).
+     - **Inventory Asset Valuation**: Asset valuation in ₹ (`sum(price * stock)`).
+     - **Stock Health**: Real-time counter of Healthy vs Low Stock (1–25 units) vs Out of Stock items.
+   - **Stock Filter Pills & Live Search:**
+     - Filters: `All Items`, `In Stock (>25)`, `Low Stock (1-25)`, and `Out of Stock`.
+     - Live search input (`#admin-catalog-search`) filtering by brand, title, category, and tag.
+   - **Enhanced Data Table Columns:**
+     - Image thumbnail + Brand title + Product Name + SKU ID.
+     - Category badge (`Skincare`, `Makeup`, `Haircare`, `Body Care`, `Fragrance`, `Beauty Tools`).
+     - Unit Price & MRP strikethrough.
+     - **Total Stock Available**: Large bold unit count + color-coded health badge (`In Stock`, `Low Stock (X left)`, or `Out of Stock`).
+     - **Variant Inventory Breakdown**: Exact unit count chips per variant (e.g., `50 ml: 50 units · 30 ml: 48 units` for Serum; `Rosewood: 50 units · Soft Nude: 50 units · Deep Berry: 50 units` for Lipstick).
+     - Status tag badge (`BESTSELLER`, `NEW`, `TRENDING`).
+     - "View Item" action button opening product detail.
+
+### Files changed
+- `src/app.js`:
+  - Added `DEFAULT_SALONS` (all 3 partner studios with hours, coordinates, staff, and pricing).
+  - Added `DEFAULT_PRODUCTS` (all 7 skincare and beauty products with stock and `variant_stocks`).
+  - Added `DEFAULT_ADMIN_USERS` (including all 3 salon owners: `salon@glamgo.com`, `atelier@glamgo.com`, `maison@glamgo.com`).
+  - Added fallback defaults to `loadCatalogFeeds()`, `loadAdminData()`, and user governance.
+  - Added `salons` tab to `TAB_META` and Catalog sidebar navigation.
+  - Implemented `tab === 'salons'` view with summary KPIs, filter pills, search, and full partner studio table.
+  - Upgraded `tab === 'products'` view with 4-card inventory KPIs, stock filter pills, available stock units with health badge, and variant inventory breakdown chips.
+  - Added `'admin-salon-search'` to `adminSearchMap`, and handlers for `admin-salon-filter` and `admin-product-filter`.
+- `styles.css`:
+  - Added `.admin-stock-kpi-grid`, `.admin-stock-kpi`, and `.admin-stock-kpi-top` for 4-card metric strips.
+  - Added `.admin-table-thumb`, `.admin-prod-brand`, `.admin-prod-sku`, and `.admin-stock-num`.
+  - Added `.variant-stock-grid`, `.variant-stock-chip`, and `.variant-stock-chip.low-stock` for variant unit chips.
+  - Added `.salon-staff-list`, `.salon-service-tags`, and `.admin-tag-chip` for partner salon listings.
+- `backend/app/services/seed_service.py`:
+  - Added `atelier@glamgo.com` and `maison@glamgo.com` to `users_to_seed`.
+  - Linked `owner_id` for salons `l2` and `l3`.
+
+### Verification
+- `node -c src/app.js`: Clean JavaScript syntax verification (exit code 0).
+- `npm run build`: Production bundle built cleanly in 2.09s (`dist/assets/index-BJnqfdgj.css` 159.58 kB, `dist/assets/index-CXBD8e5V.js` 414.89 kB).
+- Playwright End-to-End Verification (`scripts/verify_admin.cjs`):
+  - Overview: Verified Partner Salons counter displays **3** (`verify_admin_overview.png`).
+  - Partner Salons Tab: Verified all 3 studios displayed with hours, staff, services, and pricing (`verify_admin_salons_tab.png`).
+  - Product Inventory Tab: Verified 4 KPI cards (7 SKUs, 684 Units, ₹11,87,860 valuation, 7 Healthy), Available Stock units with "IN STOCK" badges, and variant breakdown chips (`verify_admin_products_stock.png`).
+  - User Governance: Filtered by `SALON_OWNER` and verified all 3 salon owners present and active (`verify_admin_salon_owners.png`).
+
+
+## Prompt Entry #18 — 2026-11-21 16:42 IST — Isolate Turnkey Platform & Trigger Clean Production Deployment
+**Objective:** Maintain `main` on the core luxury editorial release (Prompt Entry #17) and branch out experimental turnkey platform features to dedicated branch `feat/turnkey-platform`:
+1. **Branch Architecture:**
+   - Isolated turnkey evaluation suite, persistent preview ribbon, and mock metrics to branch `feat/turnkey-platform`.
+   - Maintained clean, production-ready core codebase on `main` branch.
+2. **Production Deployment Trigger:**
+   - Triggered fresh Vercel production deployment of `main` to ensure live production URL (`glamgo-ricoz.vercel.app`) serves the clean editorial experience with zero turnkey preview bar.
 
 ## Prompt Entry #17 — 2026-11-21 14:35 IST — Container Edge Alignment & Concierge Suite Redesign (/design-taste-frontend)
 **Objective:** Address the user's feedback ("fix this its not alligned nicely and use some nice place for whatsapp and ai coverage") adhering to `tasteskill 2.5` (Rule 4: Equal left and right content edges; anti-slop luxury UI):
