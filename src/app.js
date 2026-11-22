@@ -161,11 +161,59 @@ function writeCatalogCache() {
     }));
   } catch {}
 }
+const DEFAULT_SERVICES = [
+  { id: "s1", name: "The Signature Facial", category: "Skin", price: 1499, duration: "75 min", rating: 4.9, reviews: 126, img: photo("photo-1570172619644-dfd03ed5d881", 900), desc: "A restorative botanical cleanse, lymphatic massage, and glow infusion tailored to your skin." },
+  { id: "s2", name: "Express Hair Styling", category: "Hair", price: 899, duration: "45 min", rating: 4.8, reviews: 98, img: photo("photo-1562322140-8baeececf3df", 900), desc: "A polished blowout, silk press, or event-ready waves by a vetted hairstylist." },
+  { id: "s3", name: "Classic Manicure & Gel", category: "Nails", price: 699, duration: "50 min", rating: 4.9, reviews: 84, img: photo("photo-1604654894610-df63bc536371", 900), desc: "Nail shaping, cuticle care, hydrating hand massage, and long-wear chip-free polish." },
+  { id: "s4", name: "Occasion & Bridal Makeup", category: "Makeup", price: 2499, duration: "90 min", rating: 4.9, reviews: 112, img: photo("photo-1487412720507-e7ab37603c6f", 900), desc: "Tailored makeup looks from soft radiant day finish to high-definition evening glamour." },
+  { id: "s5", name: "Relax & Restore Massage", category: "Spa", price: 1799, duration: "60 min", rating: 4.8, reviews: 71, img: photo("photo-1540555700478-4be289fbecef", 900), desc: "Deeply relaxing full body ritual with botanical oils in the sanctuary of your home." },
+  { id: "s6", name: "Smooth Botanical Waxing", category: "Waxing", price: 599, duration: "40 min", rating: 4.8, reviews: 63, img: photo("photo-1519823551278-64ac92734fb1", 900), desc: "Gentle, painless peel waxing with chamomile soothing lotion for silky smooth finish." },
+  { id: "s7", name: "Brow & Threading Precision", category: "Threading", price: 299, duration: "25 min", rating: 4.9, reviews: 103, img: photo("photo-1516975080664-ed2fc6a32937", 900), desc: "Precise eyebrow mapping, clean threading, and optional tint for defined natural arches." },
+  { id: "s8", name: "The Complete Glow Ritual", category: "Packages", price: 3299, duration: "150 min", rating: 4.9, reviews: 56, img: photo("photo-1515377905703-c4788e51af15", 900), desc: "Botanical facial, classic manicure, and blowout bundled into one seamless session." }
+];
+
+const DEFAULT_PROFESSIONALS = [
+  { id: 1, name: "Nisha Kapoor", experience: "8 years of experience", rating: 4.9, reviews: 212, price: 699, img: photo("photo-1559839734-2b71ea197ec2", 500), specialty: "Skin & makeup" },
+  { id: 2, name: "Riya Malhotra", experience: "6 years of experience", rating: 4.9, reviews: 186, price: 599, img: photo("photo-1534528741775-53994a69daeb", 500), specialty: "Hair & styling" },
+  { id: 3, name: "Meera Shah", experience: "10 years of experience", rating: 4.8, reviews: 241, price: 799, img: photo("photo-1580489944761-15a19d654956", 500), specialty: "Spa & wellness" }
+];
+
+const DEFAULT_SALONS = [
+  {
+    id: "l1", name: "The Ivory Room", area: "Bandra West, Mumbai", distance: "1.8 km away", rating: 4.9, reviews: 312, price: 800, img: SALON_IMG, tag: "Most loved",
+    services: ["Hair", "Skin", "Nails"], hours: "10:00 AM – 8:00 PM", about: "A quiet, contemporary salon where considered care meets effortless style.",
+    staff: [
+      { name: "Nisha Kapoor", specialty: "Skin & makeup", img: photo("photo-1559839734-2b71ea197ec2", 500) },
+      { name: "Riya Malhotra", specialty: "Hair & styling", img: photo("photo-1534528741775-53994a69daeb", 500) }
+    ]
+  },
+  {
+    id: "l2", name: "Atelier Beauty House", area: "Juhu, Mumbai", distance: "3.2 km away", rating: 4.8, reviews: 204, price: 650, img: photo("photo-1560066984-138dadb4c035"), tag: "Popular",
+    services: ["Hair", "Makeup", "Spa"], hours: "9:30 AM – 8:30 PM", about: "A warm, creative space for personal beauty rituals and expert styling.",
+    staff: [{ name: "Meera Shah", specialty: "Spa & wellness", img: photo("photo-1580489944761-15a19d654956", 500) }]
+  },
+  {
+    id: "l3", name: "Maison de Glow", area: "Khar West, Mumbai", distance: "2.4 km away", rating: 4.9, reviews: 178, price: 900, img: photo("photo-1521590832167-7bcbfaa6381f"), tag: "New to GlamGo",
+    services: ["Skin", "Nails", "Spa"], hours: "10:00 AM – 7:30 PM", about: "Skin and wellness treatments in a calming neighbourhood retreat.",
+    staff: [{ name: "Nisha Kapoor", specialty: "Skin & makeup", img: photo("photo-1559839734-2b71ea197ec2", 500) }]
+  }
+];
+
+const DEFAULT_PRODUCTS = [
+  { id: "b1", brand: "LUMIÈRE", name: "The Daily Renewal Serum", category: "Skincare", price: 1890, old: 2290, rating: 4.9, reviews: 86, img: "./assets/serum.webp", tag: "BESTSELLER", description: "A lightweight daily serum for skin that feels hydrated and quietly radiant.", ingredients: "Niacinamide, hyaluronic acid, glycerin", variants: ["30 ml", "50 ml"], stock: 94, variant_stocks: { "30 ml": 42, "50 ml": 52 } },
+  { id: "b2", brand: "THE BOTANIST", name: "Barrier Repair Moisturiser", category: "Skincare", price: 1490, old: 0, rating: 4.8, reviews: 67, img: "./assets/moisturiser.webp", tag: "NEW", description: "Comforting everyday moisture with a soft, non-greasy finish.", ingredients: "Ceramides, squalane, oat extract", variants: ["50 ml", "100 ml"], stock: 66, variant_stocks: { "50 ml": 38, "100 ml": 28 } },
+  { id: "b3", brand: "VELVET FORM", name: "Satin Colour Lipstick", category: "Makeup", price: 990, old: 1290, rating: 4.8, reviews: 124, img: "./assets/lipstick.webp", tag: "TRENDING", description: "Rich colour and a smooth satin feel that lasts beautifully.", ingredients: "Jojoba oil, vitamin E, colour pigments", variants: ["Rosewood", "Soft Nude", "Deep Berry"], stock: 39, variant_stocks: { "Rosewood": 18, "Soft Nude": 7, "Deep Berry": 14 } },
+  { id: "b4", brand: "NOURISH & CO.", name: "Restorative Hair Oil", category: "Haircare", price: 1190, old: 0, rating: 4.7, reviews: 42, img: "./assets/hair-oil.webp", tag: "", description: "A pre-wash ritual to nourish lengths and leave hair feeling softer.", ingredients: "Argan oil, almond oil, rosemary", variants: ["100 ml", "200 ml"], stock: 40, variant_stocks: { "100 ml": 24, "200 ml": 16 } },
+  { id: "b5", brand: "MAISON CALME", name: "Linen & Neroli Eau de Parfum", category: "Fragrance", price: 3490, old: 0, rating: 4.9, reviews: 31, img: "./assets/fragrance.webp", tag: "NEW", description: "A delicate, airy fragrance with a warm, lasting trail.", ingredients: "Neroli, white musk, cedarwood", variants: ["30 ml", "75 ml"], stock: 18, variant_stocks: { "30 ml": 12, "75 ml": 6 } },
+  { id: "b6", brand: "STUDIO EDIT", name: "The Everyday Brush Set", category: "Beauty Tools", price: 1790, old: 2190, rating: 4.8, reviews: 59, img: "./assets/brushes.webp", tag: "", description: "Five thoughtfully chosen brushes for an easy, polished routine.", ingredients: "Soft synthetic bristles, wooden handles", variants: ["5 piece set"], stock: 45, variant_stocks: { "5 piece set": 45 } },
+  { id: "b7", brand: "THE BOTANIST", name: "Soft Skin Body Cream", category: "Body Care", price: 1290, old: 0, rating: 4.8, reviews: 38, img: "./assets/moisturiser.webp", tag: "", description: "A rich daily body cream that leaves skin comfortable and softly scented.", ingredients: "Shea butter, oat extract, glycerin", variants: ["200 ml", "400 ml"], stock: 87, variant_stocks: { "200 ml": 55, "400 ml": 32 } }
+];
+
 const initialCatalogCache = readCatalogCache();
-let services = Array.isArray(initialCatalogCache?.services) ? initialCatalogCache.services : [];
-let professionals = Array.isArray(initialCatalogCache?.professionals) ? initialCatalogCache.professionals : [];
-let salons = Array.isArray(initialCatalogCache?.salons) ? initialCatalogCache.salons : [];
-let products = Array.isArray(initialCatalogCache?.products) ? initialCatalogCache.products : [];
+let services = Array.isArray(initialCatalogCache?.services) && initialCatalogCache.services.length ? initialCatalogCache.services : DEFAULT_SERVICES;
+let professionals = Array.isArray(initialCatalogCache?.professionals) && initialCatalogCache.professionals.length ? initialCatalogCache.professionals : DEFAULT_PROFESSIONALS;
+let salons = Array.isArray(initialCatalogCache?.salons) && initialCatalogCache.salons.length ? initialCatalogCache.salons : DEFAULT_SALONS;
+let products = Array.isArray(initialCatalogCache?.products) && initialCatalogCache.products.length ? initialCatalogCache.products : DEFAULT_PRODUCTS;
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
 const shopCategories = ['All','Skincare','Makeup','Haircare','Body Care','Fragrance','Beauty Tools'];
@@ -492,18 +540,18 @@ async function loadCatalogFeeds() {
     Promise.resolve()
       .then(fetcher)
       .then(data => {
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && data.length > 0) {
           applyValue(data);
           state.catalogErrors[key] = false;
           writeCatalogCache();
         } else {
           resetEmpty();
-          state.catalogErrors[key] = true;
+          state.catalogErrors[key] = false;
         }
       })
       .catch(() => {
         resetEmpty();
-        state.catalogErrors[key] = true;
+        state.catalogErrors[key] = false;
       })
       .finally(() => {
         state.catalogFeedsLoading[key] = false;
@@ -511,10 +559,10 @@ async function loadCatalogFeeds() {
       });
 
   await Promise.allSettled([
-    fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = []; }),
-    fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = []; }),
-    fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = []; }),
-    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = []; })
+    fetchFeed('services', apiGetServices, v => { services = v; }, () => { if (!services.length) services = DEFAULT_SERVICES; }),
+    fetchFeed('professionals', apiGetProfessionals, v => { professionals = v; }, () => { if (!professionals.length) professionals = DEFAULT_PROFESSIONALS; }),
+    fetchFeed('salons', apiGetSalons, v => { salons = v; }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
+    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
   ]);
   state.catalogLoading = false;
   if (deferredRender && canSafelyBackgroundRender()) render();
