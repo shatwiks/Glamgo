@@ -153,10 +153,10 @@ Plans:
 **Plans**: 4 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — Flagship Consumer Website (`main`, Wave 1) — Backend multi-city GPS persistence, SQLite/PG auto-migration, `/api/v1/catalog/salons` radius filtering, hardened Password Reset & Mobile OTP auth, and Admin partner activation (`MAIN-01`, `MAIN-02`)
-- [ ] 13-02-PLAN.md — Flagship Consumer Website (`main`, Wave 2) — Booking reschedule/OTP/add-ons, city-scoped `⌘K` search, autocomplete dismissal, dynamic code-splitting, policy drawers, SEO JSON-LD, and end-to-end Referral/Gift Card checkout credits (`MAIN-03`, `MAIN-04`, `MAIN-05`)
-- [ ] 13-03-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 3) — Multi-city & Haversine distance engine parity sync preserving 1-click 4-dashboard access + Live White-Label Brand Customizer (`TURN-01`, `TURN-02`)
-- [ ] 13-04-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 4) — Dual-mode ROI calculator, 3-tier comparison matrix, architecture deliverables spec, proposal lead capture with CSV formula sanitization, and Reset Sandbox Data (`TURN-03`, `TURN-04`, `TURN-05`)
+- [x] 13-01-PLAN.md — Flagship Consumer Website (`main`, Wave 1) — Backend multi-city GPS persistence, SQLite/PG auto-migration, `/api/v1/catalog/salons` radius filtering, hardened Password Reset & Mobile OTP auth, and Admin partner activation (`MAIN-01`, `MAIN-02`)
+- [x] 13-02-PLAN.md — Flagship Consumer Website (`main`, Wave 2) — Booking reschedule/OTP/add-ons, city-scoped `⌘K` search, autocomplete dismissal, dynamic code-splitting, policy drawers, SEO JSON-LD, and end-to-end Referral/Gift Card checkout credits (`MAIN-03`, `MAIN-04`, `MAIN-05`)
+- [x] 13-03-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 3) — Multi-city & Haversine distance engine parity sync preserving 1-click 4-dashboard access + Live White-Label Brand Customizer (`TURN-01`, `TURN-02`)
+- [x] 13-04-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 4) — Dual-mode ROI calculator, 3-tier comparison matrix, architecture deliverables spec, proposal lead capture with CSV formula sanitization, and Reset Sandbox Data (`TURN-03`, `TURN-04`, `TURN-05`)
 
 ## Progress
 
@@ -175,4 +175,4 @@ Plans:
 | 10. Salon Chair Capacity | v2.0 | 0/1 | Not started | - |
 | 11. Multi-Vendor Fulfillment | v2.0 | 0/1 | Not started | - |
 | 12. Automated Financial Escrow | v2.0 | 0/1 | Not started | - |
-| 13. Dual-Track Main & Turnkey Upgrades | v2.0 | 0/4 | Planning | - |
+| 13. Dual-Track Main & Turnkey Upgrades | v2.0 | 4/4 | Complete | 2026-11-22 |

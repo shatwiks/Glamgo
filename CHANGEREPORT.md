@@ -1,5 +1,18 @@
 # Change Report
 
+## Prompt Entry #25 — 2026-11-22 09:22 IST — Phase 13 Closeout: Dual-Track Consumer (`main`) & Turnkey Showcase (`feat/turnkey-platform`) Execution Complete (`4/4` Plans)
+**Objective:** Record completion of Waves 3 & 4 (`13-03-PLAN.md` and `13-04-PLAN.md` on `feat/turnkey-platform`, pushed as `f36c8a0`) and close out Phase 13 (`4/4` plans complete, `MAIN-01..05` and `TURN-01..05` satisfied) in `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, and `.planning/STATE.md` on `main`.
+- **Created / Synced Files on `main`:**
+  - `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-03-SUMMARY.md`: Execution summary for Wave 3 (`TURN-01`, `TURN-02` on `feat/turnkey-platform`).
+  - `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-04-SUMMARY.md`: Execution summary for Wave 4 (`TURN-03`, `TURN-04`, `TURN-05` on `feat/turnkey-platform`).
+- **Modified Files on `main`:**
+  - `.planning/ROADMAP.md`: Checked off `13-01-PLAN.md`..`13-04-PLAN.md` (`[x]`) and updated Phase 13 progress row to `4/4 | Complete | 2026-11-22`.
+  - `.planning/REQUIREMENTS.md`: Checked off `MAIN-01`..`MAIN-05` and `TURN-01`..`TURN-05` (`[x]`) and set traceability matrix status to `Complete`.
+  - `.planning/STATE.md`: Updated Phase 13 status to `COMPLETE (4/4 Plans)`.
+- **Verification Summary across both branches:**
+  - `main` (`fdfb9df`): `.venv\Scripts\python.exe -m pytest tests/ -v` -> **99/99 passed**; `npm run build` -> code-split chunks (`index`: `311.88 kB`, `vendor-leaflet`: `150.07 kB`, `dashboards-suite`: `54.09 kB`, zero chunks >500 kB); Playwright E2E (`verify_phase13_main.png`) passed with `0px` overflow.
+  - `feat/turnkey-platform` (`f36c8a0`): `npm run build` -> code-split chunks (`index`: `348.35 kB`, `vendor-leaflet`: `150.07 kB`, `dashboards-suite`: `54.18 kB`, zero chunks >500 kB); Playwright E2E (`verify_phase13_turnkey.png`) verified Live White-Label Brand Customizer (`Velvet Aura`, `$ USD`, `Botanical Emerald`), Dual-Mode ROI Calculator, 3-Tier Matrix, Deliverables Spec, Bengaluru distance engine, Proposal Lead Capture into `Admin Command -> Buyer & Partner Leads`, 1-click access to all 4 dashboards, `Reset Sandbox`, `0` page errors, and `0px` overflow at `1440px` and `375px`.
+
 ## Prompt Entry #24 — 2026-11-22 08:30 IST — Execute Phase 13 Consumer Website Upgrades (`13-01` & `13-02` on `main`)
 **Objective:** Execute Waves 1 and 2 (`13-01-PLAN.md` and `13-02-PLAN.md`) of Phase 13 on the flagship consumer branch `main`, delivering multi-city GPS persistence & Haversine radius filtering (`MAIN-01`), hardened self-service Password Reset / Mobile OTP auth & Admin Partner role activation (`MAIN-02`), 1-tap booking reschedule, strict 4-digit arrival OTP sync & server-priced add-ons (`MAIN-03`), city-scoped `⌘K` search, clean autocomplete dismissal & lazy dashboard/Leaflet code splitting under 500 kB (`MAIN-04`), and editorial Legal/Policy drawers, `BeautySalon` JSON-LD SEO & end-to-end Referral / Gift Card wallet credit redemption at checkout (`MAIN-05`).
 
