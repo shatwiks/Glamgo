@@ -120,6 +120,37 @@ export async function apiGetMe() {
   return await apiRequest('/auth/me');
 }
 
+export async function apiRequestPasswordReset(email) {
+  return await apiRequest('/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiConfirmPasswordReset(email, code, newPassword) {
+  return await apiRequest('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+  });
+}
+
+export async function apiRequestMobileOtp(phone) {
+  return await apiRequest('/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function apiVerifyMobileOtp(phone, otp) {
+  const data = await apiRequest('/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phone, otp }),
+  });
+  tokenStorage.set(data.access_token);
+  tokenStorage.setRefresh(data.refresh_token);
+  return data;
+}
+
 // Catalog
 export async function apiGetServices(category = null, query = null, city = null) {
   const params = new URLSearchParams();

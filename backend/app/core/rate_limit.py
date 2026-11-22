@@ -1,17 +1,22 @@
+import os
 import time
 import logging
-from typing import Optional
+import threading
+from typing import Dict, List
 from fastapi import Request, HTTPException, status
 from backend.app.core.redis_client import get_redis
 
 logger = logging.getLogger("glamgo.ratelimit")
+
+_in_memory_lock = threading.Lock()
+_in_memory_windows: Dict[str, List[float]] = {}
 
 
 class RateLimiter:
     """Sliding-window Redis rate limiter dependency for FastAPI.
 
     Enforces request limits per client IP or identified token.
-    Fails open gracefully if Redis is temporarily unreachable.
+    Falls back to a thread-safe in-memory sliding window when Redis is unavailable.
     """
 
     def __init__(self, requests: int, window_seconds: int, prefix: str = "rl"):
@@ -19,8 +24,28 @@ class RateLimiter:
         self.window_seconds = window_seconds
         self.prefix = prefix
 
+    def _enforce_in_memory(self, key: str, client_ip: str, now: float, window_start: float):
+        with _in_memory_lock:
+            bucket = [ts for ts in _in_memory_windows.get(key, []) if ts > window_start]
+            if len(bucket) >= self.requests:
+                _in_memory_windows[key] = bucket
+                logger.warning(
+                    "In-memory rate limit exceeded for prefix=%s ip=%s count=%d limit=%d",
+                    self.prefix, client_ip, len(bucket), self.requests
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    detail=f"Rate limit exceeded. Maximum {self.requests} requests per {self.window_seconds}s.",
+                    headers={
+                        "Retry-After": str(self.window_seconds),
+                        "X-RateLimit-Limit": str(self.requests),
+                        "X-RateLimit-Remaining": "0"
+                    }
+                )
+            bucket.append(now)
+            _in_memory_windows[key] = bucket
+
     async def __call__(self, request: Request):
-        import os
         # During automated test suite runs, bypass rate limiting unless explicitly testing it
         if os.environ.get("PYTEST_CURRENT_TEST") and request.headers.get("x-test-rate-limit") != "true":
             return
@@ -35,7 +60,8 @@ class RateLimiter:
 
         r = get_redis()
         if not r:
-            return  # Fail open if Redis unavailable
+            self._enforce_in_memory(key, client_ip, now, window_start)
+            return
 
         try:
             pipe = r.pipeline(transaction=True)
@@ -68,5 +94,5 @@ class RateLimiter:
         except HTTPException:
             raise
         except Exception as e:
-            logger.warning("Rate limiter check error for key %s: %s (failing open)", key, e)
-            return
+            logger.warning("Rate limiter Redis error for key %s: %s (falling back to in-memory)", key, e)
+            self._enforce_in_memory(key, client_ip, now, window_start)

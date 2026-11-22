@@ -1,3 +1,4 @@
+import re
 import secrets
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -231,6 +232,19 @@ def get_admin_partner_drafts(
     return results
 
 
+def _parse_partner_city_coords(description: Optional[str]) -> tuple[str, str, float, float]:
+    m = re.search(r"City:\s*([^\]|]+)", description or "", re.IGNORECASE)
+    raw_city = (m.group(1) if m else "").strip()
+    low = raw_city.lower()
+    if "bengaluru" in low or "bangalore" in low:
+        return ("Bengaluru", "Indiranagar, Bengaluru", 12.9784, 77.6408)
+    if "delhi" in low or "ncr" in low:
+        return ("Delhi", "Hauz Khas, South Delhi", 28.5494, 77.2001)
+    city_name = raw_city or "Mumbai"
+    area_name = "Bandra West, Mumbai" if city_name.lower() == "mumbai" else f"{city_name} Central, {city_name}"
+    return (city_name, area_name, 19.0596, 72.8295)
+
+
 @router.patch("/partners/drafts/{draft_id}/approve", response_model=PartnerDraftModerationResponse)
 def approve_partner_draft(
     draft_id: int,
@@ -267,17 +281,25 @@ def approve_partner_draft(
         if draft.user_id:
             user = db.query(User).filter(User.id == draft.user_id).first()
             if user:
+                parsed_city, parsed_area, city_lat, city_lng = _parse_partner_city_coords(draft.description)
                 role_lower = draft.role.lower()
+                workspace_label = "Partner Studio"
                 if "professional" in role_lower:
-                    user.role = UserRole.PROFESSIONAL
+                    if user.role != UserRole.ADMIN:
+                        user.role = UserRole.PROFESSIONAL
+                    workspace_label = "Specialist Studio"
                     existing_pro = db.query(ProfessionalProfile).filter(ProfessionalProfile.user_id == user.id).first()
                     if not existing_pro:
                         pro = ProfessionalProfile(
                             user_id=user.id,
                             name=user.full_name,
+                            city=parsed_city,
+                            area=parsed_area,
+                            lat=city_lat,
+                            lng=city_lng,
                             specialty="Beauty Specialist",
                             experience="Certified Specialist",
-                            price=draft.price or 1500.0,
+                            price=float(draft.price or 1500.0),
                             rating=5.0,
                             reviews=1,
                             img="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&auto=format&fit=crop&q=80",
@@ -285,28 +307,43 @@ def approve_partner_draft(
                         )
                         db.add(pro)
                 elif "salon" in role_lower:
-                    user.role = UserRole.SALON_OWNER
+                    if user.role != UserRole.ADMIN:
+                        user.role = UserRole.SALON_OWNER
+                    workspace_label = "Salon Owner Hub"
                     existing_salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
                     if not existing_salon:
                         salon = Salon(
                             id=f"sal-{secrets.token_hex(3)}",
                             owner_id=user.id,
                             name=draft.name,
-                            description=draft.description,
-                            address="Bandra West, Mumbai",
-                            area="Bandra West",
-                            hours="10:00 AM - 8:00 PM",
+                            city=parsed_city,
+                            area=parsed_area,
+                            lat=city_lat,
+                            lng=city_lng,
+                            distance="1.0 km away",
+                            price=float(draft.price or 800.0),
                             rating=4.9,
-                            img="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&auto=format&fit=crop&q=80"
+                            reviews=1,
+                            img="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&auto=format&fit=crop&q=80",
+                            tag="New Partner",
+                            services_list="Hair,Skin,Nails",
+                            hours="10:00 AM - 8:00 PM",
+                            about=draft.description,
                         )
                         db.add(salon)
                 elif "seller" in role_lower:
-                    user.role = UserRole.SELLER
+                    if user.role != UserRole.ADMIN:
+                        user.role = UserRole.SELLER
+                    workspace_label = "Product Seller Hub"
 
                 db.add(Notification(
                     user_id=user.id,
                     type="partner",
-                    text=f"Congratulations! Your partner application for {draft.role} has been approved."
+                    text=(
+                        f"Congratulations! Your {draft.role} application '{draft.name}' has been approved "
+                        f"and your {workspace_label} is now active. Sign in with your registered email "
+                        f"({user.email}) to access your studio."
+                    )
                 ))
 
         client_ip = request.client.host if request.client else None

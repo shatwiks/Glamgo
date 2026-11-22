@@ -5,6 +5,10 @@ import {
   apiLogin,
   apiRegister,
   apiGetMe,
+  apiRequestPasswordReset,
+  apiConfirmPasswordReset,
+  apiRequestMobileOtp,
+  apiVerifyMobileOtp,
   apiGetServices,
   apiGetProfessionals,
   apiGetSalons,
@@ -784,6 +788,11 @@ const state = {
   booking: null,
   checkoutPayment: 'UPI',
   authMode: 'signin',
+  authResetEmail: '',
+  authResetStage: 'request',
+  authOtpPhone: '',
+  authOtpStage: 'request',
+  authDevHint: '',
   adminStats: null,
   adminUsers: DEFAULT_ADMIN_USERS,
   adminDrafts: [],
@@ -1488,14 +1497,80 @@ function auth(){
     ? 'Administrator Sign In'
     : mode==='signup'
       ? (isPartnerAuth ? 'Create your partner account' : 'Create your account')
-      : (isPartnerAuth ? 'Sign in to Partner Studio' : 'Welcome back');
+      : mode==='otp'
+        ? 'Sign in with Mobile OTP'
+        : mode==='reset'
+          ? 'Reset your password'
+          : (isPartnerAuth ? 'Sign in to Partner Studio' : 'Welcome back');
   const rightCopy = isAdminAuth
     ? 'Enter your authorized Admin ID (email) and password to access the Command Centre.'
-    : isPartnerAuth
-      ? 'Sign in or create an account to access your '+partnerRoleLabel+' application and workspace.'
-      : 'Access saved addresses, live order tracking, and upcoming appointments.';
+    : mode==='otp'
+      ? 'Verify your registered mobile number with a one-time passcode.'
+      : mode==='reset'
+        ? 'Request a 6-digit verification code to set a new password.'
+        : isPartnerAuth
+          ? 'Sign in or create an account to access your '+partnerRoleLabel+' application and workspace.'
+          : 'Access saved addresses, live order tracking, and upcoming appointments.';
   const leftImg = (isPartnerAuth || isAdminAuth) ? SALON_IMG : HOME_IMG;
-  return '<div class="auth-layout"><div class="auth-image">'+image(leftImg,(isPartnerAuth || isAdminAuth)?'Partner salon studio interior':'At-home beauty treatment')+'<div class="auth-image-copy">' + brandWordmark(true) + '<h1>'+leftTitle+'</h1><p>'+leftSub+'</p></div></div><div class="auth-panel"><div class="auth-box"><h2>'+rightHeading+'</h2><p>'+rightCopy+'</p><form id="auth-form">'+(mode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'')+'<label>'+(isAdminAuth?'Administrator ID (Email)':'Email address')+'<input name="email" type="email" required placeholder="'+(isAdminAuth?'admin@glamgo.com':'you@example.com')+'" autocomplete="email"></label><label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'"></label><button class="btn btn-primary full" type="submit">'+(isAdminAuth?'Sign in to Command Centre':mode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form>'+(isAdminAuth?'':'<p class="auth-switch">'+(mode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(mode==='signup'?'Sign in':'Create an account')+'</button></p>')+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing</button></p></div></div></div>';
+  const methodPillsHtml = (!isAdminAuth && mode !== 'signup')
+    ? '<div class="filter-row" role="tablist" aria-label="Sign in method" style="margin-bottom:16px">' +
+        '<button type="button" class="filter-chip'+(mode==='signin'?' active':'')+'" data-action="auth-mode-set" data-id="signin">Email &amp; Password</button>' +
+        '<button type="button" class="filter-chip'+(mode==='otp'?' active':'')+'" data-action="auth-mode-set" data-id="otp">Mobile OTP</button>' +
+      '</div>'
+    : '';
+  const devHintHtml = state.authDevHint
+    ? '<p class="muted" style="font-size:12px;margin:8px 0 12px;padding:8px 12px;border:1px solid var(--border);border-radius:8px">'+esc(state.authDevHint)+'</p>'
+    : '';
+
+  let formHtml = '';
+  if (!isAdminAuth && mode === 'otp') {
+    if (state.authOtpStage === 'verify') {
+      formHtml = '<p class="muted" style="margin-bottom:10px">Code sent to <strong>'+esc(state.authOtpPhone)+'</strong></p>' +
+        devHintHtml +
+        '<form id="auth-otp-verify-form">' +
+          '<label>6-digit OTP<input name="otp" inputmode="numeric" required maxlength="8" placeholder="Enter 6-digit OTP" autocomplete="one-time-code"></label>' +
+          '<button class="btn btn-primary full" type="submit">Verify &amp; Sign in '+icon('arrow',17)+'</button>' +
+        '</form>' +
+        '<p class="auth-switch"><button type="button" data-action="auth-otp-restart">Use a different mobile number</button></p>';
+    } else {
+      formHtml = '<form id="auth-otp-request-form">' +
+          '<label>Registered mobile number<input name="phone" type="tel" required placeholder="+91 98765 43210" autocomplete="tel" value="'+esc(state.authOtpPhone || '')+'"></label>' +
+          '<button class="btn btn-primary full" type="submit">Send OTP '+icon('arrow',17)+'</button>' +
+        '</form>';
+    }
+  } else if (!isAdminAuth && mode === 'reset') {
+    if (state.authResetStage === 'confirm') {
+      formHtml = '<p class="muted" style="margin-bottom:10px">Enter the code sent for <strong>'+esc(state.authResetEmail)+'</strong></p>' +
+        devHintHtml +
+        '<form id="auth-reset-confirm-form">' +
+          '<label>6-digit reset code<input name="code" inputmode="numeric" required maxlength="16" placeholder="Enter 6-digit code"></label>' +
+          '<label>New password<input name="new_password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password"></label>' +
+          '<button class="btn btn-primary full" type="submit">Reset password '+icon('arrow',17)+'</button>' +
+        '</form>' +
+        '<p class="auth-switch"><button type="button" data-action="auth-reset-restart">Use a different email</button></p>';
+    } else {
+      formHtml = '<form id="auth-reset-request-form">' +
+          '<label>Account email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email" value="'+esc(state.authResetEmail || '')+'"></label>' +
+          '<button class="btn btn-primary full" type="submit">Send reset code '+icon('arrow',17)+'</button>' +
+        '</form>';
+    }
+  } else {
+    formHtml = '<form id="auth-form">' +
+        (mode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'') +
+        '<label>'+(isAdminAuth?'Administrator ID (Email)':'Email address')+'<input name="email" type="email" required placeholder="'+(isAdminAuth?'admin@glamgo.com':'you@example.com')+'" autocomplete="email"></label>' +
+        '<label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'"></label>' +
+        '<button class="btn btn-primary full" type="submit">'+(isAdminAuth?'Sign in to Command Centre':mode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button>' +
+      '</form>' +
+      (!isAdminAuth && mode==='signin' ? '<p class="auth-switch"><button type="button" data-action="auth-mode-set" data-id="reset">Forgot password?</button></p>' : '');
+  }
+
+  const footerSwitchHtml = isAdminAuth
+    ? ''
+    : mode==='reset'
+      ? '<p class="auth-switch"><button type="button" data-action="auth-mode-set" data-id="signin">Back to Email Sign In</button></p>'
+      : '<p class="auth-switch">'+(mode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(mode==='signup'?'Sign in':'Create an account')+'</button></p>';
+
+  return '<div class="auth-layout"><div class="auth-image">'+image(leftImg,(isPartnerAuth || isAdminAuth)?'Partner salon studio interior':'At-home beauty treatment')+'<div class="auth-image-copy">' + brandWordmark(true) + '<h1>'+leftTitle+'</h1><p>'+leftSub+'</p></div></div><div class="auth-panel"><div class="auth-box"><h2>'+rightHeading+'</h2><p>'+rightCopy+'</p>'+methodPillsHtml+formHtml+footerSwitchHtml+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing</button></p></div></div></div>';
 }
 
 function header(){
@@ -4912,7 +4987,16 @@ async function action(el){
     render();
     toast('Signed out');
   }
-  else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; render(); }
+  else if(a==='auth-toggle'){ state.authMode=state.authMode==='signin'?'signup':'signin'; state.authDevHint=''; render(); }
+  else if(a==='auth-mode-set'){
+    state.authMode = id || 'signin';
+    state.authDevHint = '';
+    if (state.authMode === 'otp') state.authOtpStage = 'request';
+    if (state.authMode === 'reset') state.authResetStage = 'request';
+    render();
+  }
+  else if(a==='auth-otp-restart'){ state.authOtpStage='request'; state.authDevHint=''; render(); }
+  else if(a==='auth-reset-restart'){ state.authResetStage='request'; state.authDevHint=''; render(); }
   else if(a==='partners'){
     const chosenRole = state.partnerRole || 'Salon Owner';
     if(!requireAuth({ view: 'partner', partnerRole: chosenRole }, 'Sign in to access your Partner Studio')) return;
@@ -5194,7 +5278,12 @@ async function action(el){
       const res = await apiApprovePartnerDraft(Number(id));
       const idx = (state.adminDrafts || []).findIndex(d => d.id === Number(id));
       if (idx !== -1) state.adminDrafts[idx] = res;
-      toast('Partner application approved & user promoted!');
+      const workspaceRole = /salon/i.test(res.role || '')
+        ? 'Salon Owner Hub'
+        : /sell/i.test(res.role || '')
+          ? 'Product Seller Hub'
+          : 'Specialist Studio';
+      toast(`${res.applicant_name || res.name || 'Partner'} approved — ${workspaceRole} activated!`);
       const [uRes, aRes] = await Promise.allSettled([apiGetAdminUsers(), apiGetAuditLogs(null, 50, 0)]);
       if (uRes.status === 'fulfilled') state.adminUsers = uRes.value;
       if (aRes.status === 'fulfilled') state.adminAuditLogs = aRes.value;
@@ -5484,6 +5573,78 @@ document.addEventListener('submit', async e => {
     if(msg){
       input.value = '';
       handleAiUserMessage(msg);
+    }
+    return;
+  }
+  if(f.id === 'auth-otp-request-form'){
+    const phone = String(d.get('phone') || '').trim();
+    try {
+      const res = await apiRequestMobileOtp(phone);
+      state.authOtpPhone = phone;
+      state.authOtpStage = 'verify';
+      state.authDevHint = res?.dev_otp ? `Dev OTP: ${res.dev_otp}` : '';
+      render();
+      toast(res?.message || 'Verification code requested.');
+    } catch (err) {
+      toast(err.message || 'Could not request OTP');
+    }
+    return;
+  }
+  if(f.id === 'auth-otp-verify-form'){
+    const otp = String(d.get('otp') || '').trim();
+    try {
+      const res = await apiVerifyMobileOtp(state.authOtpPhone, otp);
+      state.signedIn = true;
+      state.user = { id: res.user_id, name: res.name, email: res.email, phone: res.phone || state.authOtpPhone || '', role: res.role };
+      state.authMode = 'signin';
+      state.authOtpStage = 'request';
+      state.authDevHint = '';
+      const bookingResume = applyPostAuthNavigation(res.role);
+      const [myB, myO, myA, myN] = await Promise.allSettled([
+        apiGetMyBookings(),
+        apiGetMyOrders(),
+        apiGetAddresses(),
+        apiGetNotifications()
+      ]);
+      if(myB.status==='fulfilled') state.bookings = myB.value;
+      if(myO.status==='fulfilled') state.orders = myO.value;
+      if(myA.status==='fulfilled') state.addresses = myA.value;
+      if(myN.status==='fulfilled') state.notifications = myN.value;
+      persist();
+      render();
+      if (bookingResume) openBooking(...bookingResume.args);
+      toast(`Welcome back, ${res.name.split(' ')[0]}`);
+    } catch (err) {
+      toast(err.message || 'Invalid OTP');
+    }
+    return;
+  }
+  if(f.id === 'auth-reset-request-form'){
+    const email = String(d.get('email') || '').trim();
+    try {
+      const res = await apiRequestPasswordReset(email);
+      state.authResetEmail = email;
+      state.authResetStage = 'confirm';
+      state.authDevHint = res?.dev_code ? `Dev Reset Code: ${res.dev_code}` : '';
+      render();
+      toast(res?.message || 'Reset code requested.');
+    } catch (err) {
+      toast(err.message || 'Could not request password reset');
+    }
+    return;
+  }
+  if(f.id === 'auth-reset-confirm-form'){
+    const code = String(d.get('code') || '').trim();
+    const newPassword = String(d.get('new_password') || '').trim();
+    try {
+      const res = await apiConfirmPasswordReset(state.authResetEmail, code, newPassword);
+      state.authMode = 'signin';
+      state.authResetStage = 'request';
+      state.authDevHint = '';
+      render();
+      toast(res?.message || 'Password updated. Please sign in.');
+    } catch (err) {
+      toast(err.message || 'Password reset failed');
     }
     return;
   }
