@@ -11,4 +11,18 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/leaflet')) {
+            return 'vendor-leaflet';
+          }
+          if (id.includes('dashboards-suite.js')) {
+            return 'dashboards-suite';
+          }
+        },
+      },
+    },
+  },
 });

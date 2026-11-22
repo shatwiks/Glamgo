@@ -119,9 +119,14 @@ export const DEFAULT_DASHBOARD_OPS = {
 const listOf = (state, key) => (Array.isArray(state[key]) ? state[key] : [...DEFAULT_DASHBOARD_OPS[key]]);
 const objOf = (state, key) => (state[key] && typeof state[key] === 'object' ? state[key] : { ...DEFAULT_DASHBOARD_OPS[key] });
 
+export function sanitizeCsvCell(val) {
+  const s = String(val ?? '');
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+}
+
 export function exportCsvFile(filename, headers, rows) {
   const escapeCell = (v) => {
-    const s = String(v ?? '');
+    const s = sanitizeCsvCell(v);
     return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   };
   const csv = [headers.map(escapeCell).join(','), ...rows.map(r => r.map(escapeCell).join(','))].join('\r\n');

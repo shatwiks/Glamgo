@@ -1,5 +1,29 @@
 # Change Report
 
+## Prompt Entry #23 — 2026-11-22 09:15 IST — Phase 13 Waves 3 & 4: Turnkey Interactive Sales Engine, Multi-City GPS Parity, White-Label Live Customizer, Dual-Mode ROI Calculator & Proposal Lead Capture (`feat/turnkey-platform`)
+**Objective:** Execute Waves 3 & 4 (`13-03-PLAN.md` and `13-04-PLAN.md`, requirements `TURN-01..05`) on `feat/turnkey-platform`, transforming the turnkey showcase into an interactive white-label sales and partner acquisition engine while syncing multi-city GPS persistence and Haversine salon distance parity from `main` without breaking 1-click access to all 4 operational dashboards.
+- **Created Files:**
+  - `src/turnkey-showcase.js`:
+    - `TURN-02`: Live White-Label Brand Customizer Drawer (`WHITE_LABEL_STORAGE_KEY`, `WHITE_LABEL_DEFAULTS`, `CURRENCY_CONFIG` for `₹ INR`, `$ USD`, `£ GBP`, `AED`, `ACCENT_PRESETS` for Champagne Gold, Velvet Rose, Botanical Emerald, Obsidian Amber, `loadWhiteLabelConfig`, `saveWhiteLabelConfig`, `applyWhiteLabelTheme`, `formatWhiteLabelMoney`, `renderWhiteLabelWordmark`, `renderWhiteLabelCustomizerDrawer`).
+    - `TURN-03`: Interactive Dual-Mode Revenue & Commission ROI Calculator (`DEFAULT_ROI_STATE`, `computePlatformRoi`, `computePartnerRoi`, `renderTurnkeyRoiSection`, `updateRoiOutputsInPlace`) with Tab A (*Platform Buyer ROI*) and Tab B (*Salon / Brand Partner Earnings*).
+    - `TURN-04`: 3-Tier Commercial & Feature Comparison Matrix (`COMPARISON_TIERS`, `renderComparisonMatrixSection`) + Technical Architecture & Deliverables Spec (`DELIVERABLES_SPEC`, `renderArchitectureDeliverablesSection`).
+    - `TURN-05`: Embedded Proposal & Lead Capture Modal + Admin Command Centre Buyer & Partner Leads Panel (`TURNKEY_LEADS_STORAGE_KEY`, `DEFAULT_TURNKEY_LEADS`, `loadTurnkeyLeads`, `saveTurnkeyLeads`, `renderProposalModalContent`, `renderAdminTurnkeyLeadsPanel`).
+  - `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-CONTEXT.md`, `13-03-PLAN.md`, `13-04-PLAN.md`, `13-03-SUMMARY.md`, `13-04-SUMMARY.md`.
+- **Modified Files:**
+  - `backend/app/models/salon.py`, `backend/app/models/professional.py`, `backend/app/models/service.py`, `backend/app/schemas/catalog.py`, `backend/app/db/session.py`, `backend/app/services/seed_service.py`, `backend/app/api/v1/endpoints/salons.py`, `backend/app/api/v1/api.py`: Synced multi-city (`city`, `lat`, `lng`) persistence, `ensure_phase13_schema_columns` auto-migration, 9 multi-city salons across Mumbai/Bengaluru/Delhi NCR, server-side Haversine distance enrichment, and `/api/v1/catalog/*` routes.
+  - `src/api.js` & `vite.config.js`: Synced `/catalog/*` routes with `city`/`lat`/`lng` query filters and configured `manualChunks` (`vendor-leaflet`, `dashboards-suite`).
+  - `src/dashboards-suite.js`: Hardened `exportCsvFile()` with `sanitizeCsvCell()` neutralizing leading `=`, `+`, `-`, `@`, `\t`, and `\r` characters (`T-13-13`).
+  - `src/app.js`:
+    - Lazy-loaded `./dashboards-suite.js` (`loadDashboardsSuite()`) and `leaflet` (`loadLeaflet()`), keeping all production chunks well under 500 kB.
+    - Integrated 9 multi-city `DEFAULT_SALONS`, 8 `DEFAULT_SERVICES`, and 7 `DEFAULT_PROFESSIONALS` with Haversine distance calculation (`Near you · X.X km` vs `Far from you · X.X km`), distance filter pills (`All in <City>`, `Within 5 km`, `Within 10 km`, `Nearest first`), and city-scoped `⌘K` search (`Outside <City>` badge).
+    - Upgraded `turnkeyDemoBar()` with `Rebrand Live`, `Request Proposal`, and `Reset Sandbox` pills alongside 1-click buttons for all 4 operational dashboards (`Specialist Studio`, `Salon Hub`, `Seller Hub`, `Admin Command`).
+    - Added `leads` (*Buyer & Partner Leads*) tab to `adminPage()` and wired all `tk-*` customizer, ROI, proposal submission, CSV export, and sandbox reset handlers.
+  - `styles.css`: Added `.salon-proximity-*`, `.salon-distance-*`, `.city-unavailable-box`, `.search-outside-pill`, `.turnkey-reset-pill`, and `.tk-*` responsive styles.
+- **Verification:**
+  - Backend tests: `.\.venv\Scripts\python.exe -m pytest tests/test_catalog.py -v` -> `4 passed in 3.75s`.
+  - Frontend syntax & build: `node -c src/api.js; node -c src/dashboards-suite.js; node -c src/turnkey-showcase.js; node -c src/app.js; npm run build` -> exit `0` (`index`: `348.22 kB`, `vendor-leaflet`: `150.07 kB`, `dashboards-suite`: `54.18 kB`, zero chunks > 500 kB).
+  - Playwright E2E verification (`verify_phase13_turnkey.png`): verified `Velvet Aura` live rebranding, `$ USD` currency conversion (`$73,800`), `Botanical Emerald` theme, Dual-Mode ROI tabs, 3-Tier Matrix & Deliverables Spec, Indiranagar Bengaluru switch (`Saffron & Silk Atelier`, `Near you` / `Far from you` + `Within 5 km` filter), Proposal Form submission appearing in `Admin Command -> Buyer & Partner Leads`, 1-click access across all 4 dashboards, `Reset Sandbox` restoring `GLAMGO`, `0` page errors, and `0px` horizontal overflow at `1440px` and `375px`.
+
 ## Prompt Entry #22 — 2026-11-22 00:30 IST — Refine Turnkey Buyer Acquisition & Partner Listing Showcase (`feat/turnkey-platform`)
 **Objective:** Position `feat/turnkey-platform` cleanly for prospective white-label platform buyers and beauty businesses looking to list their salons, skincare brands, or specialist practices, alongside instant 1-click access to all 4 operational dashboards (`src/dashboards-suite.js`).
 - **Modified Files:**
