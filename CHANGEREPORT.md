@@ -1,5 +1,12 @@
 # Change Report
 
+## Prompt Entry #27 — 2026-11-22 12:08 IST — Remove Hardcoded `window.GLAMGO_API_URL` in `index.html` (`main`)
+**Objective:** Prevent hardcoded `window.GLAMGO_API_URL` in `index.html` from overriding Vercel's same-origin `/api/v1` proxy on any `*.vercel.app` origin.
+- **Modified Files:**
+  - `index.html`: Removed the inline `<script>window.GLAMGO_API_URL = "https://glamgo-backend-lqn6.onrender.com/api/v1";</script>` block.
+  - `src/api.js`: Placed `window.location.hostname.endsWith('vercel.app')` as the first check in `resolveApiBase()`.
+- **Verification:** `node -c src/api.js` and `npm run build` passed.
+
 ## Prompt Entry #26 — 2026-11-22 11:05 IST — Force Same-Origin `/api/v1` Proxy Before `VITE_API_BASE_URL` on `*.vercel.app` (`main`)
 **Objective:** Ensure Vercel deployments of `main` do not hit `"Failed to fetch"` during login/signup when `VITE_API_BASE_URL` points directly to Render (`OPTIONS` CORS preflight `400`).
 - **Modified Files:**
