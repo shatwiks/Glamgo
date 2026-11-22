@@ -1,5 +1,3 @@
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import {
   tokenStorage,
   apiLogin,
@@ -86,30 +84,50 @@ import {
   apiDecideSellerReturn,
   apiGetSellerMultiVendorFinancials
 } from './api.js';
-import {
-  DEFAULT_DASHBOARD_OPS,
-  SAMPLE_SELLER_RETURNS_FALLBACK,
-  renderAdminPromotionsTab,
-  renderAdminDisputesTab,
-  renderAdminPayoutsTab,
-  renderProTopbarControls,
-  renderProLifecycleBar,
-  renderProTravelControls,
-  renderProClientCrmTab,
-  renderProPortfolioTab,
-  renderSalonChairCalendarTab,
-  renderSalonPosTab,
-  renderSalonBackbarTab,
-  renderSalonFormulasTab,
-  renderSalonStaffPayrollAddon,
-  renderSalonBranchesEnhanced,
-  renderSellerBatchExpiryTab,
-  renderSellerComplianceTab,
-  renderSellerFulfillmentBadges,
-  renderSellerQcAddon,
-  handleDashboardOpsAction,
-  handleDashboardOpsSubmit
-} from './dashboards-suite.js';
+
+let dashboardsSuiteMod = null;
+let dashboardsSuiteLoadPromise = null;
+function loadDashboardsSuite() {
+  if (dashboardsSuiteMod) return Promise.resolve(dashboardsSuiteMod);
+  if (dashboardsSuiteLoadPromise) return dashboardsSuiteLoadPromise;
+  dashboardsSuiteLoadPromise = import('./dashboards-suite.js')
+    .then(mod => {
+      dashboardsSuiteMod = mod;
+      if (mod?.DEFAULT_DASHBOARD_OPS) {
+        for (const [k, v] of Object.entries(mod.DEFAULT_DASHBOARD_OPS)) {
+          if (state[k] === undefined) state[k] = v;
+        }
+      }
+      return mod;
+    })
+    .catch(err => {
+      dashboardsSuiteLoadPromise = null;
+      console.warn('[GlamGo] Failed to lazy-load dashboards-suite.js:', err);
+      return null;
+    });
+  return dashboardsSuiteLoadPromise;
+}
+
+let leafletMod = null;
+let leafletLoadPromise = null;
+function loadLeaflet() {
+  if (leafletMod) return Promise.resolve(leafletMod);
+  if (leafletLoadPromise) return leafletLoadPromise;
+  leafletLoadPromise = Promise.all([
+    import('leaflet'),
+    import('leaflet/dist/leaflet.css')
+  ])
+    .then(([lMod]) => {
+      leafletMod = lMod.default || lMod;
+      return leafletMod;
+    })
+    .catch(err => {
+      leafletLoadPromise = null;
+      console.warn('[GlamGo] Failed to lazy-load Leaflet:', err);
+      return null;
+    });
+  return leafletLoadPromise;
+}
 
 const HOME_IMG = './assets/home-editorial.webp';
 const SALON_IMG = './assets/salon-editorial.webp';
@@ -762,7 +780,7 @@ const defaults = {
   rescheduleBooking: null,
   proVerifyBookingId: null,
   proVerifyTargetStage: 'arrived',
-  ...DEFAULT_DASHBOARD_OPS
+  searchScope: 'all'
 };
 
 let saved = {};
@@ -1930,7 +1948,7 @@ function destroyActiveMaps(){
   activeLocationMarker = null;
 }
 
-function addTileLayerWithFallback(map){
+function addTileLayerWithFallback(map, L){
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19
@@ -1994,19 +2012,25 @@ async function reverseGeocodeCoords(lat, lng){
   return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
 }
 
-function mountSalonMaps(){
+async function mountSalonMaps(){
   const locEl = document.getElementById('location-picker-map');
-  if(locEl && !locEl._leaflet_id){
+  const detailEl = document.getElementById('salon-detail-map');
+  if(!locEl && !detailEl) return;
+  const L = await loadLeaflet();
+  if(!L) return;
+
+  const currentLocEl = document.getElementById('location-picker-map');
+  if(currentLocEl && !currentLocEl._leaflet_id){
     const center = Array.isArray(state.userCoords)
       ? state.userCoords
       : resolveSalonCoords({ area: state.location });
-    const map = L.map(locEl, {
+    const map = L.map(currentLocEl, {
       scrollWheelZoom: false,
       zoomAnimation: false,
       fadeAnimation: false,
       markerZoomAnimation: false
     }).setView(center, 13);
-    addTileLayerWithFallback(map);
+    addTileLayerWithFallback(map, L);
     const pinIcon = L.divIcon({
       className: 'gg-map-pin-wrap',
       html: '<span class="gg-map-pin gg-map-pin-active">Selected</span>',
@@ -2031,18 +2055,18 @@ function mountSalonMaps(){
     setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
   }
 
-  const detailEl = document.getElementById('salon-detail-map');
-  if(detailEl && !detailEl._leaflet_id){
+  const currentDetailEl = document.getElementById('salon-detail-map');
+  if(currentDetailEl && !currentDetailEl._leaflet_id){
     const s = salons.find(x => x.id === state.selectedSalon) || salons[0];
     if(s){
       const coords = resolveSalonCoords(s);
-      const map = L.map(detailEl, {
+      const map = L.map(currentDetailEl, {
         scrollWheelZoom: false,
         zoomAnimation: false,
         fadeAnimation: false,
         markerZoomAnimation: false
       }).setView(coords, 14);
-      addTileLayerWithFallback(map);
+      addTileLayerWithFallback(map, L);
       const pinIcon = L.divIcon({
         className: 'gg-map-pin-wrap',
         html: '<span class="gg-map-pin gg-map-pin-active">' + esc(money(s.price)) + '</span>',
@@ -2051,7 +2075,7 @@ function mountSalonMaps(){
       });
       L.marker(coords, { icon: pinIcon }).addTo(map).bindPopup('<div class="gg-map-popup"><strong>' + esc(s.name) + '</strong><span>' + esc(s.area) + ' · ' + esc(s.hours) + '</span></div>').openPopup();
       activeLeafletMaps.push(map);
-    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
+      setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
     }
   }
 }
@@ -2480,6 +2504,29 @@ async function loadPartnerData(){
 }
 
 function partnerPage(){
+  if (!dashboardsSuiteMod) {
+    loadDashboardsSuite().then(() => render());
+    return '<div class="partner-shell"><main class="partner-workspace"><div class="dashboard-panel">' + catalogLoadingState('Partner Studio workspace') + '</div></main></div>';
+  }
+  const {
+    DEFAULT_DASHBOARD_OPS,
+    SAMPLE_SELLER_RETURNS_FALLBACK,
+    renderProTopbarControls,
+    renderProLifecycleBar,
+    renderProTravelControls,
+    renderProClientCrmTab,
+    renderProPortfolioTab,
+    renderSalonChairCalendarTab,
+    renderSalonPosTab,
+    renderSalonBackbarTab,
+    renderSalonFormulasTab,
+    renderSalonStaffPayrollAddon,
+    renderSalonBranchesEnhanced,
+    renderSellerBatchExpiryTab,
+    renderSellerComplianceTab,
+    renderSellerFulfillmentBadges,
+    renderSellerQcAddon
+  } = dashboardsSuiteMod;
   const isAdmin = state.user?.role === 'admin';
   const userMappedRole = partnerRoleFromUser(state.user?.role);
   const role = isAdmin ? (state.partnerRole || 'Professional') : (userMappedRole || state.partnerRole || 'Professional');
@@ -3370,6 +3417,16 @@ function adminPage(){
   if(state.user?.role !== 'admin'){
     return '<div class="admin-shell"><main class="admin-main"><div class="admin-panel admin-empty-state"><h2>Access Restricted</h2><p>Administrator privileges are required to view this command centre.</p><button class="btn btn-primary" data-action="landing">Return to GlamGo Store</button></div></main></div>';
   }
+  if (!dashboardsSuiteMod) {
+    loadDashboardsSuite().then(() => render());
+    return '<div class="admin-shell"><main class="admin-main"><div class="admin-panel">' + catalogLoadingState('Admin Command Centre') + '</div></main></div>';
+  }
+  const {
+    DEFAULT_DASHBOARD_OPS,
+    renderAdminPromotionsTab,
+    renderAdminDisputesTab,
+    renderAdminPayoutsTab
+  } = dashboardsSuiteMod;
 
   const tab = state.adminTab || 'overview';
   const allDrafts = state.adminDrafts || [];
@@ -4120,19 +4177,31 @@ function modal(){
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
+    const userCity = normalizeCity(state.location);
+    const scope = state.searchScope || 'all';
     const searchable = [
-      ...products.map(x=>({...x,type:'Product'})),
-      ...services.map(x=>({...x,type:'Service'})),
-      ...salons.map(x=>({...x,type:'Salon'}))
+      ...products.map(x=>({...x,type:'Product',inCity:true})),
+      ...services.map(x=>({...x,type:'Service',inCity:isServiceAvailableInCity(x,userCity)})),
+      ...salons.map(x=>({...x,type:'Salon',inCity:String(x.city||normalizeCity(x.area)||'').toLowerCase()===userCity.toLowerCase()}))
     ];
-    const results = searchable.filter(x=>{
+    const matched = searchable.filter(x=>{
+      if (scope === 'city' && !x.inCity) return false;
       if(!q) return true;
-      const hay = [x.name,x.category,x.area,x.brand,x.ingredients,x.tag,x.description].filter(Boolean).join(' ').toLowerCase();
+      const hay = [x.name,x.category,x.area,x.city,x.brand,x.ingredients,x.tag,x.description].filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
-    }).slice(0,9);
+    });
+    matched.sort((a, b) => (a.inCity === b.inCity ? 0 : a.inCity ? -1 : 1));
+    const results = matched.slice(0,9);
     const popularTerms = ['Serum','Lipstick','Niacinamide','Haircare','Fragrance','Facial'];
+    const scopeBarHtml = '<div class="search-scope-bar" role="group" aria-label="Search city scope">' +
+      '<span class="search-scope-label">' + icon('pin', 14) + ' City: <strong>' + esc(userCity) + '</strong></span>' +
+      '<div class="search-scope-pills">' +
+        '<button type="button" class="search-scope-pill ' + (scope === 'city' ? 'active' : '') + '" data-action="search-scope" data-id="city">In ' + esc(userCity) + '</button>' +
+        '<button type="button" class="search-scope-pill ' + (scope === 'all' ? 'active' : '') + '" data-action="search-scope" data-id="all">All cities</button>' +
+      '</div>' +
+    '</div>';
     const suggestionsHtml = '<div class="search-chips-wrap"><span class="search-chips-label">'+(q?'TRY SEARCHING':'POPULAR SEARCHES')+'</span><div class="search-chips">'+popularTerms.map(t=>'<button class="search-chip" data-action="search-quick" data-id="'+t+'">'+t+'</button>').join('')+'</div></div>';
-    inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
+    inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+scopeBarHtml+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+(!x.inCity?' <span class="search-outside-pill">Outside '+esc(userCity)+'</span>':'')+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
   }
   else if(state.modal==='booking') inner=bookingModal();
   else if(state.modal==='booking-reschedule'){
@@ -4451,7 +4520,8 @@ async function action(el){
     }
   }
   if(a && a.startsWith('ops-')){
-    if(handleDashboardOpsAction(a, id, el, state, { persist, render, toast, services, salons, products })) return;
+    const suite = await loadDashboardsSuite();
+    if(suite && suite.handleDashboardOpsAction(a, id, el, state, { persist, render, toast, services, salons, products })) return;
   }
   if(a==='toggle-ai-chat'){
     state.aiChatOpen = !state.aiChatOpen;
@@ -4543,11 +4613,16 @@ async function action(el){
     }
     const input = document.getElementById('location-search-input');
     if(input && label) input.value = label;
-    const dd = document.getElementById('location-autocomplete-list');
-    if(dd){ dd.hidden = true; dd.innerHTML = ''; }
+    hideLocationAutocomplete();
     void loadCatalogFeeds({ silent: true });
   }
   else if(a==='search-open'){ state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
+  else if(a==='search-scope'){
+    state.searchScope = id === 'city' ? 'city' : 'all';
+    render();
+    const input = document.getElementById('global-search');
+    if(input){ input.focus(); const len = input.value.length; input.setSelectionRange(len, len); }
+  }
   else if(a==='search-quick'){
     state.query = id || '';
     render();
@@ -5697,7 +5772,8 @@ document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, d = new FormData(f);
   if(f.id && f.id.startsWith('ops-')){
-    if(handleDashboardOpsSubmit(f, d, state, { persist, render, toast, services, salons, products })) return;
+    const suite = await loadDashboardsSuite();
+    if(suite && suite.handleDashboardOpsSubmit(f, d, state, { persist, render, toast, services, salons, products })) return;
   }
   if(f.id === 'pro-arrival-otp-form'){
     const otp = String(d.get('otp') || '').trim();
@@ -5874,6 +5950,7 @@ document.addEventListener('submit', async e => {
     }
   }
   else if(f.id === 'location-form'){
+    hideLocationAutocomplete();
     const nextLoc = String(d.get('location') || '').trim();
     if (nextLoc && nextLoc !== state.location) state.userCoords = null;
     if (nextLoc) state.location = nextLoc;
@@ -6108,6 +6185,30 @@ document.addEventListener('submit', async e => {
 
 let locationSearchTimer = null;
 let locationSearchSeq = 0;
+function hideLocationAutocomplete() {
+  const dd = document.getElementById('location-autocomplete-list');
+  if (dd) {
+    dd.hidden = true;
+  }
+}
+
+document.addEventListener('pointerdown', e => {
+  const dd = document.getElementById('location-autocomplete-list');
+  if (dd && !dd.hidden && !e.target.closest('.gg-loc-field')) {
+    hideLocationAutocomplete();
+  }
+});
+
+document.addEventListener('focusout', e => {
+  if (e.target && e.target.id === 'location-search-input') {
+    setTimeout(() => {
+      if (!document.activeElement?.closest('.gg-loc-field')) {
+        hideLocationAutocomplete();
+      }
+    }, 160);
+  }
+});
+
 document.addEventListener('input', e => {
   if(e.target.id === 'global-search'){
     state.query = e.target.value;
@@ -6284,9 +6385,17 @@ window.addEventListener('hashchange', () => {
 });
 
 document.addEventListener('keydown', e => {
-  if(e.key === 'Escape' && state.modal){
-    state.modal = null;
-    render();
+  if(e.key === 'Escape'){
+    const dd = document.getElementById('location-autocomplete-list');
+    if (dd && !dd.hidden && document.activeElement?.id === 'location-search-input') {
+      e.preventDefault();
+      hideLocationAutocomplete();
+      return;
+    }
+    if (state.modal) {
+      state.modal = null;
+      render();
+    }
   }
   if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k'){
     e.preventDefault();
