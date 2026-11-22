@@ -1,5 +1,11 @@
 # Change Report
 
+## Prompt Entry #26 — 2026-11-22 11:05 IST — Force Same-Origin `/api/v1` Proxy Before `VITE_API_BASE_URL` on `*.vercel.app` (`main`)
+**Objective:** Ensure Vercel deployments of `main` do not hit `"Failed to fetch"` during login/signup when `VITE_API_BASE_URL` points directly to Render (`OPTIONS` CORS preflight `400`).
+- **Modified Files:**
+  - `src/api.js`: Moved the `window.location.hostname.endsWith('vercel.app')` check above `import.meta.env.VITE_API_BASE_URL` in `resolveApiBase()` so `*.vercel.app` deployments always route via the same-origin `/api/v1` rewrite proxy in `vercel.json`.
+- **Verification:** `node -c src/api.js` and `npm run build` passed.
+
 ## Prompt Entry #25 — 2026-11-22 09:22 IST — Phase 13 Closeout: Dual-Track Consumer (`main`) & Turnkey Showcase (`feat/turnkey-platform`) Execution Complete (`4/4` Plans)
 **Objective:** Record completion of Waves 3 & 4 (`13-03-PLAN.md` and `13-04-PLAN.md` on `feat/turnkey-platform`, pushed as `f36c8a0`) and close out Phase 13 (`4/4` plans complete, `MAIN-01..05` and `TURN-01..05` satisfied) in `.planning/ROADMAP.md`, `.planning/REQUIREMENTS.md`, and `.planning/STATE.md` on `main`.
 - **Created / Synced Files on `main`:**

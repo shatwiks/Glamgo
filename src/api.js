@@ -4,6 +4,12 @@ function resolveApiBase() {
   if (typeof window !== 'undefined' && window.GLAMGO_API_URL) {
     return window.GLAMGO_API_URL;
   }
+  // On Vercel deployments (*.vercel.app), always use the same-origin /api/v1 rewrite proxy
+  // defined in vercel.json so browser requests never hit Render cross-origin CORS preflight blocks,
+  // even when VITE_API_BASE_URL is configured in Vercel project settings.
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
+    return '/api/v1';
+  }
   const envUrl = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL;
   if (envUrl && envUrl.includes('glamgo-backend.onrender.com') && !envUrl.includes('glamgo-backend-lqn6.onrender.com')) {
     // Correct obsolete or typod Render URL lacking the dynamic suffix -lqn6
@@ -11,9 +17,6 @@ function resolveApiBase() {
   }
   if (envUrl) {
     return envUrl;
-  }
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
-    return PRODUCTION_BACKEND_URL;
   }
   return '/api/v1';
 }
