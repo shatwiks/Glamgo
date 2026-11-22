@@ -1,5 +1,13 @@
 # Change Report
 
+## Prompt Entry #29 — 2026-11-22 17:11 IST — Strict Partner Ownership & Salon Overview Hardening (`main`)
+**Objective:** Sync the strict `user.id` / `pro_profile.id` ownership checks and hardened Salon Owner overview metrics from `release/54ba3db` (`06b156d`) into `main`.
+- **Modified Files:**
+  - `backend/app/api/v1/bookings.py`: Removed `full_name` fallback matching on `Professional` booking status/OTP checks.
+  - `backend/app/api/v1/partners.py`: Enforced strict `ProfessionalProfile.user_id` / `Booking.professional_id` ownership, removed cross-salon fallback queries when a Salon Owner has no salon, and hardened Salon Owner `get_partner_overview`.
+  - `tests/test_partner_phase4.py`: Added `test_salon_owner_without_salon_cannot_access_another_salon` and `test_professional_with_same_name_cannot_access_another_professional`.
+- **Verification:** `.venv\Scripts\python.exe -m compileall -q backend tests` exited `0`.
+
 ## Prompt Entry #28 — 2026-11-22 12:38 IST — Sync Render Production Branch (`master`) with `main` + Security Hardening
 **Objective:** Merge `origin/master` security hardening (`180ade6`, `bdb3985`) into `main`, fast-forward `master` to `main`, and push both branches so Render (`glamgo-backend`) serves the hardened Phase 13 backend (`ensure_phase13_schema_columns`, `/api/v1/catalog/*`, password reset / Mobile OTP, booking reschedule / arrival OTP, referral/gift card wallet credits, `REDIS_REQUIRED=false` readiness policy, `/metrics` maintenance token gate, and Dependabot/CI/CORS hardening).
 - **Merged / Modified Files:**

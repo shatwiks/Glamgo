@@ -147,14 +147,14 @@ def get_partner_overview(
 
     if effective_role == "Professional":
         pro_profile = db.query(ProfessionalProfile).filter(
-            (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+            ProfessionalProfile.user_id == user.id
         ).first()
 
         q = db.query(Booking).filter(Booking.type == "home")
         if user.role != UserRole.ADMIN and pro_profile:
-            q = q.filter((Booking.professional_id == pro_profile.id) | (Booking.professional == user.full_name))
+            q = q.filter(Booking.professional_id == pro_profile.id)
         elif user.role != UserRole.ADMIN:
-            q = q.filter(Booking.professional == user.full_name)
+            q = q.filter(Booking.professional_id == -1)
 
         home_bookings = q.order_by(Booking.created_at.desc()).all()
         total_val = sum(b.price for b in home_bookings if b.status != BookingStatus.CANCELLED)
@@ -177,20 +177,22 @@ def get_partner_overview(
         q = db.query(Booking).filter(Booking.type == "salon")
         if user.role != UserRole.ADMIN and salon:
             q = q.filter(Booking.salon_id == salon.id)
+        elif user.role != UserRole.ADMIN:
+            q = q.filter(Booking.id == "__no_owned_salon__")
 
         salon_bookings = q.order_by(Booking.created_at.desc()).all()
-        total_val = sum(b.price for b in salon_bookings if b.status != BookingStatus.CANCELLED)
-        staff_count = len(salon.staff) if salon and salon.staff else 0
+        total_val = sum(float(b.price or 0) for b in salon_bookings if b.status != BookingStatus.CANCELLED)
+        staff_count = db.query(SalonStaff).filter(SalonStaff.salon_id == salon.id).count() if salon else 0
 
         return {
             "metrics": [
                 {"label": "Appointments", "value": len(salon_bookings)},
                 {"label": "Active staff", "value": staff_count},
-                {"label": "Branches", "value": 1}
+                {"label": "Branches", "value": 1 if salon else 0}
             ],
             "total_value": total_val,
             "bookings": [
-                {"id": b.id, "title": b.title, "date": b.date, "time": b.time, "professional": b.professional, "status": b.status.value, "price": b.price}
+                {"id": b.id, "title": b.title, "date": b.date, "time": b.time, "professional": b.professional, "status": b.status.value if hasattr(b.status, "value") else str(b.status or "confirmed"), "price": b.price}
                 for b in salon_bookings[:10]
             ]
         }
@@ -376,7 +378,7 @@ def get_professional_profile(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     if not pro:
         # Auto-create if promoted without profile
@@ -417,7 +419,7 @@ def update_professional_profile(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     if not pro:
         pro = ProfessionalProfile(
@@ -462,7 +464,7 @@ def get_professional_services(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     if not pro:
         return []
@@ -487,7 +489,7 @@ def assign_professional_service(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     if not pro:
         raise HTTPException(status_code=404, detail="Professional profile not found.")
@@ -510,7 +512,7 @@ def unlink_professional_service(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     if not pro:
         raise HTTPException(status_code=404, detail="Professional profile not found.")
@@ -529,12 +531,12 @@ def get_professional_bookings(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     pro_id = pro.id if pro else -1
 
     bookings = db.query(Booking).filter(
-        (Booking.professional_id == pro_id) | (Booking.professional == user.full_name)
+        Booking.professional_id == pro_id
     ).order_by(Booking.created_at.desc()).all()
 
     return [
@@ -561,7 +563,7 @@ def update_professional_booking_status(
     db: Session = Depends(get_db)
 ):
     pro = db.query(ProfessionalProfile).filter(
-        (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+        ProfessionalProfile.user_id == user.id
     ).first()
     pro_id = pro.id if pro else -1
 
@@ -570,7 +572,7 @@ def update_professional_booking_status(
         raise HTTPException(status_code=404, detail="Booking not found.")
 
     # Strict BOLA / IDOR Verification
-    if user.role != UserRole.ADMIN and booking.professional_id != pro_id and booking.professional != user.full_name:
+    if user.role != UserRole.ADMIN and (not pro or booking.professional_id != pro.id):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Operation forbidden: Booking does not belong to your professional account."
@@ -625,10 +627,7 @@ def get_salon_profile(
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
     if not salon:
-        # Fallback for seeded salons
-        salon = db.query(Salon).first()
-        if not salon:
-            raise HTTPException(status_code=404, detail="Salon profile not found.")
+        raise HTTPException(status_code=404, detail="Salon profile not found.")
     return _format_salon(salon)
 
 
@@ -640,9 +639,7 @@ def update_salon_profile(
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
     if not salon:
-        salon = db.query(Salon).first()
-        if not salon:
-            raise HTTPException(status_code=404, detail="Salon not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
     if payload.name:
         salon.name = payload.name.strip()
@@ -672,9 +669,7 @@ def get_salon_staff(
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
     if not salon:
-        salon = db.query(Salon).first()
-        if not salon:
-            return []
+        return []
     return salon.staff
 
 
@@ -686,9 +681,7 @@ def add_salon_staff(
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
     if not salon:
-        salon = db.query(Salon).first()
-        if not salon:
-            raise HTTPException(status_code=404, detail="Salon not found.")
+        raise HTTPException(status_code=404, detail="Salon not found.")
 
     staff = SalonStaff(
         salon_id=salon.id,
@@ -733,9 +726,7 @@ def get_salon_bookings(
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
     if not salon:
-        salon = db.query(Salon).first()
-        if not salon:
-            return []
+        return []
 
     bookings = db.query(Booking).filter(Booking.salon_id == salon.id).order_by(Booking.created_at.desc()).all()
     return [
@@ -1454,12 +1445,12 @@ def get_partner_financials(
 
     if user.role == UserRole.PROFESSIONAL:
         pro = db.query(ProfessionalProfile).filter(
-            (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+            ProfessionalProfile.user_id == user.id
         ).first()
         pro_id = pro.id if pro else -1
 
         q = db.query(Booking).filter(
-            (Booking.professional_id == pro_id) | (Booking.professional == user.full_name)
+            Booking.professional_id == pro_id
         )
         if start_date:
             q = q.filter(Booking.date >= start_date)
