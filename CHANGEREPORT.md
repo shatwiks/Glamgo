@@ -4,6 +4,18 @@
 
 ---
 
+## Prompt Entry #4 — `2026-11-22`: Force Same-Origin `/api/v1` Proxy Before `VITE_API_BASE_URL` on `*.vercel.app` (`release/54ba3db`)
+
+**Prompt Summary:** Fix `"Failed to fetch"` on login at `https://glamgo-git-release-54ba3db-byte-efb4.vercel.app/#home` caused by Vercel's project-level `VITE_API_BASE_URL` overriding the same-origin `/api/v1` proxy and triggering a blocked cross-origin `OPTIONS` preflight (`400 Bad Request`) to Render.
+
+### Root Cause & Fix
+- **[src/api.js](src/api.js):** Checked `window.location.hostname.endsWith('vercel.app')` **before** reading `import.meta.env.VITE_API_BASE_URL` so Vercel deployments always send login, register, and catalog requests to same-origin `/api/v1` (proxied server-to-server by `vercel.json` to `https://glamgo-backend-lqn6.onrender.com/api/$1`).
+
+### Verification
+- `node -c src/api.js` and `npm run build` passed.
+
+---
+
 ## Prompt Entry #3 — `2026-11-22`: Fix Cross-Origin CORS Block & Catalog Fallbacks on Vercel Preview Deployments (`release/54ba3db`)
 
 **Prompt Summary:** Fix `"Home treatments catalog unavailable"` on `https://glamgo-git-release-54ba3db-byte-efb4.vercel.app/#home` by routing `*.vercel.app` requests through the same-origin `/api/v1` Vercel rewrite proxy and seeding resilient catalog defaults (`DEFAULT_SERVICES`, `DEFAULT_PROFESSIONALS`, `DEFAULT_SALONS`, `DEFAULT_PRODUCTS`).
