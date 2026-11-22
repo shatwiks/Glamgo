@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends
+from typing import List, Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
 from backend.app.api.deps import require_maintenance_auth
+from backend.app.schemas.catalog import SalonResponse, ServiceResponse, ProfessionalResponse
 from backend.app.api.v1 import (
     auth, users, services, professionals, salons, products,
     bookings, orders, partners, admin, payments, reviews
@@ -24,6 +26,86 @@ api_router.include_router(reviews.router, prefix="/reviews", tags=["Reviews & Ra
 
 # Catalog aliases
 catalog_router = APIRouter()
+
+
+@catalog_router.get("/salons", response_model=List[SalonResponse])
+def catalog_salons(
+    category: Optional[str] = Query(None),
+    sort: Optional[str] = Query("featured"),
+    query: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None, ge=-90, le=90),
+    lng: Optional[float] = Query(None, ge=-180, le=180),
+    max_distance_km: Optional[float] = Query(None, gt=0, le=200),
+    db: Session = Depends(get_db),
+):
+    return salons.get_salons(
+        category=category,
+        sort=sort,
+        query=query,
+        city=city,
+        lat=lat,
+        lng=lng,
+        max_distance_km=max_distance_km,
+        db=db,
+    )
+
+
+@catalog_router.get("/services", response_model=List[ServiceResponse])
+def catalog_services(
+    category: Optional[str] = Query(None),
+    query: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    from backend.app.models.catalog import Service
+    from backend.app.services.cache_service import cache_service
+
+    cache_key = f"glamgo:catalog:services:v2:{category}:{query}:{city}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
+    q = db.query(Service).filter(Service.is_active == True)
+    if category and category.lower() != "all":
+        q = q.filter(Service.category.ilike(category))
+    if query:
+        q = q.filter((Service.name.ilike(f"%{query}%")) | (Service.desc.ilike(f"%{query}%")))
+
+    items = [ServiceResponse.model_validate(s).model_dump() for s in q.all()]
+    if city and city.strip():
+        city_lower = city.strip().lower()
+        items = [
+            item for item in items
+            if city_lower in [c.strip().lower() for c in (item.get("cities") or [])]
+        ]
+    cache_service.set(cache_key, items, ttl=300)
+    return items
+
+
+@catalog_router.get("/professionals", response_model=List[ProfessionalResponse])
+def catalog_professionals(
+    specialty: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    from backend.app.models.catalog import ProfessionalProfile
+    from backend.app.services.cache_service import cache_service
+
+    cache_key = f"glamgo:catalog:professionals:v2:{specialty}:{city}"
+    cached = cache_service.get(cache_key)
+    if cached is not None:
+        return cached
+
+    q = db.query(ProfessionalProfile).filter(ProfessionalProfile.is_verified == True)
+    if specialty:
+        q = q.filter(ProfessionalProfile.specialty.ilike(f"%{specialty}%"))
+    if city and city.strip():
+        q = q.filter(ProfessionalProfile.city.ilike(city.strip()))
+
+    items = [ProfessionalResponse.model_validate(p).model_dump() for p in q.all()]
+    cache_service.set(cache_key, items, ttl=300)
+    return items
 
 
 @catalog_router.get("/products/{product_id}/offers")
@@ -56,6 +138,17 @@ def mature_escrow_task(
     from backend.app.services.commerce_service import CommerceService
     count = CommerceService.mature_escrow_records(db)
     return {"status": "success", "matured_records_count": count, "actor": _auth["actor"]}
+
+
+@internal_router.post("/refunds/recover")
+def recover_refunds_task(
+    dry_run: bool = Query(False),
+    db: Session = Depends(get_db),
+    _auth: dict = Depends(require_maintenance_auth),
+):
+    from backend.app.services.refund_service import RefundService
+    summary = RefundService.recover_pending_refunds(db, dry_run=dry_run)
+    return {"status": "success", "actor": _auth["actor"], **summary}
 
 
 api_router.include_router(internal_router, prefix="/internal", tags=["Internal Maintenance Engine"])

@@ -4,6 +4,24 @@
 
 ---
 
+## Prompt Entry #6 — `2026-11-22`: Port All Non-Frontend Upgrades, Security Hardening & Tests from `main` to `release/54ba3db`
+
+**Prompt Summary:** Sync all non-UI/UX backend, database migration, security, CI/CD, edge config, and test suite improvements from `main` (`000acf6`) into `release/54ba3db` while keeping `src/`, `styles.css`, `index.html`, and all frontend UI/UX untouched.
+
+### Files Added / Synced from `main`
+- **Backend & Migrations (`backend/`):**
+  - Ported durable refund ledger & constraints migration `backend/alembic/versions/06c3f5e92d34_durable_refund_ledger_and_constraints.py`, `backend/app/services/refund_service.py`, `backend/app/services/inventory_backfill.py`, and hardened commerce/payment/order/partner/product logic.
+  - Ported Phase 13 multi-city GPS persistence (`ensure_phase13_schema_columns`, `/api/v1/catalog/*`, Haversine distance/city filtering), hardened password reset & Mobile OTP endpoints with in-memory rate-limit fallback, partner approval role activation, booking reschedule / arrival OTP / add-on pricing, referral & gift card wallet redemption, `REDIS_REQUIRED` readiness policy (`main.py`, `redis_client.py`, `config.py`), scoped CORS regex (`glamgo-ricoz` & `glamgo-um5p`), `/metrics` `INTERNAL_MAINTENANCE_TOKEN` gate, and sanitized `/health` responses.
+- **Security, Infra & Docs:** Ported `SECURITY.md`, `PRODUCT.md`, `docs/COMMERCE_HARDENING_AND_RELEASE_CHECKLIST.md`, `.github/dependabot.yml`, `.github/workflows/production-ci.yml` (`contents: read`), `scripts/backup_and_restore_verify.py` (`shell=False`), `.env.production.example`, `.env.staging.example`, `render.yaml`, and `vercel.json` (`Strict-Transport-Security` + `Permissions-Policy: geolocation=(self)`).
+- **Test Suites (`tests/`):** Ported `test_commerce_hardening.py`, `test_commerce_review_remediation.py`, `test_multi_vendor_phase5.py`, and `test_phase13_consumer.py`.
+- **Untouched Frontend:** Zero edits to `src/`, `styles.css`, `index.html`, `package.json`, or `vite.config.js` (WIP files in `branch-release-54ba3db` preserved unstaged).
+
+### Verification
+- `compileall -q backend scripts tests` (inside `branch-release-54ba3db`): exited `0`.
+- `vercel.json` JSON validation + `git diff --cached --stat main` across all ported paths: byte-identical with `main` (Note: live `pytest` execution in `branch-release-54ba3db` could not connect to local Docker Postgres `127.0.0.1:5439` because Docker Desktop daemon is stopped after host restart).
+
+---
+
 ## Prompt Entry #5 — `2026-11-22`: Remove Hardcoded `window.GLAMGO_API_URL` in `index.html` (`release/54ba3db`)
 
 **Prompt Summary:** Fix persistent `"Failed to fetch"` CORS error on `https://glamgo-um5p.vercel.app/` caused by an inline `<script>window.GLAMGO_API_URL = "https://glamgo-backend-lqn6.onrender.com/api/v1";</script>` in `index.html` overriding the `/api/v1` proxy.

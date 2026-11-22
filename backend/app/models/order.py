@@ -38,6 +38,7 @@ class Order(Base):
     address_label = Column(String(100), default="Home")
     address_text = Column(Text, nullable=False)
     coupon_code = Column(String(50), nullable=True)
+    wallet_credit_applied = Column(Float, default=0.0, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     customer = relationship("User", back_populates="orders")

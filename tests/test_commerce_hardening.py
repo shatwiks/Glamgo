@@ -102,25 +102,43 @@ def _install_mock_gateway(
             "captured": True,
         }
 
-    def create_refund(payment_id, payload=None):
+    refunds_store: dict[str, dict] = {}
+
+    def create_refund(payment_id, payload=None, headers=None, **kwargs):
         payload = payload or {}
-        refund_calls_ref.append({"payment_id": payment_id, "payload": payload})
+        refund_calls_ref.append({"payment_id": payment_id, "payload": payload, "headers": dict(headers or {})})
         if refund_error is not None:
             raise refund_error
         rid = f"rfnd_hd_{secrets.token_hex(6)}"
-        return {
+        ref_obj = {
             "id": rid,
             "payment_id": payment_id,
             "amount": payload.get("amount", 0),
+            "receipt": payload.get("receipt"),
+            "notes": payload.get("notes", {}),
             "status": refund_mode,
         }
+        refunds_store[rid] = ref_obj
+        return ref_obj
+
+    def fetch_refund_id(payment_id, refund_id, **kwargs):
+        return refunds_store[refund_id]
+
+    def fetch_multiple_refund(payment_id, data=None, **kwargs):
+        items = [r for r in refunds_store.values() if r["payment_id"] == payment_id]
+        return {"entity": "collection", "count": len(items), "items": items}
 
     mock_client = SimpleNamespace(
         order=SimpleNamespace(create=create_order),
-        payment=SimpleNamespace(fetch=fetch_payment, refund=create_refund),
+        payment=SimpleNamespace(
+            fetch=fetch_payment,
+            refund=create_refund,
+            fetch_refund_id=fetch_refund_id,
+            fetch_multiple_refund=fetch_multiple_refund,
+        ),
     )
     monkeypatch.setattr("backend.app.api.v1.payments.get_razorpay_client", lambda: mock_client)
-    return {"orders": orders_store, "refund_calls": refund_calls_ref, "create_calls": create_calls_ref}
+    return {"orders": orders_store, "refund_calls": refund_calls_ref, "create_calls": create_calls_ref, "refunds": refunds_store}
 
 
 def _pay_and_verify(client: TestClient, cust_headers: dict, order_id: str, total: float) -> dict:
@@ -932,7 +950,8 @@ def test_refund_gateway_orchestration_failure_retry_and_webhook(client, db, monk
         json={"reservation_token": res["reservation_token"], "address_text": "Parel", "payment_method": "UPI"},
         headers={"Authorization": cust["Authorization"]},
     ).json()
-    _pay_and_verify(client, cust, co["order_id"], co["total"])
+    pay_res = _pay_and_verify(client, cust, co["order_id"], co["total"])
+    cap_pay_id = pay_res["razorpay_payment_id"]
     sub_id = co["suborders"][0]["suborder_id"]
 
     client.post(f"/api/v1/partners/seller/suborders/{sub_id}/pack", headers={"Authorization": seller["Authorization"]})
@@ -942,8 +961,8 @@ def test_refund_gateway_orchestration_failure_retry_and_webhook(client, db, monk
     item_id = client.get(f"/api/v1/orders/{co['order_id']}", headers={"Authorization": cust["Authorization"]}).json()["suborders"][0]["items"][0]["order_item_id"]
     ret_id = client.post(f"/api/v1/orders/suborders/{sub_id}/return", json={"order_item_id": item_id, "reason": "Wrong formula"}, headers={"Authorization": cust["Authorization"]}).json()["id"]
 
-    # First approval hits gateway ServerError -> HTTP 502 while persisting REFUND_FAILED, restocked once (3 -> 4)
-    _install_mock_gateway(monkeypatch, refund_error=razorpay.errors.ServerError("Gateway timeout"))
+    # First approval hits definitive gateway BadRequestError -> HTTP 502 while persisting REFUND_FAILED, restocked once (3 -> 4)
+    _install_mock_gateway(monkeypatch, refund_error=razorpay.errors.BadRequestError("Bank gateway declined refund"))
     d_fail = client.post(
         f"/api/v1/partners/seller/returns/{ret_id}/decide",
         json={"action": "APPROVE", "restock_inventory": True},
@@ -979,7 +998,8 @@ def test_refund_gateway_orchestration_failure_retry_and_webhook(client, db, monk
             "refund": {
                 "entity": {
                     "id": gw_ref_id,
-                    "payment_id": "pay_unused",
+                    "payment_id": cap_pay_id,
+                    "amount": to_paise(co["total"]),
                     "status": "processed",
                     "notes": {"return_id": ret_id},
                 }

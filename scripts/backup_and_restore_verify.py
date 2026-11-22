@@ -1,4 +1,5 @@
 import os
+import shlex
 import sys
 import time
 import subprocess
@@ -13,12 +14,13 @@ TEST_CONTAINER = "glamgo_restore_verify_db"
 TEST_PORT = "5499"
 TEST_DB = "glamgo_restore_verify"
 TEST_USER = "glamgo"
-TEST_PASS = "restore_test_secret_2026"
+TEST_PASS = os.environ.get("RESTORE_TEST_PASSWORD", "restore_test_secret_2026")
 
 
 def run_cmd(cmd, desc=""):
-    print(f"[BackupVerify] {desc} -> {cmd}")
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    argv = shlex.split(cmd) if isinstance(cmd, str) else list(cmd)
+    print(f"[BackupVerify] {desc} -> {' '.join(argv)}")
+    res = subprocess.run(argv, shell=False, capture_output=True, text=True)
     if res.returncode != 0:
         print(f"[BackupVerify ERROR] {res.stderr}")
         raise RuntimeError(f"Command failed ({desc}): {res.stderr}")
@@ -60,15 +62,17 @@ def main():
     # Step 3: Spin up isolated disposable test container
     print("\n--- Step 3: Launching Disposable Isolated Test Container ---")
     # Clean up previous instance if any
-    subprocess.run(f"docker rm -f {TEST_CONTAINER}", shell=True, capture_output=True)
+    subprocess.run(["docker", "rm", "-f", TEST_CONTAINER], shell=False, capture_output=True)
 
     run_cmd(
-        f'docker run -d --name {TEST_CONTAINER} '
-        f'-e POSTGRES_USER={TEST_USER} '
-        f'-e POSTGRES_PASSWORD={TEST_PASS} '
-        f'-e POSTGRES_DB={TEST_DB} '
-        f'-p {TEST_PORT}:5432 '
-        f'postgres:16-alpine',
+        [
+            "docker", "run", "-d", "--name", TEST_CONTAINER,
+            "-e", f"POSTGRES_USER={TEST_USER}",
+            "-e", f"POSTGRES_PASSWORD={TEST_PASS}",
+            "-e", f"POSTGRES_DB={TEST_DB}",
+            "-p", f"{TEST_PORT}:5432",
+            "postgres:16-alpine",
+        ],
         "Spawning isolated PostgreSQL 16 container"
     )
 
@@ -78,8 +82,8 @@ def main():
     for _ in range(30):
         time.sleep(1)
         res = subprocess.run(
-            f'docker exec {TEST_CONTAINER} pg_isready -U {TEST_USER} -d {TEST_DB}',
-            shell=True, capture_output=True, text=True
+            ["docker", "exec", TEST_CONTAINER, "pg_isready", "-U", TEST_USER, "-d", TEST_DB],
+            shell=False, capture_output=True, text=True
         )
         if res.returncode == 0:
             ready = True
@@ -91,14 +95,14 @@ def main():
     # Step 4: Copy backup into disposable container and restore
     print("\n--- Step 4: Restoring Backup into Disposable Container ---")
     run_cmd(
-        f'docker cp "{local_backup_path}" {TEST_CONTAINER}:/tmp/restore_target.dump',
+        ["docker", "cp", str(local_backup_path), f"{TEST_CONTAINER}:/tmp/restore_target.dump"],
         "Copying backup file into disposable container"
     )
 
     # Run pg_restore (allow exit code 0 or 1 for minor schema notices)
     restore_res = subprocess.run(
-        f'docker exec {TEST_CONTAINER} pg_restore -U {TEST_USER} -d {TEST_DB} --clean --if-exists --no-owner /tmp/restore_target.dump',
-        shell=True, capture_output=True, text=True
+        ["docker", "exec", TEST_CONTAINER, "pg_restore", "-U", TEST_USER, "-d", TEST_DB, "--clean", "--if-exists", "--no-owner", "/tmp/restore_target.dump"],
+        shell=False, capture_output=True, text=True
     )
     print(f"pg_restore output:\n{restore_res.stdout or restore_res.stderr or 'Clean restore.'}")
 

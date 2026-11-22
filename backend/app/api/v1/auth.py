@@ -1,4 +1,13 @@
+import hashlib
+import hmac
+import os
+import re
+import secrets
+from datetime import datetime, timedelta, timezone
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 import jwt
 from backend.app.core.database import get_db
@@ -6,7 +15,7 @@ from backend.app.core.security import (
     verify_password, hash_password, create_access_token, create_refresh_token, decode_token
 )
 from backend.app.core.config import settings
-from backend.app.models.user import User, UserRole, Address
+from backend.app.models.user import User, UserRole, Address, Notification
 from backend.app.schemas.auth import UserRegister, UserLogin, Token, RefreshTokenRequest
 from backend.app.schemas.user import UserResponse
 from backend.app.api.deps import get_current_user
@@ -14,6 +23,59 @@ from backend.app.core.rate_limit import RateLimiter
 
 router = APIRouter()
 auth_limiter = RateLimiter(requests=15, window_seconds=60, prefix="auth")
+MAX_CODE_ATTEMPTS = 5
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=1, max_length=32)
+    new_password: str = Field(..., min_length=6, max_length=128)
+
+
+class MobileOtpRequest(BaseModel):
+    phone: str = Field(..., min_length=6, max_length=32)
+
+
+class MobileOtpVerify(BaseModel):
+    phone: str = Field(..., min_length=6, max_length=32)
+    otp: str = Field(..., min_length=1, max_length=16)
+
+
+def _hash_code(raw: str) -> str:
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        str(raw or "").strip().encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _normalize_phone_digits(phone: str) -> str:
+    digits = re.sub(r"\D", "", str(phone or ""))
+    return digits[-10:] if len(digits) >= 10 else digits
+
+
+def _allow_dev_code_echo() -> bool:
+    env = (settings.ENVIRONMENT or "").strip().lower()
+    if env in ("production", "staging"):
+        return False
+    return bool(os.environ.get("PYTEST_CURRENT_TEST")) or (
+        os.environ.get("ALLOW_DEV_OTP_ECHO", "").strip().lower() == "true"
+    )
+
+
+def _utc_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _is_expired(expires_at: Optional[datetime]) -> bool:
+    if not expires_at:
+        return True
+    exp_naive = expires_at.replace(tzinfo=None) if expires_at.tzinfo else expires_at
+    return exp_naive <= _utc_now_naive()
 
 
 @router.post("/register", response_model=Token, dependencies=[Depends(auth_limiter)])
@@ -133,3 +195,175 @@ def get_current_user_profile(user: User = Depends(get_current_user), db: Session
         "role": user.role.value,
         "addresses": [{"id": a.id, "label": a.label, "text": a.text, "city": a.city, "is_default": a.is_default} for a in addresses]
     }
+
+
+@router.post("/password-reset/request", dependencies=[Depends(auth_limiter)])
+def request_password_reset(payload: PasswordResetRequest, db: Session = Depends(get_db)):
+    generic_msg = "If an account with that email exists, a reset code has been sent."
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == payload.email.strip().lower(), User.is_active == True)
+        .first()
+    )
+    if not user or user.role == UserRole.ADMIN:
+        return {"message": generic_msg}
+
+    code = str(secrets.randbelow(900000) + 100000)
+    user.reset_token_hash = _hash_code(code)
+    user.reset_token_expires_at = _utc_now_naive() + timedelta(minutes=15)
+    user.reset_attempts = 0
+    db.add(
+        Notification(
+            user_id=user.id,
+            type="system",
+            text="A password reset verification code was requested for your account (valid for 15 minutes).",
+        )
+    )
+    db.commit()
+
+    res = {"message": generic_msg}
+    if _allow_dev_code_echo():
+        res["dev_code"] = code
+    return res
+
+
+@router.post("/password-reset/confirm", dependencies=[Depends(auth_limiter)])
+def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
+    user = (
+        db.query(User)
+        .filter(func.lower(User.email) == payload.email.strip().lower(), User.is_active == True)
+        .first()
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code.",
+        )
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator passwords cannot be reset via self-service.",
+        )
+    if not user.reset_token_hash or _is_expired(user.reset_token_expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset code.",
+        )
+
+    if not hmac.compare_digest(_hash_code(payload.code), user.reset_token_hash):
+        user.reset_attempts = int(user.reset_attempts or 0) + 1
+        if user.reset_attempts >= MAX_CODE_ATTEMPTS:
+            user.reset_token_hash = None
+            user.reset_token_expires_at = None
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many invalid attempts. Please request a new reset code.",
+            )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid reset code.",
+        )
+
+    user.hashed_password = hash_password(payload.new_password)
+    user.reset_token_hash = None
+    user.reset_token_expires_at = None
+    user.reset_attempts = 0
+    db.commit()
+    return {"message": "Password has been reset successfully. You can now sign in."}
+
+
+@router.post("/otp/request", dependencies=[Depends(auth_limiter)])
+def request_mobile_otp(payload: MobileOtpRequest, db: Session = Depends(get_db)):
+    generic_msg = "If a unique account matches this mobile number, a one-time code has been sent."
+    norm_phone = _normalize_phone_digits(payload.phone)
+    if len(norm_phone) < 7:
+        return {"message": generic_msg}
+
+    active_users = db.query(User).filter(User.is_active == True, User.phone.isnot(None)).all()
+    matches = [u for u in active_users if _normalize_phone_digits(u.phone or "") == norm_phone]
+    if len(matches) != 1:
+        return {"message": generic_msg}
+
+    user = matches[0]
+    if user.role == UserRole.ADMIN:
+        return {"message": generic_msg}
+
+    otp = str(secrets.randbelow(900000) + 100000)
+    user.otp_code_hash = _hash_code(otp)
+    user.otp_expires_at = _utc_now_naive() + timedelta(minutes=10)
+    user.otp_attempts = 0
+    db.commit()
+
+    res = {"message": generic_msg}
+    if _allow_dev_code_echo():
+        res["dev_otp"] = otp
+    return res
+
+
+@router.post("/otp/verify", response_model=Token, dependencies=[Depends(auth_limiter)])
+def verify_mobile_otp(payload: MobileOtpVerify, db: Session = Depends(get_db)):
+    norm_phone = _normalize_phone_digits(payload.phone)
+    active_users = (
+        db.query(User).filter(User.is_active == True, User.phone.isnot(None)).all()
+        if len(norm_phone) >= 7
+        else []
+    )
+    matches = [u for u in active_users if _normalize_phone_digits(u.phone or "") == norm_phone]
+
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ambiguous phone number — sign in with email and password.",
+        )
+    if not matches:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP.",
+        )
+
+    user = matches[0]
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator accounts must sign in with email and password.",
+        )
+    if not user.otp_code_hash or _is_expired(user.otp_expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP.",
+        )
+
+    if not hmac.compare_digest(_hash_code(payload.otp), user.otp_code_hash):
+        user.otp_attempts = int(user.otp_attempts or 0) + 1
+        if user.otp_attempts >= MAX_CODE_ATTEMPTS:
+            user.otp_code_hash = None
+            user.otp_expires_at = None
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many invalid OTP attempts. Please request a new OTP.",
+            )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid OTP.",
+        )
+
+    user.otp_code_hash = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
+    db.commit()
+
+    access_token = create_access_token(subject=user.id, role=user.role.value)
+    refresh_token = create_refresh_token(subject=user.id, role=user.role.value)
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        role=user.role.value,
+        user_id=user.id,
+        name=user.full_name,
+        email=user.email,
+        phone=user.phone,
+    )

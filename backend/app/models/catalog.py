@@ -26,11 +26,17 @@ class Service(Base):
     reviews = Column(Integer, default=0)
     img = Column(String(500), nullable=False)
     desc = Column(Text, nullable=False)
+    service_cities = Column(String(255), nullable=False, default="Mumbai,Bengaluru,Delhi")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     professionals = relationship("ProfessionalProfile", secondary=service_professionals, back_populates="services")
     bookings = relationship("Booking", back_populates="service")
+
+    @property
+    def cities(self) -> list[str]:
+        raw = self.service_cities or "Mumbai,Bengaluru,Delhi"
+        return [c.strip() for c in raw.split(",") if c.strip()]
 
 
 class ProfessionalProfile(Base):
@@ -39,6 +45,10 @@ class ProfessionalProfile(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=True)
     name = Column(String(255), nullable=False)
+    city = Column(String(100), nullable=False, default="Mumbai", index=True)
+    area = Column(String(255), nullable=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
     experience = Column(String(100), nullable=False)
     rating = Column(Float, default=4.9)
     reviews = Column(Integer, default=0)
@@ -59,7 +69,10 @@ class Salon(Base):
     id = Column(String(50), primary_key=True, index=True)  # l1, l2, etc.
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(255), nullable=False)
+    city = Column(String(100), nullable=False, default="Mumbai", index=True)
     area = Column(String(255), nullable=False, index=True)
+    lat = Column(Float, nullable=True)
+    lng = Column(Float, nullable=True)
     distance = Column(String(100), nullable=False)
     rating = Column(Float, default=4.9)
     reviews = Column(Integer, default=0)

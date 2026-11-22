@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, Integer, String, Float, DateTime, ForeignKey, Text, Enum
@@ -26,9 +27,21 @@ class Booking(Base):
     payment_status = Column(String(50), default="pending", nullable=False)
     razorpay_order_id = Column(String(100), index=True, nullable=True)
     idempotency_key = Column(String(100), index=True, nullable=True)
+    arrival_otp = Column(String(6), nullable=True)
+    addons_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     customer = relationship("User", back_populates="bookings")
     service = relationship("Service", back_populates="bookings")
     professional_rel = relationship("ProfessionalProfile", back_populates="bookings")
     salon = relationship("Salon", back_populates="bookings")
+
+    @property
+    def addons(self) -> list:
+        if not self.addons_json:
+            return []
+        try:
+            parsed = json.loads(self.addons_json)
+            return parsed if isinstance(parsed, list) else []
+        except (ValueError, TypeError):
+            return []

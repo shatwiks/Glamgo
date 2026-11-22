@@ -18,9 +18,13 @@ from backend.app.models.booking import Booking
 from backend.app.models.commerce import (
     SellerListing, SubOrder, SubOrderStatus, ReturnRequest, ReturnStatus,
     InventoryAuditLog, StockAction, SellerEscrowRecord, EscrowStatus,
+    RefundRecord,
 )
 from backend.app.services.commerce_service import (
     CommerceService, to_paise, to_rupees, is_cod_payment_method,
+)
+from backend.app.services.refund_service import (
+    RefundService, RefundGatewayError, RefundInFlightError, RefundValidationError,
 )
 from backend.app.services.cache_service import cache_service
 from backend.app.schemas.payment import (
@@ -115,11 +119,11 @@ def _apply_capture_in_tx(
     transaction: PaymentTransaction,
     razorpay_payment_id: str | None,
     razorpay_signature: str | None = None,
-) -> str:
+) -> tuple[str, int | None]:
     """
     Idempotently transition locked transaction and linked order/booking inside a DB transaction.
-    Returns 'captured', 'restored' (late capture on cancelled order restored), or
-    'oos_needs_refund' (late capture on cancelled order whose stock ran out).
+    Returns (outcome, oos_refund_record_id) where outcome is 'captured', 'restored', or
+    'oos_needs_refund'.
     """
     transaction.status = "captured"
     if razorpay_payment_id:
@@ -128,9 +132,16 @@ def _apply_capture_in_tx(
         transaction.razorpay_signature = razorpay_signature
 
     outcome = "captured"
+    oos_refund_record_id: int | None = None
 
     if transaction.order_id:
-        order = db.query(Order).filter(Order.id == transaction.order_id).with_for_update().first()
+        order = (
+            db.query(Order)
+            .filter(Order.id == transaction.order_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if order:
             if transaction.razorpay_order_id:
                 order.razorpay_order_id = transaction.razorpay_order_id
@@ -145,7 +156,13 @@ def _apply_capture_in_tx(
                 lmap: dict[int, SellerListing] = {}
                 can_fulfill = bool(sorted_lids)
                 for lid in sorted_lids:
-                    lst = db.query(SellerListing).filter(SellerListing.id == lid).with_for_update().first()
+                    lst = (
+                        db.query(SellerListing)
+                        .filter(SellerListing.id == lid)
+                        .with_for_update()
+                        .populate_existing()
+                        .first()
+                    )
                     if not lst or not lst.is_active or lst.stock < needed_by_listing[lid]:
                         can_fulfill = False
                     if lst:
@@ -180,9 +197,13 @@ def _apply_capture_in_tx(
                         if sub.status == SubOrderStatus.CANCELLED:
                             sub.status = SubOrderStatus.PLACED
                             sub.updated_at = now_utc
-                        esc = db.query(SellerEscrowRecord).filter(
-                            SellerEscrowRecord.suborder_id == sub.id
-                        ).with_for_update().first()
+                        esc = (
+                            db.query(SellerEscrowRecord)
+                            .filter(SellerEscrowRecord.suborder_id == sub.id)
+                            .with_for_update()
+                            .populate_existing()
+                            .first()
+                        )
                         if esc:
                             esc.status = EscrowStatus.HELD_IN_ESCROW
                     db.add(Notification(
@@ -193,13 +214,43 @@ def _apply_capture_in_tx(
                     cache_service.invalidate_catalog()
                     outcome = "restored"
                 else:
-                    order.payment_status = "refund_pending_oos"
+                    if order.payment_status != "refunded_oos":
+                        order.payment_status = "refund_pending_oos"
                     order.payment_expires_at = None
-                    db.add(Notification(
-                        user_id=order.customer_id,
-                        type="order",
-                        text=f"Payment captured after hold expired for order {order.id}, which is now out of stock. Initiating full automatic refund."
-                    ))
+                    for sub in (order.suborders or []):
+                        sub.status = SubOrderStatus.CANCELLED
+                        esc = (
+                            db.query(SellerEscrowRecord)
+                            .filter(SellerEscrowRecord.suborder_id == sub.id)
+                            .with_for_update()
+                            .populate_existing()
+                            .first()
+                        )
+                        if esc:
+                            esc.status = EscrowStatus.CLAWBACK_REFUND
+                            esc.net_settlement = 0.0
+
+                    cap_pay_id = razorpay_payment_id or transaction.razorpay_payment_id
+                    if cap_pay_id:
+                        # Flush captured/OOS mutations before create_or_get_refund_intent locks & refreshes rows with populate_existing()
+                        db.flush()
+                        oos_rec, created_intent = RefundService.create_or_get_refund_intent(
+                            db,
+                            logical_key=f"oos:{order.id}:{cap_pay_id}",
+                            refund_type="OOS_AUTO",
+                            order_id=order.id,
+                            amount_paise=to_paise(transaction.amount),
+                            captured_payment_id=cap_pay_id,
+                            payment_transaction_id=transaction.id,
+                            extra_notes={"reason": "late_capture_out_of_stock"},
+                        )
+                        oos_refund_record_id = oos_rec.id
+                        if created_intent:
+                            db.add(Notification(
+                                user_id=order.customer_id,
+                                type="order",
+                                text=f"Payment captured after hold expired for order {order.id}, which is now out of stock. Initiating full automatic refund."
+                            ))
                     outcome = "oos_needs_refund"
             else:
                 was_paid = order.payment_status == "completed"
@@ -213,7 +264,13 @@ def _apply_capture_in_tx(
                     ))
 
     if transaction.booking_id:
-        booking = db.query(Booking).filter(Booking.id == transaction.booking_id).with_for_update().first()
+        booking = (
+            db.query(Booking)
+            .filter(Booking.id == transaction.booking_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if booking:
             was_paid = booking.payment_status == "completed"
             booking.payment_status = "completed"
@@ -226,62 +283,174 @@ def _apply_capture_in_tx(
                     text=f"Your booking {booking.id} is confirmed & paid."
                 ))
 
-    return outcome
+    return outcome, oos_refund_record_id
 
 
-def _refund_oos_capture_outside_locks(db: Session, tx_id: int, payment_id: str | None) -> str:
+def _refund_oos_capture_outside_locks(
+    db: Session,
+    tx_id: int,
+    payment_id: str | None,
+    refund_record_id: int | None = None,
+    *,
+    applied_via: str = "oos_auto",
+) -> tuple[str, str, str | None]:
     """
-    Issue an automatic Razorpay refund after an out-of-stock late capture WITHOUT holding DB locks.
-    Returns final order.payment_status ('refunded_oos' or 'refund_pending_oos').
+    Execute or reconcile a durable OOS automatic Razorpay refund WITHOUT holding DB locks.
+    Independent of ReturnRequest. Returns (order_payment_status, refund_record_status, provider_refund_id).
     """
-    tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
-    if not tx or not payment_id:
-        return "refund_pending_oos"
+    tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).populate_existing().first()
+    if not tx:
+        return "refund_pending_oos", "UNKNOWN", None
 
-    amount_paise = to_paise(tx.amount)
-    order_id = tx.order_id
-    refund_resp = None
+    rec_id = refund_record_id
+    if rec_id is None and tx.order_id:
+        cap_pay_id = payment_id or tx.razorpay_payment_id
+        if cap_pay_id:
+            rec, _ = RefundService.create_or_get_refund_intent(
+                db,
+                logical_key=f"oos:{tx.order_id}:{cap_pay_id}",
+                refund_type="OOS_AUTO",
+                order_id=tx.order_id,
+                amount_paise=to_paise(tx.amount),
+                captured_payment_id=cap_pay_id,
+                payment_transaction_id=tx.id,
+                extra_notes={"reason": "late_capture_out_of_stock"},
+            )
+            db.commit()
+            rec_id = rec.id
+
+    if rec_id is None:
+        return "refund_pending_oos", "UNKNOWN", None
+
     try:
-        client = get_razorpay_client()
-        refund_resp = client.payment.refund(
-            payment_id,
-            {
-                "amount": amount_paise,
-                "notes": {
-                    "order_id": order_id or "",
-                    "reason": "late_capture_out_of_stock",
-                },
-            },
+        RefundService.execute_or_reconcile_refund(
+            db,
+            rec_id,
+            applied_via=applied_via,
+            ignore_backoff=True,
         )
+    except (RefundGatewayError, RefundInFlightError, RefundValidationError):
+        pass
     except Exception:
-        refund_resp = None
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
-    tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).with_for_update().first()
-    order = db.query(Order).filter(Order.id == order_id).with_for_update().first() if order_id else None
-    final_payment_status = "refund_pending_oos"
+    rec = db.query(RefundRecord).filter(RefundRecord.id == rec_id).populate_existing().first()
+    order = db.query(Order).filter(Order.id == tx.order_id).populate_existing().first() if tx.order_id else None
+    final_order_status = order.payment_status if order else "refund_pending_oos"
+    if final_order_status not in ("refunded_oos", "refund_pending_oos"):
+        final_order_status = "refunded_oos" if (rec and rec.status == "PROCESSED") else "refund_pending_oos"
+    return (
+        final_order_status,
+        rec.status if rec else "UNKNOWN",
+        rec.provider_refund_id if rec else None,
+    )
 
-    if isinstance(refund_resp, dict) and refund_resp.get("id"):
-        ref_id = refund_resp["id"]
-        gw_status = str(refund_resp.get("status", "processed")).lower()
-        tx.refund_id = ref_id
-        if gw_status == "processed":
-            tx.status = "refunded"
-            final_payment_status = "refunded_oos"
-            if order:
-                order.payment_status = "refunded_oos"
-                db.add(Notification(
-                    user_id=order.customer_id,
-                    type="order",
-                    text=f"Automatic full refund ({ref_id}) processed for out-of-stock expired order {order.id}."
-                ))
-        else:
-            if order:
-                order.payment_status = "refund_pending_oos"
-    elif order:
-        order.payment_status = "refund_pending_oos"
 
-    db.commit()
-    return final_payment_status
+def _build_verify_response_for_settled_tx(
+    db: Session,
+    transaction: PaymentTransaction,
+    req_payment_id: str | None,
+) -> PaymentVerifyResponse:
+    """
+    Resolve linked Order/Booking state authoritatively before answering /payments/razorpay/verify.
+    Never returns success=True/payment_status='completed' for cancelled or OOS-refund orders.
+    """
+    if (
+        transaction.status == "captured"
+        and transaction.razorpay_payment_id
+        and req_payment_id
+        and transaction.razorpay_payment_id != req_payment_id
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This order has already been paid under another payment reference."
+        )
+
+    if transaction.order_id:
+        order = (
+            db.query(Order)
+            .filter(Order.id == transaction.order_id)
+            .populate_existing()
+            .first()
+        )
+        oos_rec = (
+            db.query(RefundRecord)
+            .filter(
+                RefundRecord.order_id == transaction.order_id,
+                RefundRecord.refund_type == "OOS_AUTO",
+            )
+            .order_by(RefundRecord.id.desc())
+            .populate_existing()
+            .first()
+        )
+        if order:
+            if (
+                order.payment_status == "refunded_oos"
+                or (oos_rec and oos_rec.status == "PROCESSED")
+                or (transaction.status == "refunded" and order.status == OrderStatus.CANCELLED)
+            ):
+                return PaymentVerifyResponse(
+                    success=False,
+                    status="refunded_oos",
+                    payment_status="refunded_oos",
+                    order_status=order.status.value,
+                    refund_status="PROCESSED",
+                    refund_id=(oos_rec.provider_refund_id if oos_rec else transaction.refund_id),
+                    message="Payment was captured after hold expired while out of stock and has been automatically refunded.",
+                )
+
+            if (
+                order.payment_status == "refund_pending_oos"
+                or (order.status == OrderStatus.CANCELLED and transaction.status in ("captured", "refund_pending"))
+            ):
+                return PaymentVerifyResponse(
+                    success=False,
+                    status="refund_pending_oos",
+                    payment_status="refund_pending_oos",
+                    order_status=order.status.value,
+                    refund_status=(oos_rec.status if oos_rec else "PENDING"),
+                    refund_id=(oos_rec.provider_refund_id if oos_rec else transaction.refund_id),
+                    message="Order was cancelled after reservation expiry while out of stock; automatic full refund is in progress.",
+                )
+
+            if order.payment_status == "refunded" or transaction.status == "refunded":
+                return PaymentVerifyResponse(
+                    success=False,
+                    status="refunded",
+                    payment_status="refunded",
+                    order_status=order.status.value,
+                    refund_status="PROCESSED",
+                    refund_id=transaction.refund_id,
+                    message="Payment was already captured and refunded.",
+                )
+
+            return PaymentVerifyResponse(
+                success=True,
+                status="captured",
+                payment_status=order.payment_status or "completed",
+                order_status=order.status.value,
+                message="Payment already verified and confirmed.",
+            )
+
+    if transaction.status == "refunded":
+        return PaymentVerifyResponse(
+            success=False,
+            status="refunded",
+            payment_status="refunded",
+            refund_status="PROCESSED",
+            refund_id=transaction.refund_id,
+            message="Payment was already captured and refunded.",
+        )
+
+    return PaymentVerifyResponse(
+        success=True,
+        status="captured",
+        payment_status="completed",
+        message="Payment already verified and confirmed.",
+    )
 
 
 def _lookup_transaction_for_verify(db: Session, req: PaymentVerifyRequest) -> PaymentTransaction:
@@ -483,10 +652,17 @@ def create_razorpay_order(
         )
 
     try:
-        tx_to_update = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).with_for_update().first()
+        tx_to_update = (
+            db.query(PaymentTransaction)
+            .filter(PaymentTransaction.id == tx_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if tx_to_update:
             tx_to_update.razorpay_order_id = razorpay_order_id
-            tx_to_update.status = "created"
+            if tx_to_update.status == "initiating":
+                tx_to_update.status = "created"
         if target_type == "order":
             t_row = db.query(Order).filter(Order.id == target_id_val).first()
         else:
@@ -501,7 +677,8 @@ def create_razorpay_order(
             rec_tx = rec_db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
             if rec_tx:
                 rec_tx.razorpay_order_id = razorpay_order_id
-                rec_tx.status = "created"
+                if rec_tx.status == "initiating":
+                    rec_tx.status = "created"
             if target_type == "order":
                 rec_t = rec_db.query(Order).filter(Order.id == target_id_val).first()
             else:
@@ -535,25 +712,8 @@ def verify_razorpay_payment(
             detail="You are not authorized to verify this transaction."
         )
 
-    if transaction.status == "captured":
-        if transaction.razorpay_payment_id == req.razorpay_payment_id:
-            return PaymentVerifyResponse(
-                success=True,
-                status="captured",
-                payment_status="completed",
-                message="Payment already verified and confirmed."
-            )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This order has already been paid under another payment reference."
-        )
-    if transaction.status == "refunded":
-        return PaymentVerifyResponse(
-            success=False,
-            status="refunded_oos",
-            payment_status="refunded_oos",
-            message="Payment was already captured and refunded."
-        )
+    if transaction.status in ("captured", "refunded"):
+        return _build_verify_response_for_settled_tx(db, transaction, req.razorpay_payment_id)
 
     if not settings.RAZORPAY_KEY_SECRET:
         raise HTTPException(
@@ -580,8 +740,8 @@ def verify_razorpay_payment(
     expected_paise = to_paise(transaction.amount)
     stored_rzp_order_id = transaction.razorpay_order_id
 
-    # End read transaction cleanly before external gateway call
-    db.rollback()
+    # Commit any pending changes in the caller's session and close read transaction before external gateway call
+    db.commit()
 
     try:
         payment_data = client.payment.fetch(req.razorpay_payment_id)
@@ -620,41 +780,46 @@ def verify_razorpay_payment(
             detail=f"Payment is not captured (current status: {fetched_status or 'unknown'})."
         )
 
-    locked_tx = db.query(PaymentTransaction).filter(
-        PaymentTransaction.id == tx_id
-    ).with_for_update().first()
+    locked_tx = (
+        db.query(PaymentTransaction)
+        .filter(PaymentTransaction.id == tx_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not locked_tx:
         raise HTTPException(status_code=404, detail="Payment transaction no longer exists.")
 
-    if locked_tx.status == "captured":
-        if locked_tx.razorpay_payment_id == req.razorpay_payment_id:
-            return PaymentVerifyResponse(
-                success=True,
-                status="captured",
-                payment_status="completed",
-                message="Payment already verified and confirmed."
-            )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="This order has already been paid under another payment reference."
-        )
+    if locked_tx.status in ("captured", "refunded"):
+        return _build_verify_response_for_settled_tx(db, locked_tx, req.razorpay_payment_id)
 
-    outcome = _apply_capture_in_tx(db, locked_tx, req.razorpay_payment_id, req.razorpay_signature)
+    outcome, oos_rec_id = _apply_capture_in_tx(db, locked_tx, req.razorpay_payment_id, req.razorpay_signature)
     db.commit()
 
     if outcome == "oos_needs_refund":
-        final_pay_status = _refund_oos_capture_outside_locks(db, tx_id, req.razorpay_payment_id)
+        final_pay_status, ref_rec_status, ref_id = _refund_oos_capture_outside_locks(
+            db, tx_id, req.razorpay_payment_id, oos_rec_id, applied_via="verify_oos"
+        )
+        msg = (
+            f"Payment captured after hold expired while out of stock; full automatic refund ({ref_id}) completed."
+            if final_pay_status == "refunded_oos"
+            else "Payment captured after hold expired and stock sold out; automatic full refund is being processed."
+        )
         return PaymentVerifyResponse(
             success=False,
             status=final_pay_status,
             payment_status=final_pay_status,
-            message="Payment captured after hold expired and stock sold out; an automatic full refund has been initiated."
+            order_status=OrderStatus.CANCELLED.value,
+            refund_status=ref_rec_status,
+            refund_id=ref_id,
+            message=msg,
         )
 
     return PaymentVerifyResponse(
         success=True,
         status="captured",
         payment_status="completed",
+        order_status=OrderStatus.PLACED.value,
         message=(
             "Late payment verified and order restored successfully."
             if outcome == "restored"
@@ -739,73 +904,152 @@ async def razorpay_webhook(
     order_entity = payload.get("order", {}).get("entity", {}) or {}
     refund_entity = payload.get("refund", {}).get("entity", {}) or {}
 
-    # 1. Reconcile async gateway refund webhooks (refund.processed / refund.failed)
-    if event in ("refund.processed", "refund.failed"):
-        refund_id = refund_entity.get("id")
-        ref_payment_id = refund_entity.get("payment_id") or payment_entity.get("id")
-        ref_notes = refund_entity.get("notes", {}) or {}
+    # 1. Reconcile async gateway refund webhooks via shared atomic settlement layer
+    if event in ("refund.processed", "refund.failed", "refund.created"):
+        raw_entity_status = str(refund_entity.get("status") or "").strip().lower()
+        if not raw_entity_status:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Webhook refund payload is missing explicit 'status'.",
+            )
+        expected_status_map = {
+            "refund.processed": {"processed"},
+            "refund.failed": {"failed"},
+            "refund.created": {"created", "pending", "processed"},
+        }
+        if raw_entity_status not in expected_status_map[event]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Webhook refund status '{raw_entity_status}' conflicts with event '{event}'.",
+            )
+
+        refund_id = str(refund_entity.get("id") or "").strip() or None
+        ref_payment_id = str(refund_entity.get("payment_id") or payment_entity.get("id") or "").strip() or None
+        ref_receipt = str(refund_entity.get("receipt") or "").strip() or None
+        ref_notes = refund_entity.get("notes") if isinstance(refund_entity.get("notes"), dict) else {}
+        note_logical_key = ref_notes.get("logical_key")
+        note_idem_key = ref_notes.get("idempotency_key")
         ret_id = ref_notes.get("return_id")
 
-        ret_req = None
+        # Read-only lookup first so apply_provider_refund_outcome acquires ALL locks in canonical order
+        rec = None
         if refund_id:
-            ret_req = db.query(ReturnRequest).filter(
-                ReturnRequest.gateway_refund_id == refund_id
-            ).with_for_update().first()
-        if not ret_req and ret_id:
-            ret_req = db.query(ReturnRequest).filter(
-                ReturnRequest.id == ret_id
-            ).with_for_update().first()
-
-        if ret_req:
-            if event == "refund.processed":
-                if ret_req.status == ReturnStatus.REFUNDED:
-                    return {"status": "ok", "event": event, "message": "Idempotent: Refund already processed"}
-                ret_req.gateway_refund_id = refund_id or ret_req.gateway_refund_id
-                ret_req.refund_status = "PROCESSED"
-                ret_req.status = ReturnStatus.REFUNDED
-                ret_req.refunded_at = datetime.now(timezone.utc)
-                ret_req.updated_at = datetime.now(timezone.utc)
-                CommerceService._apply_refund_to_escrow_and_order(
-                    db, ret_req, ret_req.gateway_refund_id, refund_tx_status="refunded"
+            rec = db.query(RefundRecord).filter(RefundRecord.provider_refund_id == refund_id).first()
+        if not rec and ref_receipt:
+            rec = db.query(RefundRecord).filter(RefundRecord.receipt == ref_receipt).first()
+        if not rec and note_idem_key:
+            rec = db.query(RefundRecord).filter(RefundRecord.idempotency_key == note_idem_key).first()
+        if not rec and note_logical_key:
+            rec = db.query(RefundRecord).filter(RefundRecord.logical_key == note_logical_key).first()
+        if not rec and ret_id:
+            rec = db.query(RefundRecord).filter(RefundRecord.return_request_id == ret_id).first()
+        if not rec and ref_payment_id:
+            oos_candidates = (
+                db.query(RefundRecord)
+                .filter(
+                    RefundRecord.captured_payment_id == ref_payment_id,
+                    RefundRecord.refund_type == "OOS_AUTO",
                 )
-                db.commit()
-                return {"status": "ok", "event": event, "processed": True}
+                .all()
+            )
+            if len(oos_candidates) == 1:
+                rec = oos_candidates[0]
+
+        # Backfill-create RefundRecord only if a pre-migration ReturnRequest or OOS PaymentTransaction matches unambiguously
+        if not rec:
+            ret_req = None
+            if refund_id:
+                ret_req = db.query(ReturnRequest).filter(ReturnRequest.gateway_refund_id == refund_id).first()
+            if not ret_req and ret_id:
+                ret_req = db.query(ReturnRequest).filter(ReturnRequest.id == ret_id).first()
+            if ret_req:
+                sub = db.query(SubOrder).filter(SubOrder.id == ret_req.suborder_id).first()
+                parent_id = sub.parent_order_id if sub else None
+                cap_tx = (
+                    db.query(PaymentTransaction)
+                    .filter(
+                        PaymentTransaction.order_id == parent_id,
+                        PaymentTransaction.refund_id.is_(None),
+                        PaymentTransaction.razorpay_payment_id.isnot(None),
+                        PaymentTransaction.status.in_(("captured", "partially_refunded", "refunded")),
+                    )
+                    .order_by(PaymentTransaction.id.desc())
+                    .first()
+                    if parent_id
+                    else None
+                )
+                if parent_id:
+                    rec, _ = RefundService.create_or_get_refund_intent(
+                        db,
+                        logical_key=f"return:{ret_req.id}",
+                        refund_type="RETURN",
+                        order_id=parent_id,
+                        amount_paise=int(ret_req.refund_paise or to_paise(ret_req.refund_amount)),
+                        captured_payment_id=(cap_tx.razorpay_payment_id if cap_tx else ref_payment_id),
+                        payment_transaction_id=(cap_tx.id if cap_tx else None),
+                        suborder_id=ret_req.suborder_id,
+                        return_request_id=ret_req.id,
+                    )
             else:
-                if ret_req.status == ReturnStatus.REFUNDED:
-                    return {"status": "ok", "event": event, "processed": False, "note": "Ignored failure after processed refund"}
-                ret_req.gateway_refund_id = refund_id or ret_req.gateway_refund_id
-                ret_req.refund_status = "FAILED"
-                ret_req.status = ReturnStatus.REFUND_FAILED
-                ret_req.updated_at = datetime.now(timezone.utc)
-                db.commit()
-                return {"status": "ok", "event": event, "processed": True}
-
-        # Check payment transaction refund (e.g., OOS capture auto-refund)
-        ref_tx = None
-        if refund_id:
-            ref_tx = db.query(PaymentTransaction).filter(
-                PaymentTransaction.refund_id == refund_id
-            ).with_for_update().first()
-        if not ref_tx and ref_payment_id:
-            ref_tx = db.query(PaymentTransaction).filter(
-                PaymentTransaction.razorpay_payment_id == ref_payment_id
-            ).with_for_update().first()
-        if ref_tx:
-            if event == "refund.processed":
-                if ref_tx.status == "refunded":
-                    return {"status": "ok", "event": event, "message": "Idempotent: Refund already processed"}
-                ref_tx.status = "refunded"
+                ref_tx = None
                 if refund_id:
-                    ref_tx.refund_id = refund_id
-                if ref_tx.order_id:
-                    ord_obj = db.query(Order).filter(Order.id == ref_tx.order_id).with_for_update().first()
-                    if ord_obj:
-                        ord_obj.payment_status = "refunded_oos" if ord_obj.payment_status == "refund_pending_oos" else "refunded"
-                db.commit()
-                return {"status": "ok", "event": event, "processed": True}
-            return {"status": "ok", "event": event, "processed": True, "note": "Refund failure recorded"}
+                    ref_tx = db.query(PaymentTransaction).filter(PaymentTransaction.refund_id == refund_id).first()
+                if not ref_tx and ref_payment_id:
+                    ref_tx = (
+                        db.query(PaymentTransaction)
+                        .filter(
+                            PaymentTransaction.razorpay_payment_id == ref_payment_id,
+                            PaymentTransaction.order_id.isnot(None),
+                        )
+                        .first()
+                    )
+                if ref_tx and ref_tx.order_id:
+                    ord_obj = db.query(Order).filter(Order.id == ref_tx.order_id).first()
+                    if ord_obj and ord_obj.status == OrderStatus.CANCELLED:
+                        cap_pay = ref_tx.razorpay_payment_id or ref_payment_id
+                        rec, _ = RefundService.create_or_get_refund_intent(
+                            db,
+                            logical_key=f"oos:{ord_obj.id}:{cap_pay}",
+                            refund_type="OOS_AUTO",
+                            order_id=ord_obj.id,
+                            amount_paise=to_paise(ref_tx.amount),
+                            captured_payment_id=cap_pay,
+                            payment_transaction_id=ref_tx.id,
+                            extra_notes={"reason": "late_capture_out_of_stock"},
+                        )
 
-        return {"status": "ok", "event": event, "processed": False, "note": "Refund record not found"}
+        if not rec:
+            return {"status": "ok", "event": event, "processed": False, "note": "Refund record not found"}
+
+        rec_id = rec.id
+        already_processed = rec.status == "PROCESSED" or rec.accounting_applied_at is not None
+        try:
+            settled_rec = RefundService.apply_provider_refund_outcome(
+                db,
+                rec_id,
+                refund_entity,
+                applied_via="webhook",
+                escalate_on_validation_error=False,
+            )
+        except RefundValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+        if already_processed:
+            return {
+                "status": "ok",
+                "event": event,
+                "processed": False,
+                "message": "Idempotent: Refund already settled",
+                "refund_status": settled_rec.status,
+            }
+
+        return {
+            "status": "ok",
+            "event": event,
+            "processed": True,
+            "refund_status": settled_rec.status,
+            "refund_id": settled_rec.provider_refund_id,
+        }
 
     # 2. Payment capture / failure webhook events
     razorpay_order_id = payment_entity.get("order_id") or order_entity.get("id")
@@ -816,13 +1060,21 @@ async def razorpay_webhook(
 
     transaction = None
     if razorpay_order_id:
-        transaction = db.query(PaymentTransaction).filter(
-            PaymentTransaction.razorpay_order_id == razorpay_order_id
-        ).with_for_update().first()
+        transaction = (
+            db.query(PaymentTransaction)
+            .filter(PaymentTransaction.razorpay_order_id == razorpay_order_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
     if not transaction and razorpay_payment_id:
-        transaction = db.query(PaymentTransaction).filter(
-            PaymentTransaction.razorpay_payment_id == razorpay_payment_id
-        ).with_for_update().first()
+        transaction = (
+            db.query(PaymentTransaction)
+            .filter(PaymentTransaction.razorpay_payment_id == razorpay_payment_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
 
     # Reconcile webhook that arrived before local PaymentTransaction record received razorpay_order_id
     if not transaction:
@@ -902,14 +1154,50 @@ async def razorpay_webhook(
 
     if event in ("payment.captured", "order.paid"):
         if transaction.status in ("captured", "refunded"):
+            if transaction.order_id:
+                ord_obj = (
+                    db.query(Order)
+                    .filter(Order.id == transaction.order_id)
+                    .populate_existing()
+                    .first()
+                )
+                if ord_obj and ord_obj.status == OrderStatus.CANCELLED and ord_obj.payment_status == "refund_pending_oos":
+                    cap_pay = transaction.razorpay_payment_id or razorpay_payment_id
+                    if cap_pay:
+                        oos_rec, _ = RefundService.create_or_get_refund_intent(
+                            db,
+                            logical_key=f"oos:{ord_obj.id}:{cap_pay}",
+                            refund_type="OOS_AUTO",
+                            order_id=ord_obj.id,
+                            amount_paise=to_paise(transaction.amount),
+                            captured_payment_id=cap_pay,
+                            payment_transaction_id=transaction.id,
+                            extra_notes={"reason": "late_capture_out_of_stock"},
+                        )
+                        db.commit()
+                        if oos_rec.status not in ("PROCESSED", "REQUIRES_OPERATOR"):
+                            final_pay_status, ref_rec_status, ref_id = _refund_oos_capture_outside_locks(
+                                db, transaction.id, cap_pay, oos_rec.id, applied_via="webhook_capture_retry"
+                            )
+                            return {
+                                "status": "ok",
+                                "event": event,
+                                "processed": True,
+                                "outcome": "oos_recovery_attempted",
+                                "payment_status": final_pay_status,
+                                "refund_status": ref_rec_status,
+                                "refund_id": ref_id,
+                            }
             return {"status": "ok", "message": "Idempotent: Payment already captured"}
 
         _validate_webhook_capture_payload(transaction, payment_entity, order_entity)
         tx_id = transaction.id
-        outcome = _apply_capture_in_tx(db, transaction, razorpay_payment_id)
+        outcome, oos_rec_id = _apply_capture_in_tx(db, transaction, razorpay_payment_id)
         db.commit()
         if outcome == "oos_needs_refund":
-            _refund_oos_capture_outside_locks(db, tx_id, razorpay_payment_id)
+            _refund_oos_capture_outside_locks(
+                db, tx_id, razorpay_payment_id, oos_rec_id, applied_via="webhook_oos"
+            )
         return {"status": "ok", "event": event, "processed": True, "outcome": outcome}
 
     if event == "payment.failed":

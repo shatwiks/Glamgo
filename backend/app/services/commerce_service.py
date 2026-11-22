@@ -16,7 +16,7 @@ from backend.app.models.payment import PaymentTransaction
 from backend.app.models.commerce import (
     SellerListing, InventoryReservation, ReservationStatus, SubOrder, SubOrderStatus,
     Shipment, ShipmentStatus, ReturnRequest, ReturnStatus, InventoryAuditLog, StockAction,
-    SellerEscrowRecord, EscrowStatus
+    SellerEscrowRecord, EscrowStatus, RefundRecord, RefundAccountingEntry
 )
 from backend.app.schemas.commerce import (
     SellerListingCreate, SellerListingUpdate, ReservationItem,
@@ -94,105 +94,528 @@ class CommerceService:
     # Canonical Inventory Synchronization (SellerListing as Authoritative Stock)
     # -------------------------------------------------------------------------
     @staticmethod
-    def _resolve_default_seller_id(db: Session, product: Product) -> int:
-        if product.seller_id:
-            return product.seller_id
-        seller = db.query(User).filter(User.role == UserRole.SELLER).order_by(User.id.asc()).first()
-        if seller:
-            return seller.id
-        admin = db.query(User).filter(User.role == UserRole.ADMIN).order_by(User.id.asc()).first()
-        if admin:
-            return admin.id
-        any_user = db.query(User).order_by(User.id.asc()).first()
-        if any_user:
-            return any_user.id
-        raise HTTPException(status_code=500, detail="No seller account available to anchor product inventory.")
+    def _resolve_owner_seller_id(
+        db: Session,
+        product: Product,
+        existing_listings: List[SellerListing],
+    ) -> Optional[int]:
+        """Resolve authoritative owner seller_id without ever guessing an unrelated seller."""
+        if product.seller_id is not None:
+            return int(product.seller_id)
+        listing_sellers = sorted({int(l.seller_id) for l in existing_listings if l.seller_id is not None})
+        if len(listing_sellers) == 1:
+            return listing_sellers[0]
+        return None
 
     @staticmethod
-    def ensure_product_listings(db: Session, product: Product) -> List[SellerListing]:
-        """
-        Guarantee every active product (and each of its ProductVariant rows) has a canonical
-        SellerListing row so SellerListing.stock acts as the single transactional inventory ledger.
-        """
-        seller_id = CommerceService._resolve_default_seller_id(db, product)
-        variants = list(product.variants or [])
+    def _allocate_unique_sku(
+        db: Session,
+        seller_id: int,
+        base_sku: str,
+        reserved_skus: Optional[set[str]] = None,
+    ) -> str:
+        """Allocate a SKU unique within (seller_id, sku) for DB persistence or dry-run preview."""
+        candidate = base_sku
+        suffix = 1
+        while (reserved_skus and candidate in reserved_skus) or db.query(SellerListing).filter(
+            SellerListing.seller_id == seller_id,
+            SellerListing.sku == candidate,
+        ).first():
+            suffix += 1
+            candidate = f"{base_sku}-{suffix}"
+        if reserved_skus is not None:
+            reserved_skus.add(candidate)
+        return candidate
 
+    @staticmethod
+    def reconcile_product_listings(
+        db: Session,
+        product: Product,
+        *,
+        dry_run: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Reconcile legacy product/variant stock and SellerListing rows into canonical per-variant
+        listings without duplicating physical stock, inventing fallback stock, or reassigning
+        listings across sellers.
+
+        When dry_run=True, performs zero database writes and reports projected totals and any
+        ambiguous or deferred records.
+        """
         existing_listings = db.query(SellerListing).filter(
             SellerListing.product_id == product.id
         ).order_by(SellerListing.id.asc()).all()
 
-        created_any = False
-        if variants:
-            # Determine initial per-variant fallback if existing product had stock
-            total_var_stock = sum(max(0, int(v.stock or 0)) for v in variants)
-            for idx, v in enumerate(variants, start=1):
-                has_variant_listing = any(
-                    l.variant_name == v.name for l in existing_listings
-                )
-                if not has_variant_listing:
-                    init_stock = max(0, int(v.stock if v.stock is not None else (product.stock if len(variants) == 1 else 50)))
-                    if total_var_stock == 0 and (product.stock or 0) > 0 and idx == 1:
-                        init_stock = int(product.stock)
-                    sku = f"GG-{product.id.upper()}-V{idx}"
-                    # Guarantee uniqueness for (seller_id, sku)
-                    suffix = 1
-                    candidate_sku = sku
-                    while db.query(SellerListing).filter(
-                        SellerListing.seller_id == seller_id,
-                        SellerListing.sku == candidate_sku,
-                    ).first():
-                        suffix += 1
-                        candidate_sku = f"{sku}-{suffix}"
+        variants = list(product.variants or [])
+        owner_seller_id = CommerceService._resolve_owner_seller_id(db, product, existing_listings)
 
-                    listing = SellerListing(
-                        product_id=product.id,
-                        seller_id=seller_id,
-                        variant_name=v.name,
-                        sku=candidate_sku,
-                        price=float(product.price),
-                        compare_at_price=float(product.old or 0.0),
-                        stock=init_stock,
-                        is_active=bool(product.is_active),
-                        condition="NEW",
-                        shipping_lead_time_days=2,
-                    )
-                    db.add(listing)
-                    db.flush()
-                    existing_listings.append(listing)
-                    created_any = True
-        else:
-            if not existing_listings:
-                base_sku = f"GG-{product.id.upper()}-STD"
-                suffix = 1
-                candidate_sku = base_sku
-                while db.query(SellerListing).filter(
-                    SellerListing.seller_id == seller_id,
-                    SellerListing.sku == candidate_sku,
-                ).first():
-                    suffix += 1
-                    candidate_sku = f"{base_sku}-{suffix}"
+        before_active_stock = sum(max(0, int(l.stock or 0)) for l in existing_listings if l.is_active)
+        before_active_count = sum(1 for l in existing_listings if l.is_active)
 
+        discrepancies: List[Dict[str, Any]] = []
+        created_preview: List[Dict[str, Any]] = []
+        retired_preview: List[Dict[str, Any]] = []
+
+        # Partition by seller so independent merchant offers are never merged or reassigned
+        if variants and owner_seller_id is not None:
+            for l in existing_listings:
+                if l.seller_id != owner_seller_id and l.is_active and not (l.variant_name or "").strip():
+                    discrepancies.append({
+                        "product_id": product.id,
+                        "seller_id": l.seller_id,
+                        "listing_id": l.id,
+                        "reason": "non_owner_unscoped_listing_on_variant_product",
+                        "legacy_stock": int(l.stock or 0),
+                    })
+
+        if owner_seller_id is None:
+            discrepancies.append({
+                "product_id": product.id,
+                "seller_id": None,
+                "reason": "missing_or_ambiguous_product_seller",
+                "product_stock": product.stock,
+                "listing_sellers": sorted({l.seller_id for l in existing_listings if l.seller_id is not None}),
+            })
+            return {
+                "product_id": product.id,
+                "status": "skipped_ambiguous",
+                "before_active_listing_stock": before_active_stock,
+                "after_active_listing_stock": before_active_stock,
+                "before_active_listing_count": before_active_count,
+                "after_active_listing_count": before_active_count,
+                "created_listings": [],
+                "retired_listings": [],
+                "discrepancies": discrepancies,
+            }
+
+        owner_listings = [l for l in existing_listings if l.seller_id == owner_seller_id]
+        active_unscoped = [l for l in owner_listings if l.is_active and not (l.variant_name or "").strip()]
+        existing_var_names = {(l.variant_name or "").strip() for l in owner_listings if (l.variant_name or "").strip()}
+        other_sellers_active_stock = sum(
+            max(0, int(l.stock or 0))
+            for l in existing_listings
+            if l.is_active and l.seller_id != owner_seller_id
+        )
+        owner_variant_active_stock = sum(
+            max(0, int(l.stock or 0))
+            for l in owner_listings
+            if l.is_active and (l.variant_name or "").strip()
+        )
+        reserved_skus: set[str] = set()
+
+        def _blocked_result(status_label: str) -> Dict[str, Any]:
+            return {
+                "product_id": product.id,
+                "status": status_label,
+                "before_active_listing_stock": before_active_stock,
+                "after_active_listing_stock": before_active_stock,
+                "before_active_listing_count": before_active_count,
+                "after_active_listing_count": before_active_count,
+                "created_listings": [],
+                "retired_listings": [],
+                "discrepancies": discrepancies,
+            }
+
+        # Case A: Product without variants
+        if not variants:
+            if owner_listings:
+                if not dry_run:
+                    CommerceService.sync_product_stock(db, product.id)
+                return {
+                    "product_id": product.id,
+                    "status": "already_canonical" if not discrepancies else "skipped_ambiguous",
+                    "before_active_listing_stock": before_active_stock,
+                    "after_active_listing_stock": before_active_stock,
+                    "before_active_listing_count": before_active_count,
+                    "after_active_listing_count": before_active_count,
+                    "created_listings": [],
+                    "retired_listings": [],
+                    "discrepancies": discrepancies,
+                }
+
+            if product.stock is None or int(product.stock) < 0:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "reason": "missing_or_negative_product_stock",
+                    "product_stock": product.stock,
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            if float(product.price or 0.0) <= 0:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "reason": "non_positive_product_price",
+                    "price": product.price,
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            init_stock = int(product.stock)
+            sku = CommerceService._allocate_unique_sku(db, owner_seller_id, f"GG-{product.id.upper()}-STD", reserved_skus)
+            created_preview.append({
+                "seller_id": owner_seller_id,
+                "variant_name": "",
+                "sku": sku,
+                "stock": init_stock,
+            })
+            if not dry_run:
                 listing = SellerListing(
                     product_id=product.id,
-                    seller_id=seller_id,
+                    seller_id=owner_seller_id,
                     variant_name="",
-                    sku=candidate_sku,
+                    sku=sku,
                     price=float(product.price),
                     compare_at_price=float(product.old or 0.0),
-                    stock=max(0, int(product.stock if product.stock is not None else 100)),
+                    stock=init_stock,
                     is_active=bool(product.is_active),
                     condition="NEW",
                     shipping_lead_time_days=2,
                 )
                 db.add(listing)
                 db.flush()
-                existing_listings.append(listing)
-                created_any = True
+                if init_stock > 0:
+                    db.add(InventoryAuditLog(
+                        listing_id=listing.id,
+                        seller_id=owner_seller_id,
+                        action=StockAction.MANUAL_ADJUSTMENT,
+                        quantity_delta=init_stock,
+                        balance_before=0,
+                        balance_after=init_stock,
+                        reference_type="BACKFILL_INIT",
+                        reference_id=f"product:{product.id}",
+                    ))
+                CommerceService.sync_product_stock(db, product.id)
 
-        if created_any:
+            projected_after = other_sellers_active_stock + (init_stock if product.is_active else 0)
+            return {
+                "product_id": product.id,
+                "status": "created_initial",
+                "before_active_listing_stock": before_active_stock,
+                "after_active_listing_stock": projected_after,
+                "before_active_listing_count": before_active_count,
+                "after_active_listing_count": before_active_count + (1 if product.is_active else 0),
+                "created_listings": created_preview,
+                "retired_listings": [],
+                "discrepancies": discrepancies,
+            }
+
+        # Case B: Product WITH variants
+        missing_variants = [v for v in variants if v.name not in existing_var_names]
+
+        # B1: Already canonical (no active unscoped owner listing and no missing variant listings)
+        if not active_unscoped and not missing_variants:
+            if not dry_run:
+                CommerceService.sync_product_stock(db, product.id)
+            return {
+                "product_id": product.id,
+                "status": "already_canonical" if not discrepancies else "skipped_ambiguous",
+                "before_active_listing_stock": before_active_stock,
+                "after_active_listing_stock": before_active_stock,
+                "before_active_listing_count": before_active_count,
+                "after_active_listing_count": before_active_count,
+                "created_listings": [],
+                "retired_listings": [],
+                "discrepancies": discrepancies,
+            }
+
+        # B2: Active unscoped legacy listing exists for owner
+        if active_unscoped:
+            if len(active_unscoped) > 1:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "reason": "multiple_active_unscoped_listings",
+                    "listing_ids": [l.id for l in active_unscoped],
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            legacy = active_unscoped[0]
+            pending_reservations = db.query(InventoryReservation).filter(
+                InventoryReservation.listing_id == legacy.id,
+                InventoryReservation.status == ReservationStatus.PENDING,
+            ).all()
+            if pending_reservations:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "listing_id": legacy.id,
+                    "reason": "active_pending_reservations",
+                    "pending_reservation_count": len(pending_reservations),
+                    "pending_reservation_qty": sum(int(r.qty or 0) for r in pending_reservations),
+                })
+                return _blocked_result("deferred_reservations")
+
+            # Single variant with no existing variant listing: promote unscoped listing in-place
+            if len(variants) == 1 and len(missing_variants) == 1 and not owner_variant_active_stock:
+                v0 = variants[0]
+                if not dry_run:
+                    legacy.variant_name = v0.name
+                    legacy.updated_at = datetime.now(timezone.utc)
+                    db.flush()
+                    CommerceService.sync_product_stock(db, product.id)
+                return {
+                    "product_id": product.id,
+                    "status": "migrated" if not discrepancies else "skipped_ambiguous",
+                    "before_active_listing_stock": before_active_stock,
+                    "after_active_listing_stock": before_active_stock,
+                    "before_active_listing_count": before_active_count,
+                    "after_active_listing_count": before_active_count,
+                    "created_listings": [],
+                    "retired_listings": [],
+                    "promoted_listings": [{"listing_id": legacy.id, "variant_name": v0.name, "stock": int(legacy.stock or 0)}],
+                    "discrepancies": discrepancies,
+                }
+
+            # All variants already exist alongside an active unscoped listing
+            if not missing_variants:
+                if int(legacy.stock or 0) == 0:
+                    retired_preview.append({"listing_id": legacy.id, "sku": legacy.sku, "retired_stock": 0})
+                    if not dry_run:
+                        legacy.is_active = False
+                        legacy.updated_at = datetime.now(timezone.utc)
+                        db.flush()
+                        CommerceService.sync_product_stock(db, product.id)
+                    return {
+                        "product_id": product.id,
+                        "status": "migrated",
+                        "before_active_listing_stock": before_active_stock,
+                        "after_active_listing_stock": before_active_stock,
+                        "before_active_listing_count": before_active_count,
+                        "after_active_listing_count": max(0, before_active_count - 1),
+                        "created_listings": [],
+                        "retired_listings": retired_preview,
+                        "discrepancies": discrepancies,
+                    }
+
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "legacy_listing_id": legacy.id,
+                    "reason": "unscoped_listing_with_positive_stock_alongside_variants",
+                    "legacy_stock": int(legacy.stock or 0),
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            # Splitting legacy unscoped listing across missing variants requires unambiguous exact sum
+            if any(v.stock is None or int(v.stock) < 0 for v in missing_variants):
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "legacy_listing_id": legacy.id,
+                    "reason": "missing_or_negative_variant_stock",
+                    "variant_stocks": {v.name: v.stock for v in variants},
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            missing_sum = sum(int(v.stock) for v in missing_variants)
+            legacy_stock = int(legacy.stock or 0)
+            if missing_sum != legacy_stock:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "legacy_listing_id": legacy.id,
+                    "reason": "legacy_variant_stock_mismatch",
+                    "legacy_stock": legacy_stock,
+                    "missing_variant_stock_sum": missing_sum,
+                    "variant_stocks": {v.name: v.stock for v in variants},
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            listing_price = float(legacy.price or product.price or 0.0)
+            if listing_price <= 0:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "legacy_listing_id": legacy.id,
+                    "reason": "non_positive_listing_price",
+                    "price": listing_price,
+                })
+                return _blocked_result("skipped_ambiguous")
+
+            # Unambiguous exact split: create missing variant listings, retire legacy listing (keep FK history!)
+            now_utc = datetime.now(timezone.utc)
+            retired_preview.append({
+                "listing_id": legacy.id,
+                "sku": legacy.sku,
+                "retired_stock": legacy_stock,
+            })
+            if not dry_run:
+                legacy.stock = 0
+                legacy.is_active = False
+                legacy.updated_at = now_utc
+                if legacy_stock > 0:
+                    db.add(InventoryAuditLog(
+                        listing_id=legacy.id,
+                        seller_id=owner_seller_id,
+                        action=StockAction.MANUAL_ADJUSTMENT,
+                        quantity_delta=-legacy_stock,
+                        balance_before=legacy_stock,
+                        balance_after=0,
+                        reference_type="BACKFILL_RETIRE",
+                        reference_id=f"product:{product.id}",
+                    ))
+
+            for idx, v in enumerate(variants, start=1):
+                if v.name in existing_var_names:
+                    continue
+                v_stock = int(v.stock)
+                sku = CommerceService._allocate_unique_sku(
+                    db, owner_seller_id, f"GG-{product.id.upper()}-V{idx}", reserved_skus
+                )
+                created_preview.append({
+                    "seller_id": owner_seller_id,
+                    "variant_name": v.name,
+                    "sku": sku,
+                    "stock": v_stock,
+                })
+                if not dry_run:
+                    new_listing = SellerListing(
+                        product_id=product.id,
+                        seller_id=owner_seller_id,
+                        variant_name=v.name,
+                        sku=sku,
+                        price=listing_price,
+                        compare_at_price=float(legacy.compare_at_price or product.old or 0.0),
+                        stock=v_stock,
+                        is_active=True,
+                        condition=legacy.condition or "NEW",
+                        shipping_lead_time_days=int(legacy.shipping_lead_time_days or 2),
+                    )
+                    db.add(new_listing)
+                    db.flush()
+                    if v_stock > 0:
+                        db.add(InventoryAuditLog(
+                            listing_id=new_listing.id,
+                            seller_id=owner_seller_id,
+                            action=StockAction.MANUAL_ADJUSTMENT,
+                            quantity_delta=v_stock,
+                            balance_before=0,
+                            balance_after=v_stock,
+                            reference_type="BACKFILL_SPLIT",
+                            reference_id=f"from_listing:{legacy.id}",
+                        ))
+
+            if not dry_run:
+                db.flush()
+                CommerceService.sync_product_stock(db, product.id)
+
+            projected_after = other_sellers_active_stock + owner_variant_active_stock + missing_sum
+            return {
+                "product_id": product.id,
+                "status": "migrated",
+                "before_active_listing_stock": before_active_stock,
+                "after_active_listing_stock": projected_after,
+                "before_active_listing_count": before_active_count,
+                "after_active_listing_count": before_active_count - 1 + len(created_preview),
+                "created_listings": created_preview,
+                "retired_listings": retired_preview,
+                "discrepancies": discrepancies,
+            }
+
+        # B3: No active unscoped listing for owner, and missing_variants is non-empty
+        if any(v.stock is None or int(v.stock) < 0 for v in missing_variants):
+            discrepancies.append({
+                "product_id": product.id,
+                "seller_id": owner_seller_id,
+                "reason": "missing_or_negative_variant_stock",
+                "variant_stocks": {v.name: v.stock for v in variants},
+            })
+            return _blocked_result("skipped_ambiguous")
+
+        has_any_owner_variant = bool(existing_var_names)
+        if not has_any_owner_variant:
+            sum_var = sum(int(v.stock) for v in variants)
+            if product.stock is not None and int(product.stock) != sum_var:
+                discrepancies.append({
+                    "product_id": product.id,
+                    "seller_id": owner_seller_id,
+                    "reason": "product_variant_stock_sum_mismatch",
+                    "product_stock": int(product.stock),
+                    "variant_stock_sum": sum_var,
+                    "variant_stocks": {v.name: v.stock for v in variants},
+                })
+                return _blocked_result("skipped_ambiguous")
+
+        if float(product.price or 0.0) <= 0:
+            discrepancies.append({
+                "product_id": product.id,
+                "seller_id": owner_seller_id,
+                "reason": "non_positive_product_price",
+                "price": product.price,
+            })
+            return _blocked_result("skipped_ambiguous")
+
+        added_stock = 0
+        for idx, v in enumerate(variants, start=1):
+            if v.name in existing_var_names:
+                continue
+            v_stock = int(v.stock)
+            sku = CommerceService._allocate_unique_sku(
+                db, owner_seller_id, f"GG-{product.id.upper()}-V{idx}", reserved_skus
+            )
+            created_preview.append({
+                "seller_id": owner_seller_id,
+                "variant_name": v.name,
+                "sku": sku,
+                "stock": v_stock,
+            })
+            if product.is_active:
+                added_stock += v_stock
+            if not dry_run:
+                new_listing = SellerListing(
+                    product_id=product.id,
+                    seller_id=owner_seller_id,
+                    variant_name=v.name,
+                    sku=sku,
+                    price=float(product.price),
+                    compare_at_price=float(product.old or 0.0),
+                    stock=v_stock,
+                    is_active=bool(product.is_active),
+                    condition="NEW",
+                    shipping_lead_time_days=2,
+                )
+                db.add(new_listing)
+                db.flush()
+                if v_stock > 0:
+                    db.add(InventoryAuditLog(
+                        listing_id=new_listing.id,
+                        seller_id=owner_seller_id,
+                        action=StockAction.MANUAL_ADJUSTMENT,
+                        quantity_delta=v_stock,
+                        balance_before=0,
+                        balance_after=v_stock,
+                        reference_type="BACKFILL_INIT",
+                        reference_id=f"product:{product.id}",
+                    ))
+
+        if not dry_run:
+            db.flush()
             CommerceService.sync_product_stock(db, product.id)
 
-        return existing_listings
+        projected_after = before_active_stock + added_stock
+        return {
+            "product_id": product.id,
+            "status": "created_initial" if not has_any_owner_variant else "migrated",
+            "before_active_listing_stock": before_active_stock,
+            "after_active_listing_stock": projected_after,
+            "before_active_listing_count": before_active_count,
+            "after_active_listing_count": before_active_count + (len(created_preview) if product.is_active else 0),
+            "created_listings": created_preview,
+            "retired_listings": [],
+            "discrepancies": discrepancies,
+        }
+
+    @staticmethod
+    def ensure_product_listings(db: Session, product: Product) -> List[SellerListing]:
+        """
+        Idempotently reconcile a single product's canonical SellerListing rows using strict
+        stock-preserving rules so physical stock is never duplicated or invented.
+        """
+        CommerceService.reconcile_product_listings(db, product, dry_run=False)
+        return db.query(SellerListing).filter(
+            SellerListing.product_id == product.id
+        ).order_by(SellerListing.id.asc()).all()
 
     @staticmethod
     def sync_product_stock(db: Session, product_id: str) -> int:
@@ -214,7 +637,6 @@ class CommerceService:
 
         variants = list(product.variants or [])
         if variants:
-            # Map variant stock by exact variant_name when present
             variant_sums: Dict[str, int] = {v.name: 0 for v in variants}
             unscoped_stock = 0
             has_variant_specific = False
@@ -228,10 +650,11 @@ class CommerceService:
 
             for v in variants:
                 if has_variant_specific:
-                    v.stock = variant_sums[v.name] + (unscoped_stock if v == variants[0] else 0)
+                    v.stock = variant_sums[v.name]
+                elif len(variants) == 1:
+                    v.stock = unscoped_stock
                 else:
-                    # Legacy product-level listing without variant labels
-                    v.stock = unscoped_stock if len(variants) == 1 else max(0, int(v.stock or 0))
+                    v.stock = max(0, int(v.stock or 0))
 
         return total_stock
 
@@ -648,23 +1071,7 @@ class CommerceService:
         for pid in sorted(affected_products):
             CommerceService.sync_product_stock(db, pid)
 
-        try:
-            db.commit()
-        except IntegrityError:
-            db.rollback()
-            if idem_key:
-                existing_order = db.query(Order).filter(
-                    Order.customer_id == customer_id,
-                    Order.idempotency_key == idem_key,
-                ).first()
-                if existing_order:
-                    if existing_order.request_fingerprint and existing_order.request_fingerprint != fingerprint:
-                        raise HTTPException(
-                            status_code=status.HTTP_409_CONFLICT,
-                            detail="Idempotency key has already been used for a different checkout request."
-                        )
-                    return CommerceService._format_order_dict(existing_order)
-            raise
+        db.commit()
         cache_service.invalidate_catalog()
 
         return {
@@ -765,6 +1172,7 @@ class CommerceService:
             "discount": order.discount,
             "shipping": order.shipping_fee,
             "shipping_fee": order.shipping_fee,
+            "wallet_credit_applied": float(order.wallet_credit_applied or 0.0),
             "total": order.total,
             "reservation_token": order.reservation_token,
             "address": {"label": order.address_label, "text": order.address_text},
@@ -802,6 +1210,7 @@ class CommerceService:
                 "address_text": data.address_text.strip(),
                 "coupon_code": norm_coupon,
                 "payment_method": norm_method.upper(),
+                "apply_wallet_credit": bool(data.apply_wallet_credit),
             }, sort_keys=True).encode("utf-8")
         ).hexdigest()
 
@@ -932,9 +1341,26 @@ class CommerceService:
         seller_weights = [seller_subtotals_paise[s_id] for s_id in ordered_seller_ids]
         seller_discounts_paise = allocate_proportionally_paise(total_discount_paise, seller_weights)
 
+        wallet_credit_paise = 0
+        if bool(data.apply_wallet_credit):
+            customer = db.query(User).filter(User.id == customer_id).with_for_update().first()
+            if customer:
+                avail_paise = to_paise(customer.wallet_credits or 0.0)
+                if avail_paise > 0 and parent_total_paise > 0:
+                    wallet_credit_paise = min(avail_paise, parent_total_paise)
+                    customer.wallet_credits = to_rupees(avail_paise - wallet_credit_paise)
+                    parent_total_paise = max(0, parent_total_paise - wallet_credit_paise)
+
         is_cod = is_cod_payment_method(norm_method)
-        initial_payment_status = "cod_pending" if is_cod else "pending"
-        payment_expires_at = None if is_cod else (now_utc + timedelta(minutes=RESERVATION_HOLD_MINUTES))
+        if is_cod:
+            initial_payment_status = "cod_pending" if parent_total_paise > 0 else "completed"
+            payment_expires_at = None
+        elif parent_total_paise == 0:
+            initial_payment_status = "completed"
+            payment_expires_at = None
+        else:
+            initial_payment_status = "pending"
+            payment_expires_at = now_utc + timedelta(minutes=RESERVATION_HOLD_MINUTES)
 
         order_id = f"GG{secrets.token_hex(4).upper()}"
         order_date = now_utc.strftime("%Y-%m-%d")
@@ -946,6 +1372,7 @@ class CommerceService:
             subtotal=to_rupees(gross_subtotal_paise),
             discount=to_rupees(total_discount_paise),
             shipping_fee=to_rupees(total_shipping_paise),
+            wallet_credit_applied=to_rupees(wallet_credit_paise),
             total=to_rupees(parent_total_paise),
             status=OrderStatus.PLACED,
             payment_method=norm_method,
@@ -961,6 +1388,13 @@ class CommerceService:
         )
         db.add(parent_order)
         db.flush()
+
+        if wallet_credit_paise > 0:
+            db.add(Notification(
+                user_id=customer_id,
+                type="order",
+                text=f"Applied ₹{to_rupees(wallet_credit_paise):.0f} GlamGo wallet credit to order {order_id}."
+            ))
 
         for r in reservations:
             r.order_id = parent_order.id
@@ -1118,6 +1552,7 @@ class CommerceService:
             "discount": parent_order.discount,
             "shipping": parent_order.shipping_fee,
             "shipping_fee": parent_order.shipping_fee,
+            "wallet_credit_applied": float(parent_order.wallet_credit_applied or 0.0),
             "total": parent_order.total,
             "reservation_token": parent_order.reservation_token,
             "address": {"label": parent_order.address_label, "text": parent_order.address_text},
@@ -1365,81 +1800,33 @@ class CommerceService:
         return ret
 
     @staticmethod
-    def _apply_refund_to_escrow_and_order(
-        db: Session,
-        ret: ReturnRequest,
-        refund_id: Optional[str],
-        refund_tx_status: str = "refunded",
-    ) -> None:
-        """Apply a confirmed refund to local PaymentTransaction, Order.payment_status, and SellerEscrowRecord."""
-        suborder = db.query(SubOrder).filter(SubOrder.id == ret.suborder_id).first()
-        parent = db.query(Order).filter(Order.id == suborder.parent_order_id).first() if suborder else None
-
-        existing_ref_tx = None
-        if refund_id:
-            existing_ref_tx = db.query(PaymentTransaction).filter(PaymentTransaction.refund_id == refund_id).first()
-
-        if existing_ref_tx:
-            existing_ref_tx.status = refund_tx_status
-        else:
-            ref_order_token = f"ref_{ret.id}" if not refund_id else f"ref_{refund_id}"
-            db.add(PaymentTransaction(
-                user_id=ret.customer_id,
-                order_id=parent.id if parent else None,
-                razorpay_order_id=ref_order_token,
-                razorpay_payment_id=refund_id,
-                refund_id=refund_id,
-                amount=ret.refund_amount,
-                currency="INR",
-                status=refund_tx_status,
-            ))
-
-        if parent:
-            total_paid_paise = to_paise(parent.total)
-            all_confirmed_returns = db.query(ReturnRequest).filter(
-                ReturnRequest.suborder_id.in_(
-                    db.query(SubOrder.id).filter(SubOrder.parent_order_id == parent.id)
-                ),
-                ReturnRequest.status == ReturnStatus.REFUNDED,
-            ).all()
-            refunded_sum_paise = sum(int(r.refund_paise or to_paise(r.refund_amount)) for r in all_confirmed_returns)
-            if total_paid_paise > 0 and refunded_sum_paise >= total_paid_paise:
-                parent.payment_status = "refunded"
-            elif refunded_sum_paise > 0:
-                parent.payment_status = "partially_refunded"
-
-        escrow = db.query(SellerEscrowRecord).filter(SellerEscrowRecord.suborder_id == ret.suborder_id).with_for_update().first()
-        if escrow and suborder:
-            refund_paise = int(ret.refund_paise or to_paise(ret.refund_amount))
-            # Proportional commission reversal based on net item paid share
-            commission_rev_paise = (refund_paise * 15 + 50) // 100
-            seller_deduction_paise = max(0, refund_paise - commission_rev_paise)
-
-            prev_ref_paise = to_paise(escrow.refunded_amount or 0.0)
-            prev_comm_rev_paise = to_paise(escrow.reversed_commission or 0.0)
-            prev_net_paise = to_paise(escrow.net_settlement)
-
-            new_ref_paise = prev_ref_paise + refund_paise
-            new_comm_rev_paise = prev_comm_rev_paise + commission_rev_paise
-            new_net_paise = max(0, prev_net_paise - seller_deduction_paise)
-
-            escrow.refunded_amount = to_rupees(new_ref_paise)
-            escrow.reversed_commission = to_rupees(new_comm_rev_paise)
-            escrow.net_settlement = to_rupees(new_net_paise)
-            if new_net_paise == 0 and escrow.status in (EscrowStatus.HELD_IN_ESCROW, EscrowStatus.MATURED):
-                escrow.status = EscrowStatus.CLAWBACK_REFUND
-
-    @staticmethod
     def decide_return(db: Session, seller_id: int, return_id: str, data: ReturnDecisionRequest) -> ReturnRequest:
-        from backend.app.api.v1.payments import get_razorpay_client
+        from backend.app.services.refund_service import (
+            RefundService, RefundInFlightError, RefundGatewayError, RefundValidationError
+        )
 
-        ret = db.query(ReturnRequest).filter(ReturnRequest.id == return_id).with_for_update().first()
+        ret_ids = (
+            db.query(ReturnRequest.suborder_id, SubOrder.parent_order_id)
+            .join(SubOrder, SubOrder.id == ReturnRequest.suborder_id)
+            .filter(ReturnRequest.id == return_id)
+            .first()
+        )
+        if ret_ids:
+            # Consistent parent-to-child lock order: Order -> ReturnRequest
+            db.query(Order).filter(Order.id == ret_ids[1]).with_for_update().populate_existing().first()
+
+        ret = (
+            db.query(ReturnRequest)
+            .filter(ReturnRequest.id == return_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if not ret:
             raise HTTPException(status_code=404, detail="Return request not found")
         if ret.seller_id != seller_id:
             raise HTTPException(status_code=403, detail="Access denied to another merchant's return")
 
-        # Idempotent / terminal guards
         if ret.status == ReturnStatus.REFUNDED:
             if data.action == "APPROVE":
                 return ret
@@ -1461,7 +1848,6 @@ class CommerceService:
             db.refresh(ret)
             return ret
 
-        # Action == "APPROVE"
         allowed_for_approve = (
             ReturnStatus.REQUESTED,
             ReturnStatus.APPROVED,
@@ -1472,7 +1858,57 @@ class CommerceService:
         if ret.status not in allowed_for_approve:
             raise HTTPException(status_code=400, detail=f"Return request cannot be approved in status '{ret.status.value}'")
 
-        # 1. Perform restock at most once using restocked_at timestamp guard
+        suborder = db.query(SubOrder).filter(SubOrder.id == ret.suborder_id).first()
+        parent = (
+            db.query(Order)
+            .filter(Order.id == suborder.parent_order_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+            if suborder
+            else None
+        )
+        is_cod = is_cod_payment_method(parent.payment_method if parent else None)
+
+        refund_record_id: Optional[int] = None
+        if not is_cod:
+            if not parent:
+                raise HTTPException(status_code=400, detail="Parent order not found for refund orchestration.")
+            captured_tx = (
+                db.query(PaymentTransaction)
+                .filter(
+                    PaymentTransaction.order_id == parent.id,
+                    PaymentTransaction.refund_id.is_(None),
+                    PaymentTransaction.status.in_(("captured", "partially_refunded", "refunded")),
+                    PaymentTransaction.razorpay_payment_id.isnot(None),
+                )
+                .order_by(PaymentTransaction.id.desc())
+                .with_for_update()
+                .populate_existing()
+                .first()
+            )
+            if not captured_tx or not captured_tx.razorpay_payment_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Cannot initiate gateway refund: order has no captured online payment."
+                )
+
+            refund_paise = int(ret.refund_paise or to_paise(ret.refund_amount))
+            if refund_paise > 0:
+                rec, _ = RefundService.create_or_get_refund_intent(
+                    db,
+                    logical_key=f"return:{ret.id}",
+                    refund_type="RETURN",
+                    order_id=parent.id,
+                    amount_paise=refund_paise,
+                    captured_payment_id=captured_tx.razorpay_payment_id,
+                    payment_transaction_id=captured_tx.id,
+                    suborder_id=suborder.id if suborder else None,
+                    return_request_id=ret.id,
+                )
+                refund_record_id = rec.id
+
+        # 1. Perform restock at most once using restocked_at timestamp guard (after cap validation!)
         if data.restock_inventory and ret.restocked_at is None:
             oi = db.query(OrderItem).filter(OrderItem.id == ret.order_item_id).first()
             if oi and oi.seller_listing_id:
@@ -1497,130 +1933,113 @@ class CommerceService:
             ret.restocked_at = now_utc
             cache_service.invalidate_catalog()
 
-        suborder = db.query(SubOrder).filter(SubOrder.id == ret.suborder_id).first()
-        parent = db.query(Order).filter(Order.id == suborder.parent_order_id).first() if suborder else None
-        is_cod = is_cod_payment_method(parent.payment_method if parent else None)
-
         # 2. Cash-on-Delivery refund handling
         if is_cod:
             if data.cod_refund_confirmed:
-                ret.status = ReturnStatus.REFUNDED
-                ret.refund_status = "COD_REFUNDED"
-                ret.gateway_refund_id = ret.gateway_refund_id or f"cod_payout_{ret.id}"
-                CommerceService._apply_refund_to_escrow_and_order(db, ret, ret.gateway_refund_id, refund_tx_status="cod_refunded")
+                RefundService.apply_cod_refund_accounting(db, ret)
             else:
                 ret.status = ReturnStatus.APPROVED
                 ret.refund_status = "COD_MANUAL_PENDING"
-            db.commit()
+                db.commit()
             db.refresh(ret)
             return ret
 
-        # 3. Online prepaid order: require captured payment & call Razorpay Refund API outside DB locks
-        if not parent:
-            raise HTTPException(status_code=400, detail="Parent order not found for refund orchestration.")
-
-        captured_tx = db.query(PaymentTransaction).filter(
-            PaymentTransaction.order_id == parent.id,
-            PaymentTransaction.status.in_(("captured", "partially_refunded")),
-            PaymentTransaction.razorpay_payment_id.isnot(None),
-        ).order_by(PaymentTransaction.id.desc()).first()
-
-        if not captured_tx or not captured_tx.razorpay_payment_id:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Cannot initiate gateway refund: order has no captured online payment."
-            )
-
+        # 3. Zero-paise edge case
         refund_paise = int(ret.refund_paise or to_paise(ret.refund_amount))
         if refund_paise <= 0:
-            # Zero net monetary refund due; mark resolved cleanly
             ret.status = ReturnStatus.REFUNDED
             ret.refund_status = "PROCESSED"
+            ret.refunded_at = now_utc
             db.commit()
             db.refresh(ret)
             return ret
 
-        payment_id_to_refund = captured_tx.razorpay_payment_id
-        ret_id_val = ret.id
-        sub_id_val = ret.suborder_id
-        parent_id_val = parent.id
-
-        # If a gateway refund ID already exists in REFUND_PENDING, avoid issuing a duplicate refund call
-        if ret.gateway_refund_id and ret.status == ReturnStatus.REFUND_PENDING:
-            client = get_razorpay_client()
-            try:
-                rzp_refund = client.payment.fetch_refund(payment_id_to_refund, ret.gateway_refund_id)
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail=f"Unable to check pending gateway refund status: {exc}"
-                )
-        else:
-            # Commit approved + restocked_at state BEFORE network I/O so no row locks remain open
+        # Commit restock + APPROVED + durable RefundRecord before delegating gateway I/O outside locks
+        if ret.status not in (ReturnStatus.REFUND_PENDING, ReturnStatus.REFUND_FAILED):
             ret.status = ReturnStatus.APPROVED
             ret.refund_status = "PENDING"
-            db.commit()
-
-            client = get_razorpay_client()
-            try:
-                rzp_refund = client.payment.refund(
-                    payment_id_to_refund,
-                    {
-                        "amount": refund_paise,
-                        "notes": {
-                            "return_id": ret_id_val,
-                            "suborder_id": sub_id_val,
-                            "order_id": parent_id_val,
-                        },
-                    },
-                )
-            except Exception as exc:
-                # Reload & persist REFUND_FAILED so retry is safe without re-restocking
-                ret = db.query(ReturnRequest).filter(ReturnRequest.id == ret_id_val).with_for_update().first()
-                if ret:
-                    ret.status = ReturnStatus.REFUND_FAILED
-                    ret.refund_status = "FAILED"
-                    ret.updated_at = datetime.now(timezone.utc)
-                    db.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Payment gateway refund initiation failed: {exc}"
-                )
-
-        # Persist gateway refund outcome
-        ret = db.query(ReturnRequest).filter(ReturnRequest.id == ret_id_val).with_for_update().first()
-        refund_id = rzp_refund.get("id") if isinstance(rzp_refund, dict) else None
-        gw_status = str(rzp_refund.get("status", "processed")).lower() if isinstance(rzp_refund, dict) else "failed"
-
-        if refund_id:
-            ret.gateway_refund_id = refund_id
-
-        if gw_status == "processed":
-            ret.status = ReturnStatus.REFUNDED
-            ret.refund_status = "PROCESSED"
-            CommerceService._apply_refund_to_escrow_and_order(db, ret, refund_id, refund_tx_status="refunded")
-        elif gw_status in ("pending", "created"):
-            ret.status = ReturnStatus.REFUND_PENDING
-            ret.refund_status = "PENDING"
-            if refund_id and not db.query(PaymentTransaction).filter(PaymentTransaction.refund_id == refund_id).first():
-                db.add(PaymentTransaction(
-                    user_id=ret.customer_id,
-                    order_id=parent_id_val,
-                    razorpay_order_id=f"ref_{refund_id}",
-                    razorpay_payment_id=refund_id,
-                    refund_id=refund_id,
-                    amount=ret.refund_amount,
-                    currency="INR",
-                    status="refund_pending",
-                ))
-        else:
-            ret.status = ReturnStatus.REFUND_FAILED
-            ret.refund_status = "FAILED"
-
-        ret.updated_at = datetime.now(timezone.utc)
         db.commit()
-        db.refresh(ret)
-        return ret
+
+        assert refund_record_id is not None
+        try:
+            RefundService.execute_or_reconcile_refund(
+                db,
+                refund_record_id,
+                applied_via="sync_return",
+            )
+        except RefundInFlightError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+        except RefundValidationError as exc:
+            raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        except RefundGatewayError as exc:
+            if exc.outcome in ("FAILED", "REQUIRES_OPERATOR"):
+                raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc)) from exc
+
+        fresh_ret = (
+            db.query(ReturnRequest)
+            .filter(ReturnRequest.id == return_id)
+            .populate_existing()
+            .first()
+        )
+        return fresh_ret or ret
+
+    @staticmethod
+    def preview_matured_escrow_records(db: Session) -> Dict[str, Any]:
+        """Read-only preview of escrow records eligible for maturity transition."""
+        now_utc = datetime.now(timezone.utc)
+        held_records = (
+            db.query(SellerEscrowRecord)
+            .filter(
+                SellerEscrowRecord.status == EscrowStatus.HELD_IN_ESCROW,
+                SellerEscrowRecord.matures_at.isnot(None),
+                SellerEscrowRecord.matures_at <= now_utc,
+            )
+            .order_by(SellerEscrowRecord.id.asc())
+            .all()
+        )
+        unresolved_return_statuses = (
+            ReturnStatus.REQUESTED,
+            ReturnStatus.APPROVED,
+            ReturnStatus.IN_TRANSIT,
+            ReturnStatus.INSPECTED,
+            ReturnStatus.REFUND_PENDING,
+            ReturnStatus.REFUND_FAILED,
+        )
+        unresolved_refund_statuses = (
+            "INITIATED", "IN_FLIGHT", "SUBMITTED_UNKNOWN", "PENDING", "FAILED", "REQUIRES_OPERATOR"
+        )
+        eligible_ids: List[int] = []
+        clawback_ids: List[int] = []
+        for rec in held_records:
+            suborder = db.query(SubOrder).filter(SubOrder.id == rec.suborder_id).first()
+            if not suborder or suborder.status != SubOrderStatus.DELIVERED:
+                continue
+            parent = db.query(Order).filter(Order.id == suborder.parent_order_id).first()
+            if not parent or parent.payment_status not in ("completed", "partially_refunded", "cod_collected"):
+                continue
+            unresolved_ret = db.query(ReturnRequest.id).filter(
+                ReturnRequest.suborder_id == rec.suborder_id,
+                (ReturnRequest.status.in_(unresolved_return_statuses))
+                | (ReturnRequest.refund_status.in_(("PENDING", "FAILED", "UNKNOWN", "REQUIRES_OPERATOR", "COD_MANUAL_PENDING"))),
+            ).first()
+            if unresolved_ret:
+                continue
+            unresolved_ref = db.query(RefundRecord.id).filter(
+                RefundRecord.suborder_id == rec.suborder_id,
+                RefundRecord.status.in_(unresolved_refund_statuses),
+            ).first()
+            if unresolved_ref:
+                continue
+            if to_paise(rec.net_settlement) <= 0:
+                clawback_ids.append(rec.id)
+            else:
+                eligible_ids.append(rec.id)
+        return {
+            "dry_run": True,
+            "eligible_mature_count": len(eligible_ids),
+            "eligible_clawback_count": len(clawback_ids),
+        }
 
     # -------------------------------------------------------------------------
     # Milestone G: Escrow Maturity, Reservation Expiry & Financials
@@ -1649,6 +2068,9 @@ class CommerceService:
             ReturnStatus.REFUND_PENDING,
             ReturnStatus.REFUND_FAILED,
         )
+        unresolved_refund_statuses = (
+            "INITIATED", "IN_FLIGHT", "SUBMITTED_UNKNOWN", "PENDING", "FAILED", "REQUIRES_OPERATOR"
+        )
 
         for rec in held_records:
             suborder = db.query(SubOrder).filter(SubOrder.id == rec.suborder_id).first()
@@ -1662,9 +2084,16 @@ class CommerceService:
             unresolved_return = db.query(ReturnRequest).filter(
                 ReturnRequest.suborder_id == rec.suborder_id,
                 (ReturnRequest.status.in_(unresolved_return_statuses))
-                | (ReturnRequest.refund_status.in_(("PENDING", "FAILED", "COD_MANUAL_PENDING"))),
+                | (ReturnRequest.refund_status.in_(("PENDING", "FAILED", "UNKNOWN", "REQUIRES_OPERATOR", "COD_MANUAL_PENDING"))),
             ).first()
             if unresolved_return:
+                continue
+
+            unresolved_refund = db.query(RefundRecord.id).filter(
+                RefundRecord.suborder_id == rec.suborder_id,
+                RefundRecord.status.in_(unresolved_refund_statuses),
+            ).first()
+            if unresolved_refund:
                 continue
 
             if to_paise(rec.net_settlement) <= 0:
@@ -1676,6 +2105,36 @@ class CommerceService:
 
         db.commit()
         return matured_count
+
+    @staticmethod
+    def preview_expired_reservations(db: Session) -> Dict[str, Any]:
+        """Read-only preview of overdue PENDING reservations and abandoned unpaid orders."""
+        now_utc = datetime.now(timezone.utc)
+        overdue_res_count = db.query(InventoryReservation.id).filter(
+            InventoryReservation.status == ReservationStatus.PENDING,
+            InventoryReservation.expires_at < now_utc,
+        ).count()
+        overdue_orders = db.query(Order).filter(
+            Order.status == OrderStatus.PLACED,
+            Order.payment_status.in_(("pending", "failed")),
+            Order.payment_expires_at.isnot(None),
+            Order.payment_expires_at < now_utc,
+        ).all()
+        eligible_orders = 0
+        for ord_obj in overdue_orders:
+            if is_cod_payment_method(ord_obj.payment_method):
+                continue
+            captured_tx = db.query(PaymentTransaction.id).filter(
+                PaymentTransaction.order_id == ord_obj.id,
+                PaymentTransaction.status == "captured",
+            ).first()
+            if not captured_tx:
+                eligible_orders += 1
+        return {
+            "dry_run": True,
+            "expired_reservations_count": overdue_res_count,
+            "expired_unpaid_orders_count": eligible_orders,
+        }
 
     @staticmethod
     def expire_pending_reservations(db: Session) -> int:

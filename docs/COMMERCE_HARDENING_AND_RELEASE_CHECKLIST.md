@@ -1,95 +1,138 @@
 # GlamGo Commerce Hardening & Production Release Checklist
 
-**Target Branch:** `fix/commerce-hardening` (derived from `7e0e8e347e09f28a727131473454d2b37d3ee732`)  
-**Status:** Verified locally on disposable Postgres 16 + Redis 7 (`78 passed` pytest tests, fresh-DB Alembic `upgrade -> downgrade -1 -> upgrade`, `npm run build`, local Playwright E2E verification passed with exit code `0`). Production deployments on Render/Vercel remain untouched until operator executes this release checklist.
+**Target Branch:** `fix/commerce-review-remediation` (derived from `54ba3db64fcb87f6c45ad2b3b848357cc91fbb83`, hardening `fix/commerce-hardening`)  
+**Production Deployment Policy:** `main`, `master`, and live Render/Vercel deployments remain **untouched** on this branch until an operator completes the preflight checks, migration, canonical inventory backfill, and verification gates below.
 
 ---
 
 ## 1. Confirmed Findings & Remediation Checklist
 
-| # | Area | Confirmed Finding | Flow Affected | Remediation Implemented | Verification Criteria & Result |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| 1 | **Credentials & Config** | `render.yaml` contained committed `DATABASE_URL`, `RAZORPAY_KEY_ID`, and `RAZORPAY_WEBHOOK_SECRET` literals; `.env.*.example` contained weak placeholder patterns. | Deployment config & repo hygiene | Replaced committed credentials in `render.yaml` with `sync: false`; added `INTERNAL_MAINTENANCE_TOKEN` (`generateValue: true`); hardened `.env.staging.example` and `.env.production.example` to unmistakably nonfunctional placeholders. | Secret scan across tracked config clean; rotation runbook uses env-var names only. |
-| 2 | **Internal Endpoints Auth** | `/api/v1/internal/inventory/expire-reservations` and `/api/v1/internal/escrow/mature` were unauthenticated. | Background inventory & settlement | Added `require_maintenance_auth` requiring `X-Maintenance-Token` (`hmac.compare_digest`) or Admin Bearer JWT; redacts maintenance headers/tokens in JSON logs; added runnable CLI `backend/app/services/maintenance_runner.py`. | Unauthenticated (`401`), wrong token (`401`), and customer JWT (`403`) rejected; valid service token (`200`), Admin JWT (`200`), and `run_maintenance_cycle` pass (`test_internal_maintenance_auth_and_runner`). |
-| 3 | **Split Checkout Paths & Stock Source of Truth** | Storefront called legacy `POST /api/v1/orders/` while ignoring `/orders/reserve` & `/orders/checkout`; `Product.stock`, `ProductVariant.stock`, and `SellerListing.stock` could diverge. | Cart -> Reservation -> Checkout -> Suborders | Unified `POST /orders/` and `POST /orders/checkout` through `CommerceService.reserve_inventory` + `checkout_multi_vendor`; established `SellerListing.stock` as canonical transactional ledger synced to read models via `sync_product_stock` & `ensure_product_listings`; wired frontend to `/orders/reserve` & `/orders/checkout`. | `POST /orders/` creates parent `Order`, `SubOrder`, `SellerEscrowRecord`, confirmed reservation, and syncs stock (`test_unified_standard_orders_endpoint_architecture_and_payment_defaults`). |
-| 4 | **Simulated Payments & Gateway Boundaries** | `checkout_multi_vendor` previously marked payments `completed` with synthetic IDs/keys; Razorpay order creation lacked explicit pre-gateway initiating state & COD rejection. | Online & COD Checkout, Verify, Webhook | Removed all synthetic payment completion & mock keys; online orders start `pending`, COD starts `cod_pending` and transitions to `cod_collected` on delivery; `create_razorpay_order` commits an `initiating` tx before gateway I/O, passes `notes` (`tx_id`, `target_id`), and provides `SessionLocal()` recovery write; late capture handles stock restoration or lock-free OOS automatic refund (`refunded_oos`). | Unpaid fulfillment returns `400`; COD create-order returns `400`; `threading` & gateway failure/recovery/webhook `503` retry tests pass. |
-| 5 | **Inventory Concurrency & Duplicate Lines** | `reserve_inventory` validated duplicate listing lines individually and allowed checkout/expiry races or negative stock. | Reservation, Checkout, Expiry, Restock | Aggregated duplicate listing/product lines before validation; enforced ascending `listing_id` lock acquisition across reserve, checkout, release, late capture, and restocking; added `stock >= 0`, `price > 0`, `qty > 0` DB check constraints; recorded 0-delta `CHECKOUT_DECREMENT` so physical stock deducts once; expiry releases holds and abandoned unpaid orders safely at most once. | Multi-threaded `threading.Barrier` reserve contention (5 threads on stock=1 -> 1 succeeds, `stock == 0`), checkout vs expiry exclusivity, double-expiry, and audit delta reconciliation pass. |
-| 6 | **Variant & Offer Identity Loss** | Cart & standard orders keyed solely by `product.id`, overwriting multiple shades/sizes and omitting immutable SKU/variant/seller snapshots. | Product Detail -> Cart -> Tracking -> Return | Used composite frontend cart keys (`productId::variant::listingId`); persisted immutable `variant_name`, `sku`, `seller_name`, `price`, `allocated_discount` on `order_items` and surfaced through API responses & seller/customer portals. | Dual variants of the same product coexist in one bag/order and survive catalog rename/reprice unchanged (`test_variant_coexistence_stock_sync_and_catalog_snapshot_immutability`). |
-| 7 | **Refunds & Return-Aligned Escrow** | Return approval faked refunds locally; escrow matured at T+3 despite a 7-day return window and lacked open-return blocking & integer minor-unit rounding. | Returns, Refunds, Escrow Maturity | Implemented real Razorpay `client.payment.refund(...)` outside DB locks, `REQUESTED` -> `APPROVED`/`REFUND_PENDING` -> `REFUNDED` / `REFUND_FAILED` states, at-most-once `restocked_at` guard, explicit 2-step COD manual refund (`COD_MANUAL_PENDING` -> `COD_REFUNDED`), integer paise largest-remainder apportionment (`allocate_proportionally_paise`), proportional partial-qty net-paid refund calculation, aligned T+7 escrow (`ESCROW_MATURITY_DAYS = 7`), blocked settlement while any return is unresolved, and prevented repeated delivery actions. | All refund, webhook `refund.processed`, 3-seller paise rounding, partial-qty refund, and T+7 open-return escrow block tests pass. |
+### Phase A — Core Commerce Hardening (`fix/commerce-hardening` @ `54ba3db`)
+
+| # | Area | Confirmed Finding | Flow Affected | Remediation Implemented |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | **Credentials & Config** | `render.yaml` contained committed `DATABASE_URL`, `RAZORPAY_KEY_ID`, and `RAZORPAY_WEBHOOK_SECRET` literals; `.env.*.example` contained weak placeholder patterns. | Deployment config & repo hygiene | Replaced committed credentials in `render.yaml` with `sync: false`; added `INTERNAL_MAINTENANCE_TOKEN` (`generateValue: true`); hardened `.env.staging.example` and `.env.production.example` to nonfunctional placeholders. |
+| 2 | **Internal Endpoints Auth** | `/api/v1/internal/inventory/expire-reservations` and `/api/v1/internal/escrow/mature` were unauthenticated. | Background inventory & settlement | Added `require_maintenance_auth` (`X-Maintenance-Token` via `hmac.compare_digest` or Admin Bearer JWT), log redaction, and `backend/app/services/maintenance_runner.py`. |
+| 3 | **Split Checkout Paths & Stock Ledger** | Storefront called legacy `POST /api/v1/orders/` while ignoring `/orders/reserve` & `/orders/checkout`. | Cart -> Reservation -> Checkout | Unified `POST /orders/` and `POST /orders/checkout` onto `CommerceService.reserve_inventory` + `checkout_multi_vendor`; made `SellerListing.stock` the canonical transactional ledger. |
+| 4 | **Simulated Payments & Gateway Boundaries** | `checkout_multi_vendor` previously marked payments `completed` with synthetic IDs/keys. | Online & COD Checkout, Verify, Webhook | Removed synthetic completion; online orders start `'pending'`, COD starts `'cod_pending'`; gateway calls occur outside DB locks with `SessionLocal()` recovery fallback. |
+| 5 | **Inventory Concurrency & Duplicate Lines** | `reserve_inventory` allowed duplicate lines, negative stock, and expiry/checkout races. | Reservation, Checkout, Expiry | Aggregated duplicate lines before lock acquisition, sorted `listing_id`s ascending, added `CHECK` constraints (`stock >= 0`, `price > 0`, `qty > 0`), and `CHECKOUT_DECREMENT` audit entries. |
+| 6 | **Variant & Offer Identity** | Cart & standard orders keyed solely by `product.id`, overwriting shades/sizes. | PDP -> Cart -> Tracking -> Return | Switched cart keys to `productId::variant::listingId` and snapshotted `variant_name`, `sku`, `seller_name`, `price`, and `allocated_discount` on `order_items`. |
+| 7 | **Integer Accounting & T+7 Escrow** | Return math & suborder apportionment used floats; escrow matured at T+3 before 7-day return window. | Returns, Refunds, Escrow Maturity | Implemented integer paise math (`to_paise`, `allocate_proportionally_paise`), proportional partial-qty returns, `ESCROW_MATURITY_DAYS = 7`, and open-return settlement blocking. |
+
+### Phase B — Review Remediation & Landing Polish (`fix/commerce-review-remediation`)
+
+| # | Area | Review Finding Remediated | Flow Affected | Remediation Implemented |
+| :--- | :--- | :--- | :--- | :--- |
+| 8 | **Canonical Inventory Backfill Duplication** | `ensure_product_listings` created per-variant `SellerListing` rows alongside an active unscoped `variant_name == ""` listing, doubling reported catalog stock and risking seller/reservation corruption. | Catalog Sync & Migration Backfill | Added variant-aware reconciliation inside `CommerceService.ensure_product_listings` and `sync_product_stock` (deactivating superseded unscoped listings when covered cleanly, deferring listings with open `PENDING` reservations, never inventing fallback stock or reassigning across sellers, and reporting ambiguous allocations explicitly); added runnable CLI `backend/app/services/inventory_backfill.py` (`--dry-run`, `--product-id`, exit codes `0/2/1`). |
+| 9 | **Idempotent Refunds & Lost Gateway Responses** | Lost response after gateway refund acceptance marked `REFUND_FAILED`, letting retries submit duplicate refunds; lacked durable intent, `X-Refund-Idempotency`, lease locking, or OOS refund recovery. | Returns (`RETURN`) & Late-Capture (`OOS_AUTO`) Refunds | Added migration `06c3f5e92d34` (`refund_records`, `refund_accounting_entries`, `return_requests.refunded_at`, partial unique indexes) and `RefundService` (`backend/app/services/refund_service.py`): durable pre-gateway intent, `X-Refund-Idempotency` header + unique `receipt`, `SUBMITTED_UNKNOWN` provider reconciliation before retry, `120s` `IN_FLIGHT` lease, DB-free HTTP I/O, atomic `apply_provider_refund_outcome` + cumulative refund cap, and lock-free `OOS_AUTO` recovery via `maintenance_runner --task recover-refunds` and `POST /api/v1/internal/refunds/recover`. |
+| 10 | **Maintenance Dry-Run & Recovery + `/health/ready` Policy** | `maintenance_runner` lacked `--dry-run` and refund recovery; `/health/ready` returned HTTP `503` (`cache: unhealthy`) on single-instance deployments with blank `REDIS_URL`. | Maintenance Ops & Render Health Probes | Added `--dry-run` (strictly read-only, 0 DB writes, 0 gateway calls) and `--task recover-refunds` (`0` clean / `2` `REQUIRES_OPERATOR` / `1` fatal) to `maintenance_runner.py` plus `POST /api/v1/internal/refunds/recover`; added explicit `REDIS_REQUIRED` flag (`False` default -> `'fallback_memory'` healthy for `WEB_CONCURRENCY=1`; `True` -> `'unhealthy'` `503` when `REDIS_URL` missing or unreachable). |
+| 11 | **Frontend Landing & Commerce Alignment** | Landing views needed sharper editorial hierarchy, mobile/tablet responsiveness, eager `#how` visual rendering, and route scroll reset (`/#salons`). | Onboarding, Home, Salons, Shop & Checkout UI | Upgraded `index.html`, `styles.css`, and `src/app.js` with viewport-filling split heroes, interactive `#how` `pinned-chapters`, clean copy, 0 horizontal overflow across `320px–1440px`, scroll-to-top on experience routes, and preserved variant/address/OOS/partner fulfillment gating. |
 
 ---
 
 ## 2. Credential Rotation & Secret Management Runbook
 
-> **CRITICAL NOTE:** Removing literal secrets from `render.yaml` prevents exposure in future checkouts of `HEAD`, but **does NOT rotate active credentials** and **does NOT purge historical Git commits** prior to `fix/commerce-hardening`. Because the previously committed credentials were present in tracked history, assume they were exposed and rotate all of them before promoting this branch.
+> **CRITICAL NOTE:** Removing literal secrets from `render.yaml` prevents exposure in future checkouts of `HEAD`, but **does NOT rotate active credentials** and **does NOT purge historical Git commits** prior to `54ba3db`. Because credentials were previously committed in tracked history, rotate all of them before promoting this release.
 
-### Required Rotations (Refer Strictly by Environment-Variable Names)
+### Required Rotations (Environment-Variable Names Only)
 
-Set every secret in the Render Dashboard / secret manager (**Environment** tab on the API service and worker/cron services) and never in committed YAML or `.env` files:
+Configure every secret in the Render Dashboard (**Environment** tab on the web service and cron services) and Vercel Dashboard — never in committed YAML or `.env` files:
 
-1. **`DATABASE_URL`** — In Neon (or managed Postgres), rotate the database role password / provision a new role credential, update **`DATABASE_URL`** in Render Environment Variables across the web service and maintenance cron/worker services, and revoke the old database password after rollout verification.
-2. **`RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET`** — In the Razorpay Dashboard (**Account & Settings → API Keys**), regenerate the live/test API key pair, update **`RAZORPAY_KEY_ID`** and **`RAZORPAY_KEY_SECRET`** in Render, and deactivate the old key pair. If frontend builds also reference a public publishable key via **`VITE_RAZORPAY_KEY_ID`**, update Vercel Environment Variables accordingly (note `/payments/razorpay/create-order` returns server `key_id` directly).
-3. **`RAZORPAY_WEBHOOK_SECRET`** — In Razorpay Dashboard (**Webhooks**), rotate the webhook signing secret on the `/api/v1/payments/razorpay/webhook` endpoint and update **`RAZORPAY_WEBHOOK_SECRET`** in Render simultaneously.
-4. **`INTERNAL_MAINTENANCE_TOKEN`** — Generate a high-entropy 32+ byte random string (or let Render's `generateValue: true` provision it on fresh Blueprint sync) and configure **`INTERNAL_MAINTENANCE_TOKEN`** identically on the API service and any HTTP cron caller.
-5. **`SECRET_KEY`** — Ensure a minimum 32-character cryptographically random value is set in Render (**note:** rotating `SECRET_KEY` invalidates active user JWT sessions, forcing re-login).
+1. **`DATABASE_URL`** — Rotate the managed PostgreSQL role password, update **`DATABASE_URL`** on all web and cron services, and revoke the old password after rollout verification.
+2. **`RAZORPAY_KEY_ID` & `RAZORPAY_KEY_SECRET`** — Regenerate the API key pair in Razorpay (**Account & Settings → API Keys**), update **`RAZORPAY_KEY_ID`** and **`RAZORPAY_KEY_SECRET`** in Render (and **`VITE_RAZORPAY_KEY_ID`** in Vercel if set), then deactivate the old key pair.
+3. **`RAZORPAY_WEBHOOK_SECRET`** — `backend/app/api/v1/payments.py` validates incoming webhooks against the single configured runtime **`RAZORPAY_WEBHOOK_SECRET`**. Because dual-secret overlap is not active in code, schedule webhook rotation during a low-traffic window, update the secret simultaneously in Razorpay (**Webhooks**) and Render, restart/deploy immediately, and rely on Razorpay webhook retries + `maintenance_runner --task recover-refunds` to reconcile any webhook dropped during the brief secret-swap window.
+4. **`INTERNAL_MAINTENANCE_TOKEN`** — Provision a 32+ byte high-entropy random string and configure **`INTERNAL_MAINTENANCE_TOKEN`** identically on the API service and any HTTP cron caller.
+5. **`SECRET_KEY`** — Provision a 32+ character cryptographically random JWT signing key (**note:** rotating `SECRET_KEY` invalidates existing JWT sessions).
+6. **Cache Policy (`REDIS_URL` & `REDIS_REQUIRED`)** — Keep `WEB_CONCURRENCY="1"`, `REDIS_URL=""`, and `REDIS_REQUIRED="false"` for intentional single-instance in-memory fallback, **or** attach a managed Redis **`REDIS_URL`** and set `REDIS_REQUIRED="true"` if scaling `WEB_CONCURRENCY > 1`.
 
 ---
 
 ## 3. Scheduled Maintenance Automation
 
-Exposing `/api/v1/internal/*` HTTP endpoints alone does not execute scheduled jobs automatically. Production must run one of the following reliable schedulers:
+Create Render Cron Jobs (or authenticated HTTPS cron triggers) using the same container image and **`DATABASE_URL`**, **`REDIS_URL`**, **`REDIS_REQUIRED`**, **`RAZORPAY_KEY_ID`**, **`RAZORPAY_KEY_SECRET`**, and **`ENVIRONMENT`**:
 
-### Option A — Render Cron Job Services (Recommended on Render)
-
-Create two Render Cron Job services sharing the same repository image and **`DATABASE_URL`**, **`REDIS_URL`**, and **`ENVIRONMENT`** environment variables:
-
-1. **Inventory Reservation & Unpaid Order Expiry (`*/5 * * * *` — every 5 minutes):**
+1. **Inventory Reservation & Unpaid Order Expiry (`*/5 * * * *`):**
    ```bash
    python -m backend.app.services.maintenance_runner --task expire-reservations
    ```
-2. **T+7 Escrow Maturity Evaluator (`0 * * * *` — hourly):**
+   *(HTTP equivalent: `POST /api/v1/internal/inventory/expire-reservations` with `X-Maintenance-Token`)*
+2. **Online Refund Reconciliation & Retry (`*/10 * * * *`):**
+   ```bash
+   python -m backend.app.services.maintenance_runner --task recover-refunds
+   ```
+   *(HTTP equivalent: `POST /api/v1/internal/refunds/recover` with `X-Maintenance-Token`; supports `?dry_run=true`)*
+3. **T+7 Escrow Maturity & Clawback (`0 * * * *`):**
    ```bash
    python -m backend.app.services.maintenance_runner --task mature-escrow
    ```
-   *(Or run both cleanly on an hourly/5-min cadence using `--task all`.)*
+   *(HTTP equivalent: `POST /api/v1/internal/escrow/mature` with `X-Maintenance-Token`)*
 
-### Option B — Authenticated HTTP Cron Caller (External Scheduler / GitHub Actions / Worker)
-
-Invoke the authenticated endpoints over TLS with header **`X-Maintenance-Token`** set to the runtime **`INTERNAL_MAINTENANCE_TOKEN`** secret:
-- `POST /api/v1/internal/inventory/expire-reservations` every 5 minutes
-- `POST /api/v1/internal/escrow/mature` every 60 minutes
-
-Both paths call `CommerceService.expire_pending_reservations(db)` and `CommerceService.mature_escrow_records(db)`, using `FOR UPDATE SKIP LOCKED` so overlapping scheduler invocations do not double-release or deadlock.
+**CLI Flags & Exit Codes:**
+- `--dry-run`: Strictly read-only preview (`0` persistent DB writes, `0` external gateway calls).
+- Exit `0`: Clean completion with zero unresolved escalations.
+- Exit `2`: Completed cycle, but >=1 record escalated to `REQUIRES_OPERATOR` (alert on exit code `2`!).
+- Exit `1`: Fatal runtime/database exception.
 
 ---
 
-## 4. Safe Production Rollout Order & Verification
+## 4. Preflight SQL Checks, Migration & Backfill Rollout Order
 
-Execute in strict order before enabling live user traffic on this release:
+Execute in strict order before routing production traffic to this revision:
 
-1. **Database Backup Snapshot:** Take an on-demand snapshot/dump (`pg_dump -F c`) of the production PostgreSQL database before applying migrations.
-2. **Verify Production Readiness & Constraints Query:** Confirm no existing rows violate new check constraints (`seller_listings.stock < 0`, `seller_listings.price <= 0`, `inventory_reservations.qty <= 0`, `return_requests.return_qty <= 0`).
-3. **Rotate & Inject Secrets:** Update **`DATABASE_URL`**, **`RAZORPAY_KEY_ID`**, **`RAZORPAY_KEY_SECRET`**, **`RAZORPAY_WEBHOOK_SECRET`**, **`INTERNAL_MAINTENANCE_TOKEN`**, and **`SECRET_KEY`** in Render / Vercel secret stores.
-4. **Apply Database Migration (`05b2e4d81c23`):**
+1. **Database Backup Snapshot:** Take a full PostgreSQL backup (`pg_dump -Fc`) before any DDL/DML changes.
+2. **Preflight Existing-Data Uniqueness & Constraint Audit (Read-Only):** Verify production rows satisfy constraints added across `05b2e4d81c23` and `06c3f5e92d34`:
+   ```sql
+   -- Must return 0 rows before upgrading:
+   SELECT id FROM seller_listings WHERE stock < 0 OR price <= 0;
+   SELECT id FROM inventory_reservations WHERE qty <= 0;
+   SELECT id FROM return_requests WHERE return_qty <= 0;
+   SELECT refund_id, COUNT(*) FROM payment_transactions WHERE refund_id IS NOT NULL GROUP BY refund_id HAVING COUNT(*) > 1;
+   SELECT reservation_token, COUNT(*) FROM orders WHERE reservation_token IS NOT NULL GROUP BY reservation_token HAVING COUNT(*) > 1;
+   SELECT user_id, idempotency_key, COUNT(*) FROM payment_transactions WHERE idempotency_key IS NOT NULL GROUP BY user_id, idempotency_key HAVING COUNT(*) > 1;
+   ```
+3. **Controlled Deployment Env Policy:** Set `AUTO_MIGRATE="false"` during controlled rollout if running migrations manually ahead of container swap so multiple boot workers never race DDL. (Do not enable sample seed routines in production databases.)
+4. **Rotate & Inject Secrets:** Update **`DATABASE_URL`**, **`RAZORPAY_KEY_ID`**, **`RAZORPAY_KEY_SECRET`**, **`RAZORPAY_WEBHOOK_SECRET`**, **`INTERNAL_MAINTENANCE_TOKEN`**, **`SECRET_KEY`**, and **`REDIS_REQUIRED`** / **`REDIS_URL`**.
+5. **Apply Migrations Through `06c3f5e92d34` (`head`):**
    ```bash
    python -m alembic -c alembic.ini upgrade head
    ```
-5. **Backfill Canonical Listings for Existing Catalog Products:** Run a one-time idempotent Python job calling `CommerceService.ensure_product_listings(db, product)` and `CommerceService.sync_product_stock(db, product.id)` for every active `Product` so legacy items have matching `SellerListing` inventory ledgers.
-6. **Deploy Backend Service & Maintenance Cron:** Deploy FastAPI backend and activate the Render Cron / `maintenance_runner` jobs.
-7. **Post-Deploy Health & Smoke Checks:**
-   - `GET /health/live` -> `200 {"status": "alive"}`
-   - `GET /health/ready` -> `200` (confirms database & Redis health)
-   - Verify unauthenticated `POST /api/v1/internal/escrow/mature` -> `401`
-   - Verify authenticated maintenance dry run (`--task all`) returns `200` / clean counts
-8. **Deploy Frontend Bundle (`dist/`):** Build and deploy Vite SPA to Vercel after backend migration/backfill completes so checkout & tracking clients consume the unified API shapes cleanly.
+6. **Preview & Apply Canonical Inventory Backfill (Read-Only Dry Run First):**
+   ```bash
+   # Step A: Read-only preview (0 DB writes) — inspect before/after totals and ambiguities
+   python -m backend.app.services.inventory_backfill --dry-run
+   ```
+   - Review `before_totals`, `projected_after_totals`, `ambiguous`, and `deferred` JSON output. Resolve any flagged multi-seller / mismatched variant discrepancies cleanly before proceeding if needed.
+   ```bash
+   # Step B: Apply idempotent backfill (per-product locked transactions)
+   python -m backend.app.services.inventory_backfill
+
+   # Step C: Re-run verification — clean canonical catalog returns exit code 0 with 0 changes
+   python -m backend.app.services.inventory_backfill --dry-run
+   ```
+   *(Backfill exit codes: `0` = all clean / no discrepancies; `2` = completed safe changes, manual review required for flagged `ambiguous` or `deferred` products; `1` = fatal error.)*
+7. **Preview Maintenance & Deploy Backend + Cron Services:**
+   ```bash
+   python -m backend.app.services.maintenance_runner --task all --dry-run
+   ```
+   Deploy FastAPI service and activate the 3 cron schedules above.
+8. **Post-Deploy Smoke Checks:**
+   - `GET /health/live` -> HTTP `200` (`{"status": "alive"}`)
+   - `GET /health/ready` -> HTTP `200` (`status: "ready"`, `database: "healthy"`, `cache: "fallback_memory"` or `"healthy"`)
+   - `POST /api/v1/internal/refunds/recover` without token -> HTTP `401`; with valid `X-Maintenance-Token` + `?dry_run=true` -> HTTP `200`
+   - `GET /api/v1/catalog/products/{product_id}/offers` -> returns canonical variant listings matching live seller stock.
+9. **Build & Deploy Frontend Bundle (`dist/`):** Deploy Vercel frontend build (`npm run build`) after backend migration + backfill are live.
 
 ---
 
-## 5. Rollback & Forward-Recovery Plan
+## 5. Irreversibility Boundaries, Rollback & Forward Recovery
 
-- **Application Code Rollback:** Re-deploy the previous application release build on Render/Vercel if a UI or API regression occurs. (Migration `05b2e4d81c23` only adds nullable/defaulted columns and enum labels, keeping backward read compatibility with prior ORM versions except for newly required payment transitions.)
-- **Schema Rollback Caveat (`downgrade -1`):**
-  - `alembic downgrade 04a1f8c29b10` cleanly drops added columns, unique constraints (`uq_orders_reservation_token`, `uq_payment_tx_user_idempotency`), and check constraints.
-  - **PostgreSQL Enum Constraint:** PostgreSQL does not support dropping individual values (`REFUND_PENDING`, `REFUND_FAILED`) from `returnstatus` without recreating the type. If rolling back application code to a revision unfamiliar with those enum values, convert any rows in `REFUND_PENDING`/`REFUND_FAILED` back to `APPROVED` first (`UPDATE return_requests SET status = 'APPROVED' WHERE status IN ('REFUND_PENDING', 'REFUND_FAILED')`).
-- **Discrepancy / Partial Failure Forward Recovery:**
-  - If a gateway capture succeeds locally after expiry, inspect `payment_transactions` (`status = 'captured'`) and `orders` (`payment_status IN ('refund_pending_oos', 'refunded_oos')`); any `refund_pending_oos` or `REFUND_FAILED` return can be safely retried via the seller refund decision retry endpoint or reconciled asynchronously via Razorpay webhooks (`refund.processed` / `payment.captured`).
+### Irreversible / Non-Idempotent State Boundaries
+- **`refund_accounting_entries` & `refund_records.accounting_applied_at`:** Financial clawback/deduction entries are append-only once settled for a `refund_record_id` / `provider_refund_id` (`ON DELETE RESTRICT` FK on `refund_accounting_entries.refund_record_id`).
+- **`return_requests.restocked_at` & `return_requests.refunded_at`:** Timestamp guards ensure a returned item is restocked and refunded **at most once**. Clearing these columns manually risks double restock or double refund!
+- **PostgreSQL `returnstatus` Enum Values (`REFUND_PENDING`, `REFUND_FAILED`):** Added to PostgreSQL enum types in `05b2e4d81c23` (cannot be removed in-place without type recreation).
+- **Gateway Side Effects (`provider_refund_id`):** Once Razorpay accepts a refund, that gateway transaction cannot be "rolled back" in SQL.
+
+### Rollback Policy & Restrictions
+- **DO NOT blindly run `alembic downgrade` below `06c3f5e92d34`** if any rows exist in `refund_records`, `refund_accounting_entries`, or `return_requests` (`REFUND_PENDING` / `REFUND_FAILED`), **unless traffic is drained, all in-flight `IN_FLIGHT` / `SUBMITTED_UNKNOWN` refund intents are reconciled via Razorpay first, and an explicit operator archival/export of `refund_records` & `refund_accounting_entries` has been taken.**
+- **NEVER blindly run `UPDATE return_requests SET status = 'APPROVED'`** on `REFUND_PENDING` or `REFUND_FAILED` rows — doing so bypasses `refund_records` reconciliation and risks double refunding a customer!
+- **Application Rollback vs Forward Recovery:** Prefer rolling application code forward (patching & running `maintenance_runner --task recover-refunds`) over schema downgrades. Inspect any `status = 'REQUIRES_OPERATOR'` row in `refund_records` alongside `payment_transactions` (`captured_payment_id`) and `orders` (`payment_status IN ('refund_pending_oos', 'refunded_oos')`) before manual resolution.
