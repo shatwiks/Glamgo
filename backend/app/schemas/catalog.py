@@ -12,6 +12,7 @@ class ServiceResponse(BaseModel):
     reviews: int
     img: str
     desc: str
+    cities: List[str] = ["Mumbai", "Bengaluru", "Delhi"]
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -24,11 +25,16 @@ class ServiceCreate(BaseModel):
     duration: str
     img: str
     desc: str
+    service_cities: Optional[str] = "Mumbai,Bengaluru,Delhi"
 
 
 class ProfessionalResponse(BaseModel):
     id: int
     name: str
+    city: str = "Mumbai"
+    area: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     experience: str
     rating: float
     reviews: int
@@ -52,8 +58,13 @@ class SalonStaffResponse(BaseModel):
 class SalonResponse(BaseModel):
     id: str
     name: str
+    city: str = "Mumbai"
     area: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     distance: str
+    distance_km: Optional[float] = None
+    is_far: Optional[bool] = None
     rating: float
     reviews: int
     price: float
@@ -70,7 +81,10 @@ class SalonResponse(BaseModel):
 class SalonCreate(BaseModel):
     id: Optional[str] = None
     name: str
+    city: Optional[str] = "Mumbai"
     area: str
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     distance: str
     price: float
     img: str

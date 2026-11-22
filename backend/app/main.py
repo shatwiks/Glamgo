@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from backend.app.core.config import settings
-from backend.app.core.database import get_db, engine
+from backend.app.core.database import get_db, engine, ensure_phase13_schema_columns
 from backend.app.core.redis_client import check_redis_health, get_redis_status
 from backend.app.core.logging_config import (
     configure_structured_logging,
@@ -29,6 +29,9 @@ async def lifespan(app: FastAPI):
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         logger.info("Database connection verified successfully.")
+        added_cols = ensure_phase13_schema_columns(engine)
+        if added_cols:
+            logger.info("Applied Phase 13 additive schema columns: %s", ", ".join(added_cols))
     except Exception as e:
         logger.error("Database connection failed on startup: %s", e)
 
