@@ -785,7 +785,9 @@
 
 /* UI/UX Pro Max Audit Fixes: Touch Targets, Minimum Font Floor, & Sans-Serif Numerals */
 .card-bottom button,.pro-book,.salon-bar button,.subnav-links button{min-height:36px;display:inline-flex;align-items:center}
-.mobile-menu-button,.icon-button{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.icon-button{min-width:40px;min-height:40px;display:inline-flex;align-items:center;justify-content:center}
+.mobile-menu-button{min-width:40px;min-height:40px;align-items:center;justify-content:center}
+@media(max-width:700px){.mobile-menu-button{display:inline-flex}}
 .eyebrow,.subnav-tag,.hero-proof,.hero-proof dt,.hero-proof dd,.card-body small,.product-brand,.product-old,.cat-count,.footer-bottom,.mobile-bar span,.badge{font-size:11px}
 .product-price,.product-bottom strong,.card-bottom strong,.package-price,.step>span,.chapter-btn>span,.shelf-count strong{font-family:var(--sans);font-variant-numeric:tabular-nums}
 @media(max-width:960px){
@@ -2156,4 +2158,30 @@
 }
 @media (prefers-reduced-motion:reduce){
   .ops-status-btn,.ops-sos-btn,.ops-step,.ops-chair-slot{transition:none}
+}
+
+/* ═══ City Scoped Availability, Proximity Tags & Strict RBAC Portal Styling ═══ */
+.salon-image{position:relative}
+.salon-image>span.salon-proximity-badge,.salon-proximity-badge{position:absolute;top:15px;left:auto;right:15px;display:inline-flex;align-items:center;padding:5px 11px;border-radius:999px;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.03em;text-transform:none;box-shadow:0 2px 8px rgba(30,28,26,.14);z-index:2}
+.salon-proximity-badge.inline{position:static;margin-left:8px;box-shadow:none;vertical-align:middle}
+.salon-image>span.salon-proximity-near,.salon-proximity-near{background:#e4f3e8;color:#1b5e30;border:1px solid #bfe0c8}
+.salon-image>span.salon-proximity-far,.salon-proximity-far{background:#fdf3dc;color:#8a5d14;border:1px solid #f0d79c}
+.salon-distance-row{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:-4px 0 22px}
+.salon-distance-label{display:inline-flex;align-items:center;gap:5px;font-family:var(--sans);font-size:12px;font-weight:600;color:var(--muted);margin-right:4px}
+.salon-distance-chip{min-height:36px;padding:6px 14px;border-radius:999px;border:1px solid var(--border);background:var(--card);color:var(--ink);font-family:var(--sans);font-size:12px;font-weight:600;cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.salon-distance-chip:hover{border-color:var(--champagne);background:var(--cream)}
+.salon-distance-chip.active{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.salon-distance-chip:focus-visible{outline:2px solid var(--champagne);outline-offset:2px}
+.city-unavailable-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:28px 20px;text-align:center}
+.city-empty-actions{margin-top:16px}
+.city-empty-actions .eyebrow{margin-bottom:10px}
+.city-switch-pills{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+.partner-locked-role{display:inline-flex;align-items:center;gap:7px;margin-top:12px;padding:7px 12px;border-radius:8px;background:#e4f3e8;border:1px solid #bfe0c8;color:#1b5e30;font-family:var(--sans);font-size:11.5px;font-weight:700}
+.partner-apply-role-label{margin:12px 0 6px;font-family:var(--sans);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.partner-locked-banner{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;margin-bottom:18px;border-radius:10px;background:#fdf3dc;border:1px solid #f0d79c;color:#6f4a0c;font-size:13px;line-height:1.5}
+.partner-locked-banner svg{flex-shrink:0;margin-top:2px}
+.partner-locked-banner p{margin:3px 0 0;color:#6f4a0c}
+@media (max-width:640px){
+  .salon-distance-row{gap:6px}
+  .salon-distance-chip{font-size:11.5px;padding:6px 11px}
 }

@@ -1,5 +1,32 @@
 # Change Report
 
+## Prompt Entry #22 — 2026-11-22 06:30 IST — Strict RBAC Credential Gates & Multi-City Distance Filtering (`main`)
+**Objective:** Harden `main` as the flagship production consumer website where Admin Command Centre and Partner Studios are strictly gated behind ID & password authentication and role ownership, and where services, specialists, and partner salons dynamically scope to the user's selected city with live Haversine distances, `Near you` / `Far from you` indicators, and distance filtering.
+
+### 1. Strict Role-Based Access Control (ID & Password Gates)
+- **`src/api.js` (`apiRequest`):** Attached `err.status = res.status` to thrown HTTP errors so callers differentiate server-side `400`–`499` credential rejections from unreachable-server `500+` / network errors.
+- **`src/app.js`:**
+  - Enforced `#admin` / `/admin` and `#partner` / `/partner` entry gates in `applyRouteFromLocation()`, presenting `"Administrator Sign In"` without a self-signup toggle for unauthenticated `#admin` visits and denying non-admin accounts cleanly.
+  - Replaced email-substring auto-login fallbacks in `#auth-form` submit with strict `4xx` rejection handling plus SHA-256 `verifyOfflineCredential()` digest matching (`OFFLINE_CREDENTIAL_HASHES`, zero plaintext credentials in source) only when the backend API is unreachable (`!err.status || err.status >= 500`), storing an `offline:` token marker respected by `hydrateSession()`.
+  - Updated `applyPostAuthNavigation()` to deny `admin` resume targets when authenticated credentials belong to non-admin roles and route verified partner accounts directly to their assigned studio.
+  - Restricted `partnerPage()` and `action(el)` (`partner-role`, `partner-tab`) so verified partner accounts (`salon_owner`, `professional`, `seller`) are locked to their single assigned studio without a cross-role switcher, and unverified/customer applicants can only view **Partner Application (`Registration`)** with a `.partner-locked-banner` until approved by an admin.
+
+### 2. City-Scoped Service & Salon Availability + Distance Filtering
+- **`src/app.js` & `backend/app/services/seed_service.py`:**
+  - Added multi-city metadata (`cities` on `DEFAULT_SERVICES` including Bengaluru-specific `"Botanical De-Tan & Glass Skin"`, city-assigned `DEFAULT_PROFESSIONALS` across Mumbai, Bengaluru, and Delhi with non-colliding IDs `101`–`104`, and coordinates/city metadata across `DEFAULT_SALONS` & `SALONS_DATA` covering Mumbai `l1`–`l4`, Bengaluru `l5`–`l8`, and South Delhi `l9`).
+  - Added `mergeCatalogWithCityDefaults()` in `loadCatalogFeeds()` so multi-city coordinates/metadata remain intact and generic admin profile records are filtered out of consumer specialist listings.
+  - Added `AREA_COORDS` locality coverage (including Bengaluru wards/localities), `normalizeCity()`, `resolveUserCoords()`, `haversineKm()`, `enrichSalonWithDistance()`, `isServiceAvailableInCity()`, and `isProAvailableInCity()`.
+  - Scoped `homePage()` (services, specialists, #ritual visibility, empty-city quick-switch cards) and `bookingModal()` strictly to the active city (`normalizeCity(state.location)`).
+  - Updated `salonPage()`, `salonCard()`, and `salonDetail()` to filter salons by active city, compute live distances (`Right in your area (< 0.2 km)` / `X.X km away`), tag studios `Near you` (`<= 8 km`) vs `Far from you` (`> 8 km`), default sort `Nearest first`, and add a distance filter bar (`All distances`, `Within 5 km`, `Within 10 km`, `Within 20 km` via `salon-distance`).
+  - Updated `POPULAR LOCATIONS` in `modal()` and cleared stale `state.userCoords` in `#location-form` when location text changes.
+- **`styles.css`:** Added `.salon-image>span.salon-proximity-badge`, `.salon-proximity-near`, `.salon-proximity-far`, `.salon-distance-row`, `.salon-distance-chip`, `.city-unavailable-box`, `.partner-locked-role`, and `.partner-locked-banner`, and restricted `.mobile-menu-button` inline-flex display to `@media(max-width:700px)`.
+
+### Verification
+- `node -c src/api.js`, `node -c src/dashboards-suite.js`, `node -c src/app.js`: exited `0`.
+- `python -m py_compile backend/app/services/seed_service.py`: exited `0`.
+- `npm run build`: exited `0` (`✓ built in 2.48s`; `dist/assets/index-VIkl_Tiw.css` 168.39 kB, `dist/assets/index-T661irzR.js` 487.78 kB).
+- End-to-end Playwright check against `http://127.0.0.1:5173/`: verified logged-out `#admin` gate, `Incorrect email or password.` rejection, customer access denial on Command Centre and Registration-only lock in Partner Portal, Salon Owner single-role lock, valid Admin Command Centre access, Bengaluru service & specialist scoping, Bengaluru salon `Near you` / `Far from you` badges & `Within 5 km` / `Within 10 km` filters, `Jaipur` unserviced empty state, `0` page errors, and `0px` horizontal overflow at `1440px` and `375px`.
+
 ## Prompt Entry #21 — 2026-11-22 00:20 IST — Refine Flagship Consumer Website (`main`) Copy, Partner Invite CTA & Icon Hygiene
 **Objective:** Keep `main` sharply focused as the flagship customer-facing beauty marketplace (zero turnkey demo bar, real auth guards preserved) while upgrading consumer-to-partner onboarding CTAs and icon consistency:
 1. **Partner Onboarding & Footer Refinement (`src/app.js`):**

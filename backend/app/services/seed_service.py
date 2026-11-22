@@ -59,6 +59,60 @@ SALONS_DATA = [
         "staff": [
             {"name": "Nisha Kapoor", "specialty": "Skin & makeup", "img": photo("photo-1559839734-2b71ea197ec2", 500)}
         ]
+    },
+    {
+        "id": "l4", "name": "Velvet Lounge Studio", "area": "Powai, Mumbai", "distance": "11.6 km away",
+        "rating": 4.8, "reviews": 146, "price": 850.0, "img": photo("photo-1522337360788-8b13dee7a37e"), "tag": "Lakeview Studio",
+        "services_list": "Hair,Skin,Makeup,Spa", "hours": "10:00 AM – 8:30 PM",
+        "about": "Powai flagship studio offering keratin rituals, bridal prep, and clinical facials.",
+        "staff": [
+            {"name": "Riya Malhotra", "specialty": "Hair & styling", "img": photo("photo-1534528741775-53994a69daeb", 500)}
+        ]
+    },
+    {
+        "id": "l5", "name": "Saffron & Silk Atelier", "area": "Indiranagar, Bengaluru", "distance": "1.6 km away",
+        "rating": 4.9, "reviews": 268, "price": 850.0, "img": SALON_IMG, "tag": "Most loved",
+        "services_list": "Hair,Skin,Nails,Makeup", "hours": "10:00 AM – 8:30 PM",
+        "about": "A quiet luxury parlour on 100 Feet Road known for glass-skin facials and precision colour.",
+        "staff": [
+            {"name": "Ananya Rao", "specialty": "Skin & glow facials", "img": photo("photo-1559839734-2b71ea197ec2", 500)}
+        ]
+    },
+    {
+        "id": "l6", "name": "Kora Botanical Salon", "area": "Koramangala, Bengaluru", "distance": "4.9 km away",
+        "rating": 4.8, "reviews": 195, "price": 750.0, "img": photo("photo-1560066984-138dadb4c035"), "tag": "Popular",
+        "services_list": "Hair,Nails,Spa", "hours": "9:30 AM – 8:00 PM",
+        "about": "Plant-active botanical hair spas and gel nail suites in Koramangala 4th Block.",
+        "staff": [
+            {"name": "Kavya Menon", "specialty": "Hair & blowout bar", "img": photo("photo-1534528741775-53994a69daeb", 500)}
+        ]
+    },
+    {
+        "id": "l7", "name": "The Whitefield Sanctuary", "area": "Whitefield, Bengaluru", "distance": "11.8 km away",
+        "rating": 4.9, "reviews": 154, "price": 950.0, "img": photo("photo-1521590832167-7bcbfaa6381f"), "tag": "Signature Spa",
+        "services_list": "Skin,Spa,Makeup", "hours": "10:00 AM – 9:00 PM",
+        "about": "Destination Ayurvedic & clinical spa suite serving East Bengaluru.",
+        "staff": [
+            {"name": "Divya Nair", "specialty": "Spa & bridal styling", "img": photo("photo-1580489944761-15a19d654956", 500)}
+        ]
+    },
+    {
+        "id": "l8", "name": "Lumen Hair & Beauty Loft", "area": "Yelahanka, Bengaluru", "distance": "14.2 km away",
+        "rating": 4.7, "reviews": 112, "price": 699.0, "img": photo("photo-1522337360788-8b13dee7a37e"), "tag": "North Bengaluru",
+        "services_list": "Hair,Skin,Nails", "hours": "10:00 AM – 8:00 PM",
+        "about": "Sunlit neighbourhood salon in North Bengaluru for express styling and dermal peels.",
+        "staff": [
+            {"name": "Ananya Rao", "specialty": "Skin & glow facials", "img": photo("photo-1559839734-2b71ea197ec2", 500)}
+        ]
+    },
+    {
+        "id": "l9", "name": "Haus of Radiance", "area": "Hauz Khas, South Delhi", "distance": "2.1 km away",
+        "rating": 4.9, "reviews": 229, "price": 999.0, "img": SALON_IMG, "tag": "South Delhi",
+        "services_list": "Hair,Skin,Makeup,Spa", "hours": "10:00 AM – 8:30 PM",
+        "about": "Editorial hair & bridal studio overlooking Hauz Khas enclave.",
+        "staff": [
+            {"name": "Tara Verma", "specialty": "Editorial makeup & hair", "img": photo("photo-1573496359142-b8d87734a5a2", 500)}
+        ]
     }
 ]
 

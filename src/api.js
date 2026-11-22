@@ -84,7 +84,9 @@ export async function apiRequest(endpoint, options = {}) {
           errMsg = errData.message;
         }
       } catch {}
-      throw new Error(errMsg);
+      const err = new Error(errMsg);
+      err.status = res.status;
+      throw err;
     }
     return await res.json();
   } catch (err) {
