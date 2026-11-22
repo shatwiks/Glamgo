@@ -4,6 +4,22 @@
 
 ---
 
+## Prompt Entry #16 — `2026-11-22`: Replace Nails Category Image with Centered Luxury Manicure Asset (`release/54ba3db`)
+
+**Prompt Summary:** Replace the low-framing Nails photo with a clear, centered luxury nude gel manicure photograph across the `#categories` grid.
+
+**Added / Modified Files (`branch-release-54ba3db`):**
+- `public/assets/cat-nails.webp`: Added local optimized `640x480` WebP luxury gel manicure photograph (visually inspected centered framing).
+- `src/app.js`: Pointed `homeCategoryImages.Nails` to `./assets/cat-nails.webp`.
+- `styles.css`: Removed the temporary `cat-4` vertical `object-position` offset now that `cat-nails.webp` is naturally centered.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #16.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `949ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-D8631_dt.css` `108.70 kB`, `dist/assets/index-K_iUKb2H.js` `232.87 kB`).
+
+---
+
 ## Prompt Entry #15 — `2026-11-22`: Align Nails Photo, Bold Icon-Only Back Buttons, and Role-Specific Partner Registration (`release/54ba3db`)
 
 **Prompt Summary:** Align the `Nails` category crop properly, convert verbose `← Back to ...` buttons across all views to a bold icon-only back button (desktop & phone), and tailor the `Registration` form individually for Professional, Salon Owner, and Product Seller (kept uncommitted locally for inspection).

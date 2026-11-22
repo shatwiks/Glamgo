@@ -1034,7 +1034,7 @@ function homePage(){
     Skin: photo('photo-1570172619644-dfd03ed5d881', 640),
     Waxing: './assets/cat-waxing.webp',
     Threading: photo('photo-1516975080664-ed2fc6a32937', 640),
-    Nails: photo('photo-1604654894610-df63bc536371', 640),
+    Nails: './assets/cat-nails.webp',
     Makeup: './assets/cat-makeup.webp',
     Spa: photo('photo-1540555700478-4be289fbecef', 640),
     Packages: photo('photo-1515377905703-c4788e51af15', 640)
