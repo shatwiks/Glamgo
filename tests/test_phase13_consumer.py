@@ -6,6 +6,7 @@ from backend.app.core.database import ensure_phase13_schema_columns
 from backend.app.core.rate_limit import _in_memory_windows
 from backend.app.models.catalog import Salon
 from backend.app.models.user import Notification, User, UserRole
+from backend.app.services.cache_service import cache_service
 
 
 def test_ensure_phase13_schema_columns_idempotent_sqlite_and_pg(db):
@@ -59,7 +60,15 @@ def test_ensure_phase13_schema_columns_idempotent_sqlite_and_pg(db):
     assert pg_second == []
 
 
-def test_catalog_salons_city_and_radius_filtering(client):
+def test_catalog_salons_city_and_radius_filtering(client, db):
+    # Ensure no leftover test-created salons pollute the seeded Bengaluru salon set
+    stale = db.query(Salon).filter(Salon.name == "Atelier Silk Bengaluru").all()
+    if stale:
+        for row in stale:
+            db.delete(row)
+        db.commit()
+        cache_service.invalidate_catalog()
+
     # City-only filter for Bengaluru returns all 4 seeded Bengaluru salons
     resp = client.get("/api/v1/catalog/salons?city=Bengaluru")
     assert resp.status_code == 200
@@ -371,18 +380,24 @@ def test_admin_approve_salon_owner_draft_activates_role_and_creates_salon(client
     assert applicant.role == UserRole.SALON_OWNER
 
     salon = db.query(Salon).filter(Salon.owner_id == applicant.id).first()
-    assert salon is not None
-    assert salon.name == "Atelier Silk Bengaluru"
-    assert salon.city == "Bengaluru"
-    assert salon.lat is not None and salon.lng is not None
+    try:
+        assert salon is not None
+        assert salon.name == "Atelier Silk Bengaluru"
+        assert salon.city == "Bengaluru"
+        assert salon.lat is not None and salon.lng is not None
 
-    notif = (
-        db.query(Notification)
-        .filter(Notification.user_id == applicant.id, Notification.type == "partner")
-        .order_by(Notification.id.desc())
-        .first()
-    )
-    assert notif is not None
-    assert "Salon Owner Hub" in notif.text
+        notif = (
+            db.query(Notification)
+            .filter(Notification.user_id == applicant.id, Notification.type == "partner")
+            .order_by(Notification.id.desc())
+            .first()
+        )
+        assert notif is not None
+        assert "Salon Owner Hub" in notif.text
+    finally:
+        if salon is not None:
+            db.delete(salon)
+            db.commit()
+        cache_service.invalidate_catalog()
 
 
