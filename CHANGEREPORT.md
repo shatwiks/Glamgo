@@ -1,5 +1,13 @@
 # Change Report
 
+## Prompt Entry #28 — 2026-11-22 12:38 IST — Sync Render Production Branch (`master`) with `main` + Security Hardening
+**Objective:** Merge `origin/master` security hardening (`180ade6`, `bdb3985`) into `main`, fast-forward `master` to `main`, and push both branches so Render (`glamgo-backend`) serves the hardened Phase 13 backend (`ensure_phase13_schema_columns`, `/api/v1/catalog/*`, password reset / Mobile OTP, booking reschedule / arrival OTP, referral/gift card wallet credits, `REDIS_REQUIRED=false` readiness policy, `/metrics` maintenance token gate, and Dependabot/CI/CORS hardening).
+- **Merged / Modified Files:**
+  - `.github/dependabot.yml`, `SECURITY.md`, `.github/workflows/production-ci.yml`, `scripts/backup_and_restore_verify.py`: Synced from `origin/master` (`180ade6`, `bdb3985`).
+  - `backend/app/main.py`: Preserved both Phase 13 startup column auto-migration / `REDIS_REQUIRED` readiness policy (`main`) and `/metrics` production token guard, sanitized `/health` errors, narrowed CORS methods/headers, and origin regex scoped strictly to `glamgo-ricoz` and `glamgo-um5p` (`^https:\/\/(?:glamgo-ricoz|glamgo-um5p)(?:-[a-z0-9-]+)?\.vercel\.app$`).
+  - `vercel.json`: Kept both `Permissions-Policy: geolocation=(self)` (`main`) and `Strict-Transport-Security: max-age=31536000; includeSubDomains; preload` (`origin/master`).
+- **Verification:** `py_compile`, `vercel.json` JSON validation, `npm run build`, and full `pytest tests/` regression run executed cleanly before pushing `main` and `master`.
+
 ## Prompt Entry #27 — 2026-11-22 12:08 IST — Remove Hardcoded `window.GLAMGO_API_URL` in `index.html` (`main`)
 **Objective:** Prevent hardcoded `window.GLAMGO_API_URL` in `index.html` from overriding Vercel's same-origin `/api/v1` proxy on any `*.vercel.app` origin.
 - **Modified Files:**
@@ -544,6 +552,36 @@ pm install leaflet).
   - User search "admin" ? 1 row, and the input kept focus. Refresh updated the "Synced" time.
   - No horizontal overflow at 1440, 768 and 390px. 0 console errors, 0 page errors, 0 failed requests.
 # GlamGo Change Report (`CHANGEREPORT.md`)
+
+## 2026-11-22 07:16 IST — Automated Dependabot Security Updates
+
+### Objective
+Enable automated weekly GitHub Dependabot vulnerability & dependency updates across repository package ecosystems.
+
+### Files Created
+- `.github/dependabot.yml` — Configured weekly Dependabot monitoring for `pip` (/backend), `npm` (/), `github-actions`.
+
+### Verification Results
+- `yaml.safe_load(.github/dependabot.yml)` — PASS.
+
+---
+
+## 2026-11-22 07:10 IST — Pre-LinkedIn Production Security Hardening
+
+### Objective
+Harden public repository, API middleware, authentication, CORS, error handling, and CI workflow permissions prior to public LinkedIn sharing.
+
+### Files Modified & Created
+- `backend/app/main.py` — Restricted `allow_origin_regex` strictly to `^https://glamgo-ricoz(?:-[a-z0-9-]+)?\.vercel\.app$` (blocking arbitrary third-party `*.vercel.app` origins), narrowed `allow_methods`/`allow_headers`, sanitized `/health` DB error output, and gated `/metrics` behind `INTERNAL_MAINTENANCE_TOKEN` via `hmac.compare_digest` in production.
+- `vercel.json` — Added `Strict-Transport-Security` header.
+- `scripts/backup_and_restore_verify.py` — Removed all `shell=True` subprocess calls in favor of argv list execution (`shell=False`) and env-configurable `RESTORE_TEST_PASSWORD`.
+- `.github/workflows/production-ci.yml` — Added least-privilege `permissions: contents: read`.
+- `SECURITY.md` — Added responsible vulnerability disclosure policy.
+
+### Verification Results
+- `python -m py_compile backend/app/main.py scripts/backup_and_restore_verify.py` (PASS), CORS regex unit assertions (PASS), `json.load(vercel.json)` (PASS), `yaml.safe_load(.github/workflows/production-ci.yml)` (PASS).
+
+---
 
 > **Standing Workflow Policy:** Every prompt that modifies the repository appends a structured entry to `CHANGEREPORT.md` detailing every modified/added file, why it changed, and verified checks before pushing changes to GitHub.
 
