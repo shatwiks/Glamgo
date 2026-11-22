@@ -267,6 +267,20 @@ export async function apiUpdateBookingStatus(bookingId, status) {
   });
 }
 
+export async function apiRescheduleBooking(bookingId, date, time) {
+  return await apiRequest(`/bookings/${encodeURIComponent(bookingId)}/reschedule`, {
+    method: 'PUT',
+    body: JSON.stringify({ date, time }),
+  });
+}
+
+export async function apiVerifyBookingArrivalOtp(bookingId, otp) {
+  return await apiRequest(`/bookings/${encodeURIComponent(bookingId)}/verify-arrival-otp`, {
+    method: 'POST',
+    body: JSON.stringify({ otp }),
+  });
+}
+
 // Orders & Checkout
 export async function apiValidateCoupon(code, subtotal) {
   return await apiRequest('/orders/coupon/validate', {

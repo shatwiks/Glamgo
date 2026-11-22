@@ -5,6 +5,7 @@ from backend.app.core.config import settings
 from backend.app.core.database import ensure_phase13_schema_columns
 from backend.app.core.rate_limit import _in_memory_windows
 from backend.app.models.catalog import Salon
+from backend.app.models.booking import Booking, BookingStatus
 from backend.app.models.user import Notification, User, UserRole
 from backend.app.services.cache_service import cache_service
 
@@ -399,5 +400,207 @@ def test_admin_approve_salon_owner_draft_activates_role_and_creates_salon(client
             db.delete(salon)
             db.commit()
         cache_service.invalidate_catalog()
+
+
+def test_booking_addons_server_pricing_and_consistent_serialization(client, customer_auth_headers):
+    date_str = f"2026-12-{(secrets.randbelow(20) + 5):02d}"
+    time_str = "11:15 AM"
+    idem_key = f"idem-p13-{secrets.token_hex(4)}"
+
+    create_resp = client.post(
+        "/api/v1/bookings/",
+        headers=customer_auth_headers,
+        json={
+            "type": "home",
+            "service_id": "s1",
+            "professional": "Any available expert",
+            "date": date_str,
+            "time": time_str,
+            "location": "24 Sea View Road, Bandra West, Mumbai",
+            "idempotency_key": idem_key,
+            "addons": ["addon-head-massage", "addon-sheet-mask", "invalid-forged-addon"],
+        },
+    )
+    assert create_resp.status_code == 200, create_resp.text
+    created = create_resp.json()
+    booking_id = created["id"]
+
+    # s1 base price is 1499.0 + head massage (299.0) + sheet mask (349.0) = 2147.0
+    assert created["price"] == 2147.0
+    assert created["arrival_otp"] is not None
+    assert len(created["arrival_otp"]) == 4 and created["arrival_otp"].isdigit()
+    addon_ids = [a["id"] for a in created["addons"]]
+    assert addon_ids == ["addon-head-massage", "addon-sheet-mask"]
+
+    # Idempotent replay must return the exact same serialized addons & arrival_otp
+    replay_resp = client.post(
+        "/api/v1/bookings/",
+        headers=customer_auth_headers,
+        json={
+            "type": "home",
+            "service_id": "s1",
+            "professional": "Any available expert",
+            "date": date_str,
+            "time": time_str,
+            "location": "24 Sea View Road, Bandra West, Mumbai",
+            "idempotency_key": idem_key,
+            "addons": ["addon-head-massage", "addon-sheet-mask"],
+        },
+    )
+    assert replay_resp.status_code == 200
+    assert replay_resp.json()["id"] == booking_id
+    assert [a["id"] for a in replay_resp.json()["addons"]] == addon_ids
+
+    # GET /bookings/{id} and GET /bookings/my serialize addons consistently via Booking.addons property
+    detail_resp = client.get(f"/api/v1/bookings/{booking_id}", headers=customer_auth_headers)
+    assert detail_resp.status_code == 200
+    assert [a["id"] for a in detail_resp.json()["addons"]] == addon_ids
+    assert detail_resp.json()["arrival_otp"] == created["arrival_otp"]
+
+    my_resp = client.get("/api/v1/bookings/my", headers=customer_auth_headers)
+    assert my_resp.status_code == 200
+    my_match = next((b for b in my_resp.json() if b["id"] == booking_id), None)
+    assert my_match is not None
+    assert [a["id"] for a in my_match["addons"]] == addon_ids
+
+
+def test_booking_reschedule_conflict_and_bola_protection(client, customer_auth_headers):
+    slot_date = f"2027-01-{(secrets.randbelow(20) + 5):02d}"
+    b1_resp = client.post(
+        "/api/v1/bookings/",
+        headers=customer_auth_headers,
+        json={
+            "type": "home",
+            "service_id": "s1",
+            "professional": "Nisha Kapoor",
+            "date": slot_date,
+            "time": "10:00 AM",
+            "location": "Bandra West, Mumbai",
+        },
+    )
+    assert b1_resp.status_code == 200, b1_resp.text
+    b1 = b1_resp.json()
+
+    b2_resp = client.post(
+        "/api/v1/bookings/",
+        headers=customer_auth_headers,
+        json={
+            "type": "home",
+            "service_id": "s2",
+            "professional": "Nisha Kapoor",
+            "date": slot_date,
+            "time": "12:00 PM",
+            "location": "Bandra West, Mumbai",
+        },
+    )
+    assert b2_resp.status_code == 200, b2_resp.text
+    b2 = b2_resp.json()
+
+    # 1. Rescheduling b1 into b2's occupied slot must return HTTP 409 Conflict
+    conflict_resp = client.put(
+        f"/api/v1/bookings/{b1['id']}/reschedule",
+        headers=customer_auth_headers,
+        json={"date": slot_date, "time": "12:00 PM"},
+    )
+    assert conflict_resp.status_code == 409
+
+    # 2. Rescheduling b1 to an open slot succeeds
+    ok_resp = client.put(
+        f"/api/v1/bookings/{b1['id']}/reschedule",
+        headers=customer_auth_headers,
+        json={"date": slot_date, "time": "03:30 PM"},
+    )
+    assert ok_resp.status_code == 200, ok_resp.text
+    assert ok_resp.json()["time"] == "03:30 PM"
+
+    # 3. Another customer attempting to reschedule b1 must receive HTTP 403
+    _, other_reg = _register_unique_customer(client, _unique_phone(), prefix="bola_resched")
+    other_headers = {"Authorization": f"Bearer {other_reg['access_token']}"}
+    bola_resp = client.put(
+        f"/api/v1/bookings/{b1['id']}/reschedule",
+        headers=other_headers,
+        json={"date": slot_date, "time": "05:00 PM"},
+    )
+    assert bola_resp.status_code == 403
+
+
+def test_arrival_otp_strict_validation_null_guard_and_partner_privacy(
+    client, db, customer_auth_headers, pro_auth_headers
+):
+    slot_date = f"2027-02-{(secrets.randbelow(20) + 5):02d}"
+    b_resp = client.post(
+        "/api/v1/bookings/",
+        headers=customer_auth_headers,
+        json={
+            "type": "home",
+            "service_id": "s1",
+            "professional": "Nisha Kapoor",
+            "date": slot_date,
+            "time": "02:00 PM",
+            "location": "Bandra West, Mumbai",
+        },
+    )
+    assert b_resp.status_code == 200, b_resp.text
+    b_data = b_resp.json()
+    booking_id = b_data["id"]
+    true_otp = b_data["arrival_otp"]
+
+    # (d) Partner bookings listing MUST omit plaintext arrival_otp (T-13-06 privacy boundary)
+    pro_list_resp = client.get("/api/v1/partners/professional/bookings", headers=pro_auth_headers)
+    assert pro_list_resp.status_code == 200
+    listed = next((row for row in pro_list_resp.json() if row["id"] == booking_id), None)
+    assert listed is not None
+    assert "arrival_otp" not in listed
+
+    # (c.1) Non-4-digit or non-numeric OTP rejected with HTTP 422 by BookingOtpVerifyRequest
+    for invalid_otp in ("", "123", "12345", "12a4"):
+        r422 = client.post(
+            f"/api/v1/bookings/{booking_id}/verify-arrival-otp",
+            headers=pro_auth_headers,
+            json={"otp": invalid_otp},
+        )
+        assert r422.status_code == 422, f"Expected 422 for {invalid_otp!r}, got {r422.status_code}"
+
+    # (c.2) Wrong 4-digit PIN rejected with HTTP 400
+    wrong_pin = "9999" if true_otp != "9999" else "0000"
+    r_wrong = client.post(
+        f"/api/v1/bookings/{booking_id}/verify-arrival-otp",
+        headers=pro_auth_headers,
+        json={"otp": wrong_pin},
+    )
+    assert r_wrong.status_code == 400
+
+    # (c.3) Correct 4-digit PIN accepted with HTTP 200
+    r_ok = client.post(
+        f"/api/v1/bookings/{booking_id}/verify-arrival-otp",
+        headers=pro_auth_headers,
+        json={"otp": true_otp},
+    )
+    assert r_ok.status_code == 200
+    assert r_ok.json()["verified"] is True
+    assert r_ok.json()["stage"] == "arrived"
+
+    # (c.4) Legacy NULL arrival_otp rejected with HTTP 400 BEFORE hmac.compare_digest
+    b_row = db.query(Booking).filter(Booking.id == booking_id).first()
+    b_row.arrival_otp = None
+    db.commit()
+    r_null = client.post(
+        f"/api/v1/bookings/{booking_id}/verify-arrival-otp",
+        headers=pro_auth_headers,
+        json={"otp": true_otp},
+    )
+    assert r_null.status_code == 400
+
+    # (c.5) CANCELLED or COMPLETED booking rejected with HTTP 400
+    b_row.arrival_otp = true_otp
+    b_row.status = BookingStatus.CANCELLED
+    db.commit()
+    r_cancelled = client.post(
+        f"/api/v1/bookings/{booking_id}/verify-arrival-otp",
+        headers=pro_auth_headers,
+        json={"otp": true_otp},
+    )
+    assert r_cancelled.status_code == 400
+
 
 

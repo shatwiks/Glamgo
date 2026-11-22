@@ -22,6 +22,8 @@ import {
   apiCreateBooking,
   apiGetMyBookings,
   apiUpdateBookingStatus,
+  apiRescheduleBooking,
+  apiVerifyBookingArrivalOtp,
   apiValidateCoupon,
   apiCreateOrder,
   apiGetMyOrders,
@@ -669,6 +671,12 @@ let salons = mergeCatalogWithCityDefaults(initialCatalogCache?.salons, DEFAULT_S
 let products = Array.isArray(initialCatalogCache?.products) && initialCatalogCache.products.length ? initialCatalogCache.products : DEFAULT_PRODUCTS;
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
+const BOOKING_ADDONS = [
+  { id: 'addon-head-massage', name: 'Ayurvedic Head Massage', duration: '15 min', price: 299 },
+  { id: 'addon-sheet-mask', name: 'Collagen Peptide Sheet Mask', duration: '15 min', price: 349 },
+  { id: 'addon-gel-removal', name: 'Gentle Gel Polish Removal', duration: '15 min', price: 249 },
+  { id: 'addon-serum-ampoule', name: 'Vitamin C Glow Ampoule', duration: '10 min', price: 499 }
+];
 const homeCategoryImages = {
   Hair: images.hair,
   Skin: images.facial,
@@ -750,6 +758,10 @@ const defaults = {
   partnerOrderSearch: '',
   partnerCatalogSearch: '',
   partnerLastSynced: '',
+  proVerifiedArrival: {},
+  rescheduleBooking: null,
+  proVerifyBookingId: null,
+  proVerifyTargetStage: 'arrived',
   ...DEFAULT_DASHBOARD_OPS
 };
 
@@ -2222,10 +2234,22 @@ function account(){
     const isConfirmed = !b.status || b.status.toLowerCase() === 'confirmed';
     const isCompleted = b.status && b.status.toLowerCase() === 'completed';
     const isCancelled = b.status && b.status.toLowerCase() === 'cancelled';
-    const cancelBtn = isConfirmed ? '<button class="text-action" style="color:var(--burgundy,#b33939);margin-top:6px;font-size:12px;font-weight:600" data-action="booking-cancel" data-id="'+b.id+'">Cancel appointment</button>' : '';
-    const reviewBtn = isCompleted ? '<button class="text-action" style="color:var(--champagne,#c5a77d);margin-top:6px;font-size:12px;font-weight:600" data-action="review-add">Write a review</button>' : '';
-    const payStatus = b.payment_status ? '<small style="display:block;margin-top:3px;color:var(--muted)">Payment: '+esc(b.payment_status)+'</small>' : '';
-    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.location)+'</p>'+payStatus+cancelBtn+reviewBtn+'</div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.status||'Confirmed')+'</span></div>';
+    const otpHtml = (isConfirmed && b.arrival_otp)
+      ? '<span class="arrival-otp-chip">' + icon('shield', 14) + ' Arrival PIN: <strong>' + esc(b.arrival_otp) + '</strong></span>'
+      : '';
+    const addonsList = Array.isArray(b.addons) && b.addons.length
+      ? '<small style="display:block;margin-top:4px;color:var(--ink)">Add-ons: ' + b.addons.map(a => esc(a.name) + ' (+' + money(a.price) + ')').join(' · ') + '</small>'
+      : '';
+    const rescheduleBtn = isConfirmed
+      ? '<button type="button" class="text-action" style="color:var(--ink);font-size:12px;font-weight:600" data-action="booking-reschedule-open" data-id="'+esc(b.id)+'">' + icon('calendar', 13) + ' 1-tap Reschedule</button>'
+      : '';
+    const cancelBtn = isConfirmed ? '<button type="button" class="text-action" style="color:var(--burgundy,#b33939);font-size:12px;font-weight:600" data-action="booking-cancel" data-id="'+esc(b.id)+'">Cancel appointment</button>' : '';
+    const reviewBtn = isCompleted ? '<button type="button" class="text-action" style="color:var(--champagne,#c5a77d);margin-top:6px;font-size:12px;font-weight:600" data-action="review-add">Write a review</button>' : '';
+    const payStatus = b.payment_status ? '<small style="display:block;margin-top:3px;color:var(--muted)">Payment: '+esc(b.payment_status)+' · Total: '+money(b.price)+'</small>' : '';
+    const actionsRow = (rescheduleBtn || cancelBtn || otpHtml)
+      ? '<div class="reschedule-actions">' + otpHtml + rescheduleBtn + cancelBtn + '</div>'
+      : '';
+    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+esc(b.time)+' · '+esc(b.location)+'</p>'+addonsList+payStatus+actionsRow+reviewBtn+'</div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.status||'Confirmed')+'</span></div>';
   }).join(''):empty('calendar','Your next moment awaits','Choose a home service or salon appointment to see it here.',button('Explore beauty '+icon('arrow',16),'experience','btn-primary','data-id="home"')))+'</div>';
   else if(state.accountTab==='My orders') content='<div class="account-block"><h2>My orders</h2><p>Your beauty store purchases and delivery updates.</p>'+(state.orders.length?state.orders.map(o=>'<div class="history-card"><div class="history-icon">'+icon('bag',22)+'</div><div><span class="eyebrow">ORDER '+esc(o.id)+' · '+esc(String(o.status||'placed').replace('_',' ').toUpperCase())+'</span><h3>'+(o.items||[]).map(i=>esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty).join(', ')+'</h3><p>'+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(formatOrderPaymentStatusLabel(o.payment_status))+(o.oos_refund_id?' · Refund: '+esc(o.oos_refund_id):'')+'</p></div><button class="text-action" data-action="tracking" data-id="'+esc(o.id)+'">Track order '+icon('arrow',15)+'</button></div>').join(''):empty('bag','Your beauty bag is waiting','Discover your first favourite in the GlamGo beauty store.',button('Explore the store '+icon('arrow',16),'experience','btn-primary','data-id="shop"')))+'</div>';
   else if(state.accountTab==='Wishlist'){const liked=[...services,...products].filter(x=>state.wishlist.includes(x.id));content='<div class="account-block"><h2>Your wishlist</h2><p>A space for everything that catches your eye.</p>'+(liked.length?'<div class="wishlist-grid">'+liked.map(x=>x.brand?productCard(x):homeCard(x)).join('')+'</div>':empty('heart','Nothing saved yet','Tap the heart on a service or product to keep it close.'))+'</div>';}
@@ -4111,6 +4135,22 @@ function modal(){
     inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
   }
   else if(state.modal==='booking') inner=bookingModal();
+  else if(state.modal==='booking-reschedule'){
+    const rb = state.rescheduleBooking || {};
+    inner='<div class="modal-head"><p class="eyebrow">1-TAP RESCHEDULE</p><h2>Pick a new date &amp; time.</h2><p>Rescheduling <strong>'+esc(rb.title||'Appointment')+'</strong> with '+esc(rb.professional||'your specialist')+'.</p></div>' +
+      '<div class="date-grid modal-dates">'+dateOptions().map(d=>'<button type="button" class="'+(rb.date===d.value?'selected':'')+'" data-action="booking-reschedule-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>' +
+      '<p class="slot-label" style="margin:14px 0 8px;font-size:11px;letter-spacing:0.12em;color:var(--muted)">AVAILABLE TIMES</p>' +
+      '<div class="time-grid" style="margin-bottom:18px">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button type="button" class="'+(rb.time===t?'selected':'')+'" data-action="booking-reschedule-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>' +
+      '<button type="button" class="btn btn-primary full" data-action="booking-reschedule-save">Confirm new slot '+icon('check',17)+'</button>';
+  }
+  else if(state.modal==='pro-verify-otp'){
+    const bId = state.proVerifyBookingId || '';
+    inner='<div class="modal-head"><p class="eyebrow">DOORSTEP ARRIVAL VERIFICATION</p><h2>Enter Customer Arrival PIN.</h2><p>Ask the client for the 4-digit Arrival PIN displayed in their <em>My bookings</em> card for booking <strong>#'+esc(bId)+'</strong>.</p></div>' +
+      '<form id="pro-arrival-otp-form">' +
+        '<label>4-Digit Arrival PIN<input name="otp" inputmode="numeric" pattern="\\d{4}" minlength="4" maxlength="4" required placeholder="e.g. 4829" autocomplete="one-time-code" autofocus></label>' +
+        '<button class="btn btn-primary full" type="submit">Verify Arrival &amp; Unlock Session '+icon('shield',17)+'</button>' +
+      '</form>';
+  }
   else if(state.modal==='address') inner='<div class="modal-head"><p class="eyebrow">SAVED ADDRESS</p><h2>Add an address.</h2><p>For home services and thoughtful deliveries.</p></div><form id="address-form"><label>Label<input name="label" required placeholder="Home, Work..."></label><label>Full address<textarea name="text" required placeholder="Street, area, city and postal code"></textarea></label><button class="btn btn-primary full" type="submit">Save address '+icon('arrow',17)+'</button></form>';
   else if(state.modal==='notifications') inner='<div class="modal-head"><p class="eyebrow">YOUR UPDATES</p><h2>Notifications.</h2></div>'+(state.notifications.length?state.notifications.map(n=>'<div class="notification-row">'+icon(n.type==='order'?'bag':'calendar',20)+'<span>'+esc(n.text)+'</span></div>').join(''):empty('bell','All caught up','Your booking and order updates will appear here.'));
   else if(state.modal==='partner-add') inner='<div class="modal-head"><p class="eyebrow">PARTNER STUDIO</p><h2>Add a new listing.</h2><p>Create a draft for your catalogue.</p></div><form id="listing-form"><label>Name<input name="name" required placeholder="Listing name"></label><label>Price (₹)<input name="price" type="number" min="1" required placeholder="Starting price"></label><label>Description<textarea name="description" required placeholder="What makes it special?"></textarea></label><button class="btn btn-primary full" type="submit">Save draft '+icon('arrow',17)+'</button></form>';
@@ -4126,13 +4166,27 @@ function modal(){
 
 function bookingModal(){
   const b = state.booking, salon = b.type==='salon'?salons.find(x=>x.id===b.itemId):null, service = services.find(x=>x.id===b.serviceId);
+  const selectedAddons = Array.isArray(b.addons) ? b.addons : [];
+  const addonObjects = BOOKING_ADDONS.filter(a => selectedAddons.includes(a.id));
+  const addonsSum = addonObjects.reduce((acc, a) => acc + Number(a.price || 0), 0);
+  const basePrice = Number(service?.price || 0);
+  const totalPrice = basePrice + addonsSum;
   const steps = b.type==='home'?['Service','Professional','Date & time','Confirm']:['Service','Staff','Date & time','Confirm'];
   let body = '';
   if(b.step===0){
     const userCity = normalizeCity(state.location);
     const cityHomeServices = services.filter(s => isServiceAvailableInCity(s, userCity));
     const list0 = b.type==='home' ? (cityHomeServices.length ? cityHomeServices : services) : services.filter(s=>salon&&salon.services.includes(s.category));
-    body='<h3>Choose your service</h3><div class="booking-options">'+list0.map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join('')+'</div>';
+    const addonsHtml = '<div class="booking-addons-wrap"><p class="slot-label" style="margin:16px 0 8px">OPTIONAL ENHANCEMENT ADD-ONS</p><div class="booking-addons-grid">' +
+      BOOKING_ADDONS.map(a => {
+        const isSel = selectedAddons.includes(a.id);
+        return '<button type="button" class="booking-addon-chip '+(isSel?'selected':'')+'" data-action="booking-addon-toggle" data-id="'+esc(a.id)+'" aria-pressed="'+(isSel?'true':'false')+'">' +
+          '<div><strong>'+esc(a.name)+'</strong><small>+'+esc(a.duration)+'</small></div>' +
+          '<span class="addon-price">+'+money(a.price)+'</span>' +
+        '</button>';
+      }).join('') +
+    '</div></div>';
+    body='<h3>Choose your service</h3><div class="booking-options">'+list0.map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join('')+'</div>'+addonsHtml;
   }
   if(b.step===1){
     const userCity = normalizeCity(state.location);
@@ -4140,12 +4194,26 @@ function bookingModal(){
     const list1 = b.type==='home' ? (cityPros.length ? cityPros : professionals) : professionals;
     body='<h3>'+(b.type==='home'?'Choose your professional':'Select a staff member')+'</h3><p class="booking-hint">Choose a specialist, or let us find the best available expert for you.</p><div class="booking-options"><button class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>We will match you with a trusted professional.</small></span></button>'+list1.map(p=>'<button class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+p.name+'">'+image(p.img,p.name,'booking-avatar')+'<span><strong>'+p.name+'</strong><small>'+p.specialty+' · '+p.rating+' ★</small></span></button>').join('')+'</div>';
   }
-  if(b.step===2) body='<h3>Pick your moment</h3><p class="booking-hint">Available appointments for '+(salon?salon.name:'at-home beauty care')+'.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">AVAILABLE TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>';
+  if(b.step===2){
+    const addonsHtml2 = '<div class="booking-addons-wrap"><p class="slot-label" style="margin:16px 0 8px">OPTIONAL ENHANCEMENT ADD-ONS</p><div class="booking-addons-grid">' +
+      BOOKING_ADDONS.map(a => {
+        const isSel = selectedAddons.includes(a.id);
+        return '<button type="button" class="booking-addon-chip '+(isSel?'selected':'')+'" data-action="booking-addon-toggle" data-id="'+esc(a.id)+'" aria-pressed="'+(isSel?'true':'false')+'">' +
+          '<div><strong>'+esc(a.name)+'</strong><small>+'+esc(a.duration)+'</small></div>' +
+          '<span class="addon-price">+'+money(a.price)+'</span>' +
+        '</button>';
+      }).join('') +
+    '</div></div>';
+    body='<h3>Pick your moment</h3><p class="booking-hint">Available appointments for '+(salon?salon.name:'at-home beauty care')+'.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">AVAILABLE TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>'+addonsHtml2;
+  }
   if(b.step===3){
     const noticeHtml = state.bookingNotice
       ? '<div class="payment-notice payment-notice-'+esc(state.bookingNotice.type||'error')+'" role="alert"><strong>'+esc(state.bookingNotice.title)+'</strong><p>'+esc(state.bookingNotice.message)+'</p></div>'
       : '';
-    body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+(service?.name||'Service')+'</strong></div><div><span>Professional</span><strong>'+esc(b.professional)+'</strong></div><div><span>Date & time</span><strong>'+formatDate(b.date)+' · '+b.time+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Price</span><strong>'+money(service?.price||0)+'</strong></div></div>'+noticeHtml+'<p class="booking-hint">Complete payment to confirm your appointment in My bookings.</p>';
+    const addonReviewRows = addonObjects.map(a =>
+      '<div><span>Add-on: '+esc(a.name)+' ('+esc(a.duration)+')</span><strong style="font-variant-numeric:tabular-nums">+'+money(a.price)+'</strong></div>'
+    ).join('');
+    body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+(service?.name||'Service')+' ('+money(basePrice)+')</strong></div>'+addonReviewRows+'<div><span>Professional</span><strong>'+esc(b.professional)+'</strong></div><div><span>Date & time</span><strong>'+formatDate(b.date)+' · '+b.time+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Total Price</span><strong style="font-variant-numeric:tabular-nums">'+money(totalPrice)+'</strong></div></div>'+noticeHtml+'<p class="booking-hint">Complete payment to confirm your appointment and receive your 4-digit Arrival PIN in My bookings.</p>';
   }
   const confirmLabel = b.step===3
     ? (state.bookingBusy ? 'Processing...' : (state.bookingNotice ? 'Retry payment '+icon('arrow',16) : 'Confirm booking '+icon('check',17)))
@@ -4361,6 +4429,7 @@ function openBooking(type, itemId, serviceId = null, pro = null){
     professional: pro || null,
     date: type === 'salon' ? state.salonDate : null,
     time: null,
+    addons: [],
     step: selectedService ? 1 : 0
   };
   state.modal = 'booking';
@@ -4371,6 +4440,16 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
+  if(a === 'ops-pro-stage'){
+    const [bId, stage] = String(id || '').split('|');
+    if (bId && (stage === 'arrived' || (stage === 'in_progress' && !state.proVerifiedArrival?.[bId]))) {
+      state.proVerifyBookingId = bId;
+      state.proVerifyTargetStage = stage;
+      state.modal = 'pro-verify-otp';
+      render();
+      return;
+    }
+  }
   if(a && a.startsWith('ops-')){
     if(handleDashboardOpsAction(a, id, el, state, { persist, render, toast, services, salons, products })) return;
   }
@@ -4941,6 +5020,50 @@ async function action(el){
     navigate('account');
   }
   else if(a==='account-tab'){ state.accountTab=id; render(); }
+  else if(a==='booking-reschedule-open'){
+    const target = (state.bookings || []).find(b => b.id === id);
+    if (!target) return;
+    state.rescheduleBooking = {
+      id: target.id,
+      title: target.title,
+      professional: target.professional,
+      date: target.date || dateOptions()[0]?.value,
+      time: target.time || '10:30 AM'
+    };
+    state.modal = 'booking-reschedule';
+    render();
+  }
+  else if(a==='booking-reschedule-date'){
+    if (state.rescheduleBooking) {
+      state.rescheduleBooking.date = id;
+      render();
+    }
+  }
+  else if(a==='booking-reschedule-time'){
+    if (state.rescheduleBooking) {
+      state.rescheduleBooking.time = id;
+      render();
+    }
+  }
+  else if(a==='booking-reschedule-save'){
+    const rb = state.rescheduleBooking;
+    if (!rb || !rb.date || !rb.time) {
+      toast('Please choose a new date and time slot.');
+      return;
+    }
+    try {
+      const updated = await apiRescheduleBooking(rb.id, rb.date, rb.time);
+      const idx = (state.bookings || []).findIndex(b => b.id === rb.id);
+      if (idx !== -1) state.bookings[idx] = updated;
+      state.modal = null;
+      state.rescheduleBooking = null;
+      persist();
+      render();
+      toast(`Appointment rescheduled to ${formatDate(updated.date)} at ${updated.time}`);
+    } catch (err) {
+      toast(err.message || 'Could not reschedule appointment');
+    }
+  }
   else if(a==='booking-cancel'){
     if(!requireAuth({ view: 'account', accountTab: 'My bookings' }, 'Sign in to manage bookings')) return;
     if(confirm('Are you sure you wish to cancel this appointment?')){
@@ -5326,6 +5449,14 @@ async function action(el){
   }
   else if(a==='modal-close'){ state.modal=null; render(); }
   else if(a==='booking-service'){ state.booking.serviceId=id; render(); }
+  else if(a==='booking-addon-toggle'){
+    if (!state.booking) return;
+    const cur = Array.isArray(state.booking.addons) ? state.booking.addons : [];
+    state.booking.addons = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
+    state.pendingBooking = null;
+    state.pendingBookingKey = null;
+    render();
+  }
   else if(a==='booking-pro'){ state.booking.professional=id; render(); }
   else if(a==='booking-date'){ state.booking.date=id; render(); }
   else if(a==='booking-time'){ state.booking.time=id; render(); }
@@ -5352,7 +5483,8 @@ async function action(el){
       salon_id: salon ? salon.id : null,
       date: b.date,
       time: b.time,
-      location: salon ? `${salon.name}, ${salon.area}` : (state.addresses[0]?.text || state.location)
+      location: salon ? `${salon.name}, ${salon.area}` : (state.addresses[0]?.text || state.location),
+      addons: Array.isArray(b.addons) ? b.addons : []
     };
     const fingerprint = JSON.stringify(payload);
     state.bookingBusy = true;
@@ -5566,6 +5698,39 @@ document.addEventListener('submit', async e => {
   const f = e.target, d = new FormData(f);
   if(f.id && f.id.startsWith('ops-')){
     if(handleDashboardOpsSubmit(f, d, state, { persist, render, toast, services, salons, products })) return;
+  }
+  if(f.id === 'pro-arrival-otp-form'){
+    const otp = String(d.get('otp') || '').trim();
+    const bId = state.proVerifyBookingId;
+    const targetStage = state.proVerifyTargetStage || 'arrived';
+    if (!/^\d{4}$/.test(otp)) {
+      toast('Please enter a valid 4-digit numeric Arrival PIN.');
+      return;
+    }
+    try {
+      await apiVerifyBookingArrivalOtp(bId, otp);
+      state.proVerifiedArrival = { ...(state.proVerifiedArrival || {}), [bId]: true };
+      state.proJobStages = { ...(state.proJobStages || {}), [bId]: targetStage };
+      state.modal = null;
+      state.proVerifyBookingId = null;
+      persist();
+      render();
+      toast(`Arrival PIN verified — Booking #${bId} marked ${targetStage.replace('_', ' ').toUpperCase()}`);
+    } catch (err) {
+      const localMatch = (state.bookings || []).find(b => b.id === bId && String(b.arrival_otp || '') === otp);
+      if (localMatch && (!err.status || err.status >= 500)) {
+        state.proVerifiedArrival = { ...(state.proVerifiedArrival || {}), [bId]: true };
+        state.proJobStages = { ...(state.proJobStages || {}), [bId]: targetStage };
+        state.modal = null;
+        state.proVerifyBookingId = null;
+        persist();
+        render();
+        toast(`Arrival PIN verified — Booking #${bId} marked ${targetStage.replace('_', ' ').toUpperCase()}`);
+        return;
+      }
+      toast(err.message || 'Invalid 4-digit Arrival PIN');
+    }
+    return;
   }
   if(f.id === 'ai-chat-form'){
     const input = document.getElementById('ai-chat-input');
