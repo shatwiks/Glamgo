@@ -1,14 +1,14 @@
 const PRODUCTION_BACKEND_URL = 'https://glamgo-backend-lqn6.onrender.com/api/v1';
 
 function resolveApiBase() {
-  if (typeof window !== 'undefined' && window.GLAMGO_API_URL) {
-    return window.GLAMGO_API_URL;
-  }
   // On Vercel deployments (*.vercel.app), always use the same-origin /api/v1 rewrite proxy
   // defined in vercel.json so browser requests never hit Render cross-origin CORS preflight blocks,
-  // even when VITE_API_BASE_URL is configured in Vercel project settings.
+  // even when window.GLAMGO_API_URL or VITE_API_BASE_URL is configured.
   if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
     return '/api/v1';
+  }
+  if (typeof window !== 'undefined' && window.GLAMGO_API_URL) {
+    return window.GLAMGO_API_URL;
   }
   const envUrl = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL;
   if (envUrl && envUrl.includes('glamgo-backend.onrender.com') && !envUrl.includes('glamgo-backend-lqn6.onrender.com')) {
