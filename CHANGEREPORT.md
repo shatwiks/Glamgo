@@ -4,6 +4,147 @@
 
 ---
 
+## Prompt Entry #15 — `2026-11-22`: Align Nails Photo, Bold Icon-Only Back Buttons, and Role-Specific Partner Registration (`release/54ba3db`)
+
+**Prompt Summary:** Align the `Nails` category crop properly, convert verbose `← Back to ...` buttons across all views to a bold icon-only back button (desktop & phone), and tailor the `Registration` form individually for Professional, Salon Owner, and Product Seller (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`: Centered `Nails` (`cat-4`) crop (`object-position:center 82%`) so fingertips are framed properly; styled `.back-link` as a bold icon-only `40x40` control (`stroke-width:2.4`) on desktop and mobile.
+- `src/app.js`: Added `backButton()` helper and replaced all `.back-link` text buttons (`salonDetail`, `productDetail`, `checkoutPage`, `trackingPage`); split `Registration` tab in `partnerPage()` into distinct role-specific forms (`regConfig`) for **Salon Owner**, **Product Seller**, and **Professional**.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #15.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `675ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-COJ7ozaK.css` `108.77 kB`, `dist/assets/index-KAgxSWFe.js` `232.89 kB`).
+
+---
+
+## Prompt Entry #14 — `2026-11-22`: Add Editorial Category Photos to Home Beauty Category Cards (`release/54ba3db`)
+
+**Prompt Summary:** Generate and add category-specific beauty photographs across all 8 Home Beauty `#categories` tiles (`Hair`, `Skin`, `Waxing`, `Threading`, `Nails`, `Makeup`, `Spa`, `Packages`) (kept uncommitted locally for inspection).
+
+**Added / Modified Files (`branch-release-54ba3db`):**
+- `public/assets/cat-hair.webp`, `public/assets/cat-waxing.webp`, `public/assets/cat-makeup.webp`: Converted & optimized freshly generated 4:3 luxury editorial photography (`640x480` WebP) via `sharp`.
+- `src/app.js`: Added `homeCategoryImages` inside `homePage()` mapping all 8 Home Beauty categories (local `.webp` assets for `Hair`, `Waxing`, `Makeup`; curated editorial photography for `Skin`, `Threading`, `Nails`, `Spa`, `Packages`) and rendered `<img>` inside `.category-art`.
+- `styles.css`: Added `.home-categories .category-art` (`132px` desktop / `96px` mobile) and `object-fit:cover` hover scale rules.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #14.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `699ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-D1-hTmZn.css` `108.32 kB`, `dist/assets/index-BKbdnvdV.js` `230.33 kB`).
+
+---
+
+## Prompt Entry #13 — `2026-11-22`: Align Category Filter & Sort Toolbar Across All 3 Consumer Pages (`release/54ba3db`)
+
+**Prompt Summary:** Prevent category chips (such as `Packages` on `#home`) from wrapping awkwardly onto a second row beside the Sort control, aligning `.listing-tools` cleanly on a single row across Home Beauty, Salons, and Beauty Store (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`: Appended unified `.listing-tools`, `.filter-row`, `.filter-chip`, and `.sort-label` alignment rules (single horizontally scrollable pill rail paired on baseline with Sort on desktop; stacked full-width baseline with horizontal chip scroll on mobile `<=700px`).
+- `CHANGEREPORT.md`: Prepended Prompt Entry #13.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `698ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-BuPmfBK4.css` `107.98 kB`, `dist/assets/index-DeK8HSfT.js` `230.03 kB`).
+
+---
+
+## Prompt Entry #12 — `2026-11-22`: Remove Unnecessary Decorative Stars Across Frontend (`release/54ba3db`)
+
+**Prompt Summary:** Remove unnecessary decorative `✦` stars and emojis across frontend surfaces while retaining the `GLAMGO✦` brand wordmark and star ratings (`★`) (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Removed decorative `✦` from header/mobile navigation buttons (`Command Centre`, `Salon & Partner Portal`, `Admin Command Centre`), Partner/Admin `.dash-intro` banners, and Seller Order item lines; replaced the 4-point star `icons.spark` SVG path with a minimalist beauty-droplet icon (`<path d="M12 2.7 6.3 8.4a8 8 0 1 0 11.4 0L12 2.7Z"/>`).
+- `src/public-landing.js`: Replaced decorative `✦` separators in `.public-announcement` and `.public-intro-strip` with subtle `·` separators.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #12.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` and `node -c src/public-landing.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `701ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-CnEjqyJa.css` `106.91 kB`, `dist/assets/index-DqVhkW5P.js` `230.03 kB`).
+
+---
+
+## Prompt Entry #11 — `2026-11-22`: Immediate UI Sync, State Persistence & Input Validation Across Partner Mutations (`release/54ba3db`)
+
+**Prompt Summary:** Fix Professional `Services & pricing` UI refresh delay, Seller `Inventory & stock` persistence/UI sync & validation, and persist fetched partner workspace data to `localStorage` so reloads never flash stale state (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Added `persist()` inside `loadPartnerData()` after loading live workspace feeds; updated `partner-pro-assign-service`, `partner-pro-unlink-service`, `partner-stock-update`, and `partner-listing-update` to validate inputs (`stock >= 0`, `price > 0`), update `state` & `localStorage` immediately, and `render()` before awaiting background refresh.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #11.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `681ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-CnEjqyJa.css` `106.91 kB`, `dist/assets/index-DtgexQnE.js` `230.21 kB`).
+
+---
+
+## Prompt Entry #10 — `2026-11-22`: Partner KPI Rendering, Salon Owner Overview Hardening, Users Search & Mobile Select Polish (`release/54ba3db`)
+
+**Prompt Summary:** Fix the 3 dashboard issues identified during the 4-dashboard QA audit across desktop and mobile (`390x844`) viewports (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Updated `partnerPage()` to prefer `overview.metrics` and `overview.bookings`/`overview.orders` with safe fallbacks so live KPIs and recent activity render immediately across Professional, Salon Owner, and Product Seller dashboards instead of blanking to `—`; added `render()` immediately after `partner-seller-product-form` creation; added `data-dashboard-search="tbody tr"` to `#admin-user-search` in Admin `Users & accounts`.
+- `backend/app/api/v1/partners.py`: Hardened Salon Owner `get_partner_overview` to sum `float(b.price or 0)`, query `SalonStaff` count directly instead of lazy-loading `salon.staff`, return `1 if salon else 0` branches, and serialize booking status safely.
+- `dashboards.css`: Styled `.dash-mobile-nav select` inside `@media(max-width:700px)` with `appearance:none` and an inline SVG right-aligned chevron so the dropdown arrow never wraps onto a second line.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #10.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` and `..\.venv\Scripts\python.exe -m compileall -q backend` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `690ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-CnEjqyJa.css` `106.91 kB`, `dist/assets/index-CpGf3tHU.js` `229.18 kB`).
+
+---
+
+## Prompt Entry #9 — `2026-11-22`: Mobile/Phone UI & Drawer Audit Fixes (`release/54ba3db`)
+
+**Prompt Summary:** Audit all views and buttons on phone viewport (`390x844`) at `http://127.0.0.1:5173/` and fix mobile drawer positioning, modal/drawer dismissal, mobile toast placement, Auth brand contrast, and guest scroll reset (kept uncommitted locally for inspection).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`: Inside `@media(max-width:700px)`, updated `.mobile-menu` to `position:fixed;bottom:57px` above the mobile bottom nav (`max-height:calc(100dvh - 120px)`, `overflow-y:auto`), positioned `.toast` at `bottom:68px` so toasts do not cover the header or Auth `GLAMGO ✦` logo, and set white text with subtle shadow on `.auth-image-copy .wordmark.light`.
+- `src/app.js`: Closed `state.mobileMenu` and `state.menu` when opening modals (`location`, `search-open`, `salon-date`, `notifications`) or navigating (`account*`, `guest-browse`), added `window.scrollTo({top:0,behavior:'instant'})` on `guest-browse`, and updated `keydown` `Escape` handling to dismiss `state.mobileMenu` and `state.menu` alongside `state.modal`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #9.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `626ms` (`dist/index.html` `1.40 kB`, `dist/assets/index-D6rkC3na.css` `106.54 kB`, `dist/assets/index-BytCJ5zF.js` `228.78 kB`).
+
+---
+
+## Prompt Entry #8 — `2026-11-22`: Proxy Local Vite `/api` Dev Requests to Live Backend & Surface HTTP Error Statuses (`release/54ba3db`)
+
+**Prompt Summary:** Fix `"An unexpected error occurred."` during sign-in on local Vite preview (`http://127.0.0.1:5173/`) caused by `/api` proxying to an unstarted local port `8000`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `vite.config.js`: Updated dev proxy target to `process.env.VITE_DEV_PROXY_TARGET || 'https://glamgo-backend-lqn6.onrender.com'` (`secure: true`, `changeOrigin: true`) so local `npm run dev` connects seamlessly to the live backend (overridable via `VITE_DEV_PROXY_TARGET` for local FastAPI testing).
+- `src/api.js`: Improved non-JSON HTTP error fallback from generic `"An unexpected error occurred."` to `"Backend server unavailable right now. Please try again."` (`>=502`) or `"Request failed (HTTP <status>)"`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #8.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/api.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `dist/index.html` (`1.40 kB`), `dist/assets/index-DUicoJ7f.css` (`95.49 kB`), `dist/assets/index-frQmjaXQ.js` (`218.86 kB`), `7 modules transformed`, built in `577ms`.
+
+---
+
+## Prompt Entry #7 — `2026-11-22`: Wire Backend-Driven Features in Frontend Logic Without Visual Redesign (`release/54ba3db`)
+
+**Prompt Summary:** Expose the backend capabilities ported from `main` (multi-city catalog scoping & GPS/Haversine distance sorting, password reset & Mobile OTP auth flows, booking add-ons / arrival PIN / 1-tap reschedule, and referral/gift-card wallet credits) inside `branch-release-54ba3db`'s frontend logic while keeping all existing visual styles (`styles.css`), page layouts, and local WIP `public-landing` files intact. Commit and push skipped at user request for local inspection first.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/api.js`: Added `apiRequestPasswordReset`, `apiConfirmPasswordReset`, `apiRequestMobileOtp`, `apiVerifyMobileOtp`, `apiGetCatalogSalons`, `apiGetMyRewards`, `apiRedeemRewardCode`, `apiRescheduleBooking`, `apiVerifyBookingArrivalOtp`; updated `apiGetServices`, `apiGetProfessionals`, and `apiGetSalons` to pass `city` and `lat`/`lng`/`max_distance_km` params to `/api/v1/catalog/*`.
+- `src/app.js`:
+  - **Multi-City & Geo Distance (`MAIN-01`, `MAIN-04`):** Added multi-city defaults (`Mumbai`, `Bengaluru`, `Delhi`), `mergeCatalogWithCityDefaults`, `AREA_COORDS`, `normalizeCity()`, `resolveUserCoords()`, `haversineKm()`, `NEAR_SALON_RADIUS_KM`, `enrichSalonWithDistance()`, `reverseGeocodeCoords()`, `isServiceAvailableInCity()`, `isProAvailableInCity()`; wired `loadCatalogFeeds()`, `homePage()`, `salonPage()`, `salonCard()`, `salonDetail()`, `search` modal (`(Outside <City>)`), and `location` modal (GPS `map-locate` + multi-city suggestions + `.filter-chip` distance filters & `Nearest first` sort) using existing styles.
+  - **Auth Lifecycle (`MAIN-02`):** Added inline `Email & Password` | `Mobile OTP` mode pills (`.filter-chip`), `Forgot password?` action in `.auth-switch`, and `auth-otp-request-form`, `auth-otp-verify-form`, `auth-reset-request-form`, `auth-reset-confirm-form` handlers inside `.auth-box`.
+  - **Booking Upgrades (`MAIN-03`):** Added `BOOKING_ADDONS` toggles in `bookingModal()` (passing `addons` in `apiCreateBooking`), `arrival_otp` display in `bookingSuccess()` & `My bookings`, `1-tap Reschedule` + `booking-reschedule` modal (`apiRescheduleBooking`), and `Verify Arrival PIN` + `pro-verify-otp` modal (`apiVerifyBookingArrivalOtp`) inside `partnerPage()`.
+  - **Wallet Credits & Rewards (`MAIN-05`):** Hydrated `walletCredits` and `referralCode` via `apiGetMyRewards()` on login/init; added wallet balance, referral code display, and `reward-redeem-form` inside `Coupons & rewards`; added `Apply GlamGo Wallet Credit` toggle (`checkout-toggle-credit`) and `apply_wallet_credit` payload support in `checkoutPage()` / `place-order`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #7.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/api.js`, `node -c src/app.js`, `node -c src/public-landing.js` -> exited `0` (all passed).
+- `npm run build` (`vite build` v7.3.7) -> `dist/index.html` (`1.40 kB`), `dist/assets/index-DUicoJ7f.css` (`95.49 kB`), `dist/assets/index-CbNEGz52.js` (`218.78 kB`), `7 modules transformed`, built in `583ms`.
+
+**Git Status / Push Status:**
+- Intentionally uncommitted & not pushed per user selection (`Wait — do not commit or push yet; I want to inspect locally first`), preserving WIP `index.html`, `public-landing.css`, and `src/public-landing.js`.
+
+---
+
 ## Prompt Entry #6 — `2026-11-22`: Port All Non-Frontend Upgrades, Security Hardening & Tests from `main` to `release/54ba3db`
 
 **Prompt Summary:** Sync all non-UI/UX backend, database migration, security, CI/CD, edge config, and test suite improvements from `main` (`000acf6`) into `release/54ba3db` while keeping `src/`, `styles.css`, `index.html`, and all frontend UI/UX untouched.

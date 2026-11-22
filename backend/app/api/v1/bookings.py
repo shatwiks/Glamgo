@@ -225,7 +225,7 @@ def update_booking_status(
             )
     elif user.role == UserRole.PROFESSIONAL:
         pro_profile = db.query(ProfessionalProfile).filter(ProfessionalProfile.user_id == user.id).first()
-        is_assigned = (pro_profile and booking.professional_id == pro_profile.id) or (booking.professional == user.full_name)
+        is_assigned = pro_profile is not None and booking.professional_id == pro_profile.id
         if not is_assigned and user.role != UserRole.ADMIN:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -331,9 +331,9 @@ def verify_arrival_otp(
 
     if user.role == UserRole.PROFESSIONAL:
         pro_profile = db.query(ProfessionalProfile).filter(
-            (ProfessionalProfile.user_id == user.id) | (ProfessionalProfile.name == user.full_name)
+            ProfessionalProfile.user_id == user.id
         ).first()
-        is_assigned = (pro_profile and booking.professional_id == pro_profile.id) or (booking.professional == user.full_name)
+        is_assigned = pro_profile is not None and booking.professional_id == pro_profile.id
         if not is_assigned:
             raise HTTPException(status_code=403, detail="Not authorized to verify arrival OTP for this appointment.")
     elif user.role == UserRole.SALON_OWNER:

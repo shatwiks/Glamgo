@@ -75,7 +75,9 @@ export async function apiRequest(endpoint, options = {}) {
     }
 
     if (!res.ok) {
-      let errMsg = 'An unexpected error occurred.';
+      let errMsg = res.status >= 502
+        ? 'Backend server unavailable right now. Please try again.'
+        : `Request failed (HTTP ${res.status})`;
       try {
         const errData = await res.json();
         // MIN-04: Robust FastAPI 422 validation error parsing
@@ -121,26 +123,70 @@ export async function apiGetMe() {
   return await apiRequest('/auth/me');
 }
 
+export async function apiRequestPasswordReset(email) {
+  return await apiRequest('/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiConfirmPasswordReset(email, code, newPassword) {
+  return await apiRequest('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ email, code, new_password: newPassword }),
+  });
+}
+
+export async function apiRequestMobileOtp(phone) {
+  return await apiRequest('/auth/otp/request', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function apiVerifyMobileOtp(phone, otp) {
+  const data = await apiRequest('/auth/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phone, otp }),
+  });
+  if (data?.access_token) tokenStorage.set(data.access_token);
+  if (data?.refresh_token) tokenStorage.setRefresh(data.refresh_token);
+  return data;
+}
+
 // Catalog
-export async function apiGetServices(category = null, query = null) {
+export async function apiGetServices(category = null, query = null, city = null) {
   const params = new URLSearchParams();
   if (category && category !== 'All') params.append('category', category);
   if (query) params.append('query', query);
+  if (city) params.append('city', city);
   const qStr = params.toString() ? `?${params.toString()}` : '';
-  return await apiRequest(`/services/${qStr}`);
+  return await apiRequest(`/catalog/services${qStr}`);
 }
 
-export async function apiGetProfessionals() {
-  return await apiRequest('/professionals/');
-}
-
-export async function apiGetSalons(category = null, sort = 'featured', query = null) {
+export async function apiGetProfessionals(city = null, specialty = null) {
   const params = new URLSearchParams();
-  if (category && category !== 'All') params.append('category', category);
-  if (sort) params.append('sort', sort);
-  if (query) params.append('query', query);
+  if (city) params.append('city', city);
+  if (specialty) params.append('specialty', specialty);
   const qStr = params.toString() ? `?${params.toString()}` : '';
-  return await apiRequest(`/salons/${qStr}`);
+  return await apiRequest(`/catalog/professionals${qStr}`);
+}
+
+export async function apiGetCatalogSalons(options = {}) {
+  const params = new URLSearchParams();
+  if (options.category && options.category !== 'All') params.append('category', options.category);
+  if (options.sort) params.append('sort', options.sort);
+  if (options.query) params.append('query', options.query);
+  if (options.city) params.append('city', options.city);
+  if (options.lat !== undefined && options.lat !== null && options.lat !== '') params.append('lat', String(options.lat));
+  if (options.lng !== undefined && options.lng !== null && options.lng !== '') params.append('lng', String(options.lng));
+  if (options.max_distance_km !== undefined && options.max_distance_km !== null) params.append('max_distance_km', String(options.max_distance_km));
+  const qStr = params.toString() ? `?${params.toString()}` : '';
+  return await apiRequest(`/catalog/salons${qStr}`);
+}
+
+export async function apiGetSalons(category = null, sort = 'featured', query = null, geo = null) {
+  return await apiGetCatalogSalons({ category, sort, query, ...(geo || {}) });
 }
 
 export async function apiGetProducts(category = null, sort = 'featured', query = null) {
@@ -181,6 +227,17 @@ export async function apiGetNotifications() {
   return await apiRequest('/users/notifications');
 }
 
+export async function apiGetMyRewards() {
+  return await apiRequest('/users/rewards');
+}
+
+export async function apiRedeemRewardCode(code) {
+  return await apiRequest('/users/rewards/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
 // Bookings
 export async function apiCreateBooking(payload) {
   return await apiRequest('/bookings/', {
@@ -197,6 +254,20 @@ export async function apiUpdateBookingStatus(bookingId, status) {
   return await apiRequest(`/bookings/${bookingId}/status`, {
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+}
+
+export async function apiRescheduleBooking(bookingId, date, time) {
+  return await apiRequest(`/bookings/${encodeURIComponent(bookingId)}/reschedule`, {
+    method: 'PUT',
+    body: JSON.stringify({ date, time }),
+  });
+}
+
+export async function apiVerifyBookingArrivalOtp(bookingId, otp) {
+  return await apiRequest(`/bookings/${encodeURIComponent(bookingId)}/verify-arrival-otp`, {
+    method: 'POST',
+    body: JSON.stringify({ otp }),
   });
 }
 

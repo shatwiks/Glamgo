@@ -12,6 +12,64 @@ def get_auth_headers(client, email, password):
     return {"Authorization": f"Bearer {token}"}
 
 
+def test_salon_owner_without_salon_cannot_access_another_salon(client, db):
+    """A missing owned salon must never fall back to a different business."""
+    existing_salon = db.query(Salon).first()
+    assert existing_salon is not None
+    original_name = existing_salon.name
+    email = f"no_salon_{secrets.token_hex(8)}@example.com"
+    register = client.post("/api/v1/auth/register", json={
+        "email": email, "password": "Password@123", "name": "Owner Without Salon",
+        "phone": "9876543210",
+    })
+    assert register.status_code == 200
+    owner = db.query(User).filter(User.email == email).one()
+    owner.role = UserRole.SALON_OWNER
+    db.commit()
+    headers = {"Authorization": f"Bearer {register.json()['access_token']}"}
+
+    assert client.get("/api/v1/partners/salon/profile", headers=headers).status_code == 404
+    assert client.put("/api/v1/partners/salon/profile", json={"name": "Changed"}, headers=headers).status_code == 404
+    assert client.get("/api/v1/partners/salon/staff", headers=headers).json() == []
+    assert client.post("/api/v1/partners/salon/staff", json={"name": "Test", "specialty": "Hair"}, headers=headers).status_code == 404
+    assert client.get("/api/v1/partners/salon/bookings", headers=headers).json() == []
+    overview = client.get("/api/v1/partners/overview?role=Salon%20Owner", headers=headers)
+    assert overview.status_code == 200
+    assert overview.json()["bookings"] == []
+    db.refresh(existing_salon)
+    assert existing_salon.name == original_name
+
+
+def test_professional_with_same_name_cannot_access_another_professional(client, db):
+    original = db.query(ProfessionalProfile).filter(ProfessionalProfile.name == "Nisha Kapoor").first()
+    assert original and original.user_id
+    email = f"same_name_{secrets.token_hex(8)}@example.com"
+    response = client.post("/api/v1/auth/register", json={
+        "email": email, "password": "Password@123", "name": original.name, "phone": "9876543210"
+    })
+    assert response.status_code == 200
+    other_user = db.query(User).filter(User.email == email).one()
+    other_user.role = UserRole.PROFESSIONAL
+    db.commit()
+    other_headers = {"Authorization": f"Bearer {response.json()['access_token']}"}
+    customer_headers = get_auth_headers(client, "aanya@example.com", "Password@123")
+    booking = client.post("/api/v1/bookings/", headers=customer_headers, json={
+        "type": "home", "service_id": "s1", "professional_id": original.id,
+        "professional": original.name, "date": "2090-06-15", "time": "10:30 AM",
+        "location": "Test location", "price": 1499,
+    })
+    assert booking.status_code == 200
+    booking_id = booking.json()["id"]
+    own_profile = client.get("/api/v1/partners/professional/profile", headers=other_headers)
+    assert own_profile.status_code == 200 and own_profile.json()["id"] != original.id
+    bookings = client.get("/api/v1/partners/professional/bookings", headers=other_headers)
+    assert bookings.status_code == 200 and booking_id not in [b["id"] for b in bookings.json()]
+    change = client.patch(f"/api/v1/partners/professional/bookings/{booking_id}/status", headers=other_headers, json={"status": "completed"})
+    assert change.status_code == 403
+    verify = client.post(f"/api/v1/bookings/{booking_id}/verify-arrival-otp", headers=other_headers, json={"otp": booking.json()["arrival_otp"]})
+    assert verify.status_code == 403
+
+
 def test_partner_application_and_duplicate_prevention(client, db):
     ts = int(time.time() * 1000)
     customer_email = f"app_cust_{ts}@example.com"
