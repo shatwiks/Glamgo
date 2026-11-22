@@ -141,6 +141,23 @@ Plans:
 Plans:
 - [ ] 12-01: Scheduled escrow release background task, partner payout portal, and financial reconciliation reporting
 
+#### Phase 13: Dual-Track Consumer (`main`) & Turnkey Showcase (`feat/turnkey-platform`) Product Upgrades
+**Goal**: Elevate `main` into a conversion-ready, city-persistent, code-split consumer marketplace with full auth/booking lifecycle polish, and elevate `feat/turnkey-platform` into an interactive white-label buyer & partner-acquisition showcase with live rebranding, ROI calculators, deliverables matrix, lead capture, and multi-city distance filtering.
+**Depends on**: Phase 7
+**Requirements**: MAIN-01, MAIN-02, MAIN-03, MAIN-04, MAIN-05, TURN-01, TURN-02, TURN-03, TURN-04, TURN-05
+**Success Criteria** (what must be TRUE):
+  1. On `main`, FastAPI persists `city`, `lat`, `lng`, and serviceable `cities` across `Salon`, `ProfessionalProfile`, and `Service`, and `/api/v1/catalog/salons` supports city and max-distance filtering.
+  2. On `main`, customers can use Forgot Password / Mobile OTP sign-in, 1-tap booking reschedule, 4-digit arrival OTP display, optional service add-ons, city-scoped `⌘K` search, clean autocomplete dismissal, Policy/Trust modals, Referral/Gift Card credits, and lazy-loaded dashboard chunks.
+  3. On `main`, Admin partner approval upgrades the applicant's role and emits a studio-activation notification while maintaining strict RBAC isolation.
+  4. On `feat/turnkey-platform`, evaluators have the Bengaluru/Mumbai/Delhi city & distance filter engine while preserving 1-click access to all 4 operational dashboards, plus a Live White-Label Brand Customizer (brand name, currency, accent), Dual-Mode ROI Calculator, Acquisition vs. Listing Comparison Matrix, Architecture Spec, Lead-Capture Proposal form, and Reset Sandbox Data control.
+**Plans**: 4 plans
+
+Plans:
+- [ ] 13-01-PLAN.md — Flagship Consumer Website (`main`, Wave 1) — Backend multi-city GPS persistence, SQLite/PG auto-migration, `/api/v1/catalog/salons` radius filtering, hardened Password Reset & Mobile OTP auth, and Admin partner activation (`MAIN-01`, `MAIN-02`)
+- [ ] 13-02-PLAN.md — Flagship Consumer Website (`main`, Wave 2) — Booking reschedule/OTP/add-ons, city-scoped `⌘K` search, autocomplete dismissal, dynamic code-splitting, policy drawers, SEO JSON-LD, and end-to-end Referral/Gift Card checkout credits (`MAIN-03`, `MAIN-04`, `MAIN-05`)
+- [ ] 13-03-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 3) — Multi-city & Haversine distance engine parity sync preserving 1-click 4-dashboard access + Live White-Label Brand Customizer (`TURN-01`, `TURN-02`)
+- [ ] 13-04-PLAN.md — Turnkey Buyer & Partner Showcase (`feat/turnkey-platform`, Wave 4) — Dual-mode ROI calculator, 3-tier comparison matrix, architecture deliverables spec, proposal lead capture with CSV formula sanitization, and Reset Sandbox Data (`TURN-03`, `TURN-04`, `TURN-05`)
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -158,3 +175,4 @@ Plans:
 | 10. Salon Chair Capacity | v2.0 | 0/1 | Not started | - |
 | 11. Multi-Vendor Fulfillment | v2.0 | 0/1 | Not started | - |
 | 12. Automated Financial Escrow | v2.0 | 0/1 | Not started | - |
+| 13. Dual-Track Main & Turnkey Upgrades | v2.0 | 0/4 | Planning | - |

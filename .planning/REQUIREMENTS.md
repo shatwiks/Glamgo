@@ -38,6 +38,18 @@
 - [ ] **FIN-03**: Automated 15% platform commission ledger deduction with downloadable monthly GST tax invoices.
 - [ ] **FIN-04**: Admin financial reconciliation dashboard displaying platform gross margin, locked escrow balances, and pending disbursement queues.
 
+### Dual-Track Main Consumer (`main`) & Turnkey Showcase (`feat/turnkey-platform`) Upgrades (Category: DUAL-TRACK)
+- [ ] **MAIN-01**: Backend multi-city & GPS persistence (`city`, `lat`, `lng`, `cities`) on `Salon`, `ProfessionalProfile`, and `Service` models with `/api/v1/catalog/salons` city/radius query filtering and backward-compatible SQLite/PostgreSQL startup migration.
+- [ ] **MAIN-02**: Production Auth & Partner Credential Lifecycle: Password Reset flow (request + token/OTP confirm), Mobile OTP login option, and Admin Partner Approval action triggering partner role activation + credential handoff notification.
+- [ ] **MAIN-03**: Consumer Booking Experience Upgrades: 1-tap appointment reschedule in *My bookings*, 4-digit customer arrival OTP display paired with Specialist Studio arrival verification, and optional service add-ons upsell inside `bookingModal()`.
+- [ ] **MAIN-04**: Search, Location & Performance Polish: City-scoped global search (`⌘K`) with *"Outside `<City>`"* indicators, click-outside/blur dismiss on `#location-autocomplete-list`, and dynamic code-splitting (`import()`) of heavy dashboard modules (`src/dashboards-suite.js`) so initial storefront bundle stays lean.
+- [ ] **MAIN-05**: Consumer Trust & Retention: Legal/Policy modal drawers (Hygiene Guarantee, Cancellation & Refund Policy, Privacy Policy, Terms of Service), OpenGraph/Schema.org `BeautySalon` JSON-LD metadata in `index.html`, and Referral Credit / Gift Card redemption in Account & Checkout.
+- [ ] **TURN-01**: Sync Multi-City & Distance Engine onto `feat/turnkey-platform` (Bengaluru/Mumbai/Delhi catalog, Haversine km distances, `Near you` / `Far from you` badges, distance filter chips) while preserving frictionless 1-click access to all 4 operational dashboards.
+- [ ] **TURN-02**: Live White-Label Brand Customizer on `feat/turnkey-platform` allowing prospective platform buyers to preview the live storefront and dashboards with their own Brand Name, Currency (`₹`, `$`, `AED`, `£`), and Accent Color in real time.
+- [ ] **TURN-03**: Interactive Dual-Mode ROI & Partner Earnings Calculator (Platform Buyer commission/GMV slider tab + Salon/Brand Partner incremental monthly revenue tab).
+- [ ] **TURN-04**: Structured Acquisition & Partner Listing Comparison Matrix (List Salon/Brand vs. Turnkey White-Label License vs. Enterprise Multi-City Rollout) plus Tech Architecture & Deliverables Spec section.
+- [ ] **TURN-05**: Embedded "Request Proposal / Book Live Walkthrough" lead-capture modal logging inquiries into Admin/local leads alongside WhatsApp, plus a "Reset Sandbox Data" control in `turnkeyDemoBar()`.
+
 ---
 
 ## 2. Validated Requirements (Milestone v1.0 — Completed)
@@ -92,3 +104,13 @@
 | `FIN-02` | Phase 12 | Planned |
 | `FIN-03` | Phase 12 | Planned |
 | `FIN-04` | Phase 12 | Planned |
+| `MAIN-01` | Phase 13 | Planning |
+| `MAIN-02` | Phase 13 | Planning |
+| `MAIN-03` | Phase 13 | Planning |
+| `MAIN-04` | Phase 13 | Planning |
+| `MAIN-05` | Phase 13 | Planning |
+| `TURN-01` | Phase 13 | Planning |
+| `TURN-02` | Phase 13 | Planning |
+| `TURN-03` | Phase 13 | Planning |
+| `TURN-04` | Phase 13 | Planning |
+| `TURN-05` | Phase 13 | Planning |

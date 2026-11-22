@@ -1,5 +1,24 @@
 # Change Report
 
+## Prompt Entry #23 — 2026-11-22 07:33 IST — GSD Plan Phase 13: Dual-Track Main Consumer & Turnkey Showcase Upgrades
+**Objective:** Run `/gsd-plan-phase` to register, author, and independently verify executable GSD phase plans covering the prioritized upgrades for both websites (`main` flagship consumer site and `feat/turnkey-platform` turnkey buyer & partner showcase).
+
+### Files Created / Modified
+- `.planning/REQUIREMENTS.md`: Added `MAIN-01`–`MAIN-05` and `TURN-01`–`TURN-05` requirement definitions and traceability matrix rows.
+- `.planning/ROADMAP.md`: Registered **Phase 13: Dual-Track Consumer (`main`) & Turnkey Showcase (`feat/turnkey-platform`) Product Upgrades** (`4 plans`, Waves 1–4) and added Progress ledger entry.
+- `.planning/STATE.md`: Updated active phase position to Phase 13 (`PLANNED & VERIFIED`, 4/4 plans ready for execution).
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-CONTEXT.md`: Recorded locked dual-branch identity, UI/UX guardrails, and scope breakdown.
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-01-PLAN.md` (Wave 1, `main`): Backend multi-city GPS persistence + SQLite/PG auto-migration + `/api/v1/catalog/*` routes (`MAIN-01`), and hardened password-reset / Mobile OTP auth lifecycle + Admin partner role activation (`MAIN-02`).
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-02-PLAN.md` (Wave 2, `main`): 1-tap booking reschedule, strict 4-digit arrival OTP sync & server-priced add-ons (`MAIN-03`), city-scoped `⌘K` search, autocomplete dismiss & lazy dashboard/Leaflet code splitting (`MAIN-04`), and policy drawers, `BeautySalon` JSON-LD SEO & server-persisted checkout wallet credit redemption (`MAIN-05`).
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-03-PLAN.md` (Wave 3, `feat/turnkey-platform`): Multi-city & Haversine distance engine parity preserving 1-click access to all 4 dashboards (`TURN-01`) and Live White-Label Brand Customizer (`TURN-02`).
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-04-PLAN.md` (Wave 4, `feat/turnkey-platform`): Interactive Dual-Mode ROI Calculator, 3-Tier Comparison Matrix & Tech Deliverables Spec (`TURN-03`, `TURN-04`), plus Lead-Capture Proposal Modal with CSV formula sanitization and Reset Sandbox Data control (`TURN-05`).
+
+### Verification
+- `gsd-tools.cjs query init.plan-phase 13`: `phase_found: true`, `plan_count: 4`, `threat_id_duplicate_count: 0`.
+- `gsd-tools.cjs check verify-command-paths 13 --raw`: `0` blockers, `0` warnings across all `11` tasks.
+- `gsd-tools.cjs check verify-failure-directions 13 --raw`: `status: ok`, `0` blockers, `0` warnings across all `11` tasks.
+- Independent `gsd-plan-checker` audit (2 revision iterations resolving all security, data-contract, regression-compatibility, and scope-budget findings): **`## VERIFICATION PASSED`** (`0` blockers, `0` warnings, `0` info across all 4 plans).
+
 ## Prompt Entry #22 — 2026-11-22 06:30 IST — Strict RBAC Credential Gates & Multi-City Distance Filtering (`main`)
 **Objective:** Harden `main` as the flagship production consumer website where Admin Command Centre and Partner Studios are strictly gated behind ID & password authentication and role ownership, and where services, specialists, and partner salons dynamically scope to the user's selected city with live Haversine distances, `Near you` / `Far from you` indicators, and distance filtering.
 
