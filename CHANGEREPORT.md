@@ -4,6 +4,19 @@
 
 ---
 
+## Prompt Entry #3 — `2026-11-22`: Fix Cross-Origin CORS Block on Vercel Preview Deployments (`release/54ba3db`)
+
+**Prompt Summary:** Fix `"Home treatments catalog unavailable"` on `https://glamgo-git-release-54ba3db-byte-efb4.vercel.app/#home` by routing `*.vercel.app` requests through the same-origin `/api/v1` Vercel rewrite proxy instead of direct cross-origin requests to Render.
+
+### Root Cause & Fix
+- **[src/api.js](src/api.js):** In `resolveApiBase()`, when `window.location.hostname.endsWith('vercel.app')`, the client previously bypassed Vercel's `/api/(.*)` proxy in `vercel.json` and made direct cross-origin `fetch()` calls to `https://glamgo-backend-lqn6.onrender.com/api/v1/*`. Because the Render backend's `BACKEND_CORS_ORIGINS` env var does not emit `Access-Control-Allow-Origin` for branch preview subdomains (`glamgo-git-release-54ba3db-byte-efb4.vercel.app`), the browser blocked every catalog request (`/services`, `/professionals`, `/salons`, `/products`). Removed the `hostname.endsWith('vercel.app')` direct-origin override so `resolveApiBase()` returns `/api/v1`, which Vercel proxies server-to-server to `https://glamgo-backend-lqn6.onrender.com/api/v1/$1` with zero CORS restrictions.
+
+### Verification
+- `node -c src/api.js` and `npm run build` passed (`✓ built in 1.02s`).
+- Verified `https://glamgo-git-release-54ba3db-byte-efb4.vercel.app/api/v1/services` returns HTTP `200` (`application/json`) same-origin via Vercel rewrite.
+
+---
+
 ## Prompt Entry #2 — `2026-11-19`: Change Report Standard & GitHub Sync
 
 **Prompt Summary:** Create `CHANGEREPORT.md` documenting all changes made, maintain `CHANGEREPORT.md` on every future change prompt, and push changes to GitHub.

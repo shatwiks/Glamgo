@@ -12,9 +12,7 @@ function resolveApiBase() {
   if (envUrl) {
     return envUrl;
   }
-  if (typeof window !== 'undefined' && window.location.hostname.endsWith('vercel.app')) {
-    return PRODUCTION_BACKEND_URL;
-  }
+  // Use Vercel /api/* rewrite proxy on *.vercel.app to avoid cross-origin CORS blocks
   return '/api/v1';
 }
 
