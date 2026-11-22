@@ -1,6 +1,7 @@
+import hmac
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Depends, Response, status
+from fastapi import FastAPI, Depends, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from sqlalchemy.orm import Session
@@ -64,14 +65,14 @@ app.add_middleware(SecurityHeadersMiddleware)
 # 2. Correlation ID & Latency Telemetry Middleware
 app.add_middleware(CorrelationIdMiddleware)
 
-# 3. CORS Middleware
+# 3. CORS Middleware (strictly scoped to GlamGo origins; never match arbitrary *.vercel.app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
-    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
+    allow_origin_regex=r"^https:\/\/glamgo-ricoz(?:-[a-z0-9-]+)?\.vercel\.app$",
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Requested-With", "Accept"],
 )
 
 # 4. Response Compression
@@ -82,8 +83,12 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/metrics", tags=["Observability"])
-def metrics_endpoint():
+def metrics_endpoint(x_maintenance_token: str | None = Header(default=None)):
     """Prometheus exposition endpoint for scraping system telemetry."""
+    if settings.ENVIRONMENT.lower() == "production":
+        expected = settings.INTERNAL_MAINTENANCE_TOKEN
+        if not expected or not x_maintenance_token or not hmac.compare_digest(x_maintenance_token, expected):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Metrics access restricted in production.")
     return get_metrics_response()
 
 
@@ -129,7 +134,8 @@ def health_check(response: Response, db: Session = Depends(get_db)):
         db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
-        db_status = f"unhealthy: {str(e)}"
+        logger.warning("Health check DB ping failed: %s", e)
+        db_status = "unhealthy"
 
     redis_ok = check_redis_health()
 

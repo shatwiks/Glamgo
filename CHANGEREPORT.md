@@ -1,5 +1,22 @@
 # GlamGo Change Report (`CHANGEREPORT.md`)
 
+## 2026-11-22 07:10 IST — Pre-LinkedIn Production Security Hardening
+
+### Objective
+Harden public repository, API middleware, authentication, CORS, error handling, and CI workflow permissions prior to public LinkedIn sharing.
+
+### Files Modified & Created
+- `backend/app/main.py` — Restricted `allow_origin_regex` strictly to `^https://glamgo-ricoz(?:-[a-z0-9-]+)?\.vercel\.app$` (blocking arbitrary third-party `*.vercel.app` origins), narrowed `allow_methods`/`allow_headers`, sanitized `/health` DB error output, and gated `/metrics` behind `INTERNAL_MAINTENANCE_TOKEN` via `hmac.compare_digest` in production.
+- `vercel.json` — Added `Strict-Transport-Security` header.
+- `scripts/backup_and_restore_verify.py` — Removed all `shell=True` subprocess calls in favor of argv list execution (`shell=False`) and env-configurable `RESTORE_TEST_PASSWORD`.
+- `.github/workflows/production-ci.yml` — Added least-privilege `permissions: contents: read`.
+- `SECURITY.md` — Added responsible vulnerability disclosure policy.
+
+### Verification Results
+- `python -m py_compile backend/app/main.py scripts/backup_and_restore_verify.py` (PASS), CORS regex unit assertions (PASS), `json.load(vercel.json)` (PASS), `yaml.safe_load(.github/workflows/production-ci.yml)` (PASS).
+
+---
+
 > **Standing Workflow Policy:** Every prompt that modifies the repository appends a structured entry to `CHANGEREPORT.md` detailing every modified/added file, why it changed, and verified checks before pushing changes to GitHub.
 
 ---
