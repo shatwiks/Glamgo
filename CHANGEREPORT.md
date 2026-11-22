@@ -1,5 +1,11 @@
 # Change Report
 
+## Prompt Entry #24 — 2026-11-22 11:06 IST — Force Same-Origin `/api/v1` Proxy Before `VITE_API_BASE_URL` on `*.vercel.app` (`feat/turnkey-platform`)
+**Objective:** Ensure Vercel deployments of `feat/turnkey-platform` do not hit `"Failed to fetch"` on API calls when `VITE_API_BASE_URL` points directly to Render (`OPTIONS` CORS preflight `400`).
+- **Modified Files:**
+  - `src/api.js`: Moved the `window.location.hostname.endsWith('vercel.app')` check above `import.meta.env.VITE_API_BASE_URL` in `resolveApiBase()` so `*.vercel.app` deployments always route via the same-origin `/api/v1` rewrite proxy in `vercel.json`.
+- **Verification:** `node -c src/api.js` and `npm run build` passed.
+
 ## Prompt Entry #23 — 2026-11-22 09:15 IST — Phase 13 Waves 3 & 4: Turnkey Interactive Sales Engine, Multi-City GPS Parity, White-Label Live Customizer, Dual-Mode ROI Calculator & Proposal Lead Capture (`feat/turnkey-platform`)
 **Objective:** Execute Waves 3 & 4 (`13-03-PLAN.md` and `13-04-PLAN.md`, requirements `TURN-01..05`) on `feat/turnkey-platform`, transforming the turnkey showcase into an interactive white-label sales and partner acquisition engine while syncing multi-city GPS persistence and Haversine salon distance parity from `main` without breaking 1-click access to all 4 operational dashboards.
 - **Created Files:**
