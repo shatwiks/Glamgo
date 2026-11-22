@@ -4,6 +4,19 @@
 
 ---
 
+## Prompt Entry #5 — `2026-11-22`: Remove Hardcoded `window.GLAMGO_API_URL` in `index.html` (`release/54ba3db`)
+
+**Prompt Summary:** Fix persistent `"Failed to fetch"` CORS error on `https://glamgo-um5p.vercel.app/` caused by an inline `<script>window.GLAMGO_API_URL = "https://glamgo-backend-lqn6.onrender.com/api/v1";</script>` in `index.html` overriding the `/api/v1` proxy.
+
+### Root Cause & Fix
+- **[index.html](index.html):** Removed the hardcoded inline `window.GLAMGO_API_URL` `<script>` block pointing directly to Render.
+- **[src/api.js](src/api.js):** Moved `window.location.hostname.endsWith('vercel.app')` to the very first check in `resolveApiBase()` (before `window.GLAMGO_API_URL` and `VITE_API_BASE_URL`) so every `*.vercel.app` deployment routes via same-origin `/api/v1`.
+
+### Verification
+- `node -c src/api.js` and `npm run build` passed.
+
+---
+
 ## Prompt Entry #4 — `2026-11-22`: Force Same-Origin `/api/v1` Proxy Before `VITE_API_BASE_URL` on `*.vercel.app` (`release/54ba3db`)
 
 **Prompt Summary:** Fix `"Failed to fetch"` on login at `https://glamgo-git-release-54ba3db-byte-efb4.vercel.app/#home` caused by Vercel's project-level `VITE_API_BASE_URL` overriding the same-origin `/api/v1` proxy and triggering a blocked cross-origin `OPTIONS` preflight (`400 Bad Request`) to Render.
