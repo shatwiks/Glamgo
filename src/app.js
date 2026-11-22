@@ -17,6 +17,8 @@ import {
   apiAddAddress,
   apiDeleteAddress,
   apiGetNotifications,
+  apiGetMyRewards,
+  apiRedeemRewardCode,
   apiCreateBooking,
   apiGetMyBookings,
   apiUpdateBookingStatus,
@@ -84,6 +86,12 @@ import {
   apiDecideSellerReturn,
   apiGetSellerMultiVendorFinancials
 } from './api.js';
+import {
+  POLICY_DOCS,
+  GIFT_CARDS_CATALOG,
+  renderPolicyModalContent,
+  renderRewardsWalletPanel
+} from './consumer-trust.js';
 
 let dashboardsSuiteMod = null;
 let dashboardsSuiteLoadPromise = null;
@@ -780,7 +788,11 @@ const defaults = {
   rescheduleBooking: null,
   proVerifyBookingId: null,
   proVerifyTargetStage: 'arrived',
-  searchScope: 'all'
+  searchScope: 'all',
+  walletCredits: 0,
+  referralCode: '',
+  applyWalletCredit: false,
+  activePolicyKey: 'hygiene'
 };
 
 let saved = {};
@@ -1502,7 +1514,7 @@ function onboarding(){
         '<div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">Salon Owner Studio</button><button data-action="partners-apply" data-role="Product Seller">Product Seller Studio</button><button data-action="partners-apply" data-role="Professional">Specialist Studio</button></div>' +
         '<div><h3>Account</h3><button data-action="account">Sign in / My account</button><button data-action="partners">Open Partner Portal</button></div>' +
       '</div>' +
-      '<div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Editorial treatment and salon imagery sourced under Unsplash License; product stills hosted locally.</p></details></div>' +
+      '<div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><div class="policy-footer-links"><button type="button" data-action="policy-open" data-id="hygiene">Hygiene Guarantee</button><button type="button" data-action="policy-open" data-id="cancellation">Cancellation &amp; Refund</button><button type="button" data-action="policy-open" data-id="privacy">Privacy Policy</button><button type="button" data-action="policy-open" data-id="terms">Terms of Service</button></div><details class="credits"><summary>Photographs via Unsplash</summary><p>Editorial treatment and salon imagery sourced under Unsplash License; product stills hosted locally.</p></details></div>' +
     '</footer>' +
   '</div>';
 }
@@ -1635,7 +1647,7 @@ function footer(){
     : { heading: 'Book a verified home specialist', sub: 'Facials, waxing, hair, and nails brought to '+esc(state.location)+' 7 days a week.', cta: 'Book a service', act: 'scroll', target: 'popular' };
   const ctaAttr = state.view === 'landing' ? 'data-target="'+closeCfg.target+'"' : '';
   const ctaAct = state.view === 'landing' ? closeCfg.act : 'landing';
-  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div>' + brandWordmark(true) + '<p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">List your salon</button><button data-action="partners-apply" data-role="Product Seller">Sell your beauty brand</button><button data-action="partners-apply" data-role="Professional">Join as a specialist</button><button data-action="partners">Open Partner Portal</button></div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
+  return '<footer class="footer closing"><div class="closing-cta gg-wrap"><div><h2>'+closeCfg.heading+'</h2><p>'+closeCfg.sub+'</p></div>'+button(closeCfg.cta+' '+icon('arrow',18), ctaAct, 'btn-invert btn-xl', ctaAttr)+'</div><div class="footer-grid gg-wrap"><div>' + brandWordmark(true) + '<p>Home beauty visits, local salons, and direct skincare orders.</p><span class="footer-loc">'+esc(state.location)+' · Daily 8:00–21:00</span></div><div><h3>Experiences</h3>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.title+'</button>').join('')+'</div><div><h3>For Partners</h3><button data-action="partners-apply" data-role="Salon Owner">List your salon</button><button data-action="partners-apply" data-role="Product Seller">Sell your beauty brand</button><button data-action="partners-apply" data-role="Professional">Join as a specialist</button><button data-action="partners">Open Partner Portal</button></div><div><h3>Account</h3><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button></div></div><div class="footer-bottom gg-wrap"><span>© '+new Date().getFullYear()+' GlamGo</span><div class="policy-footer-links"><button type="button" data-action="policy-open" data-id="hygiene">Hygiene Guarantee</button><button type="button" data-action="policy-open" data-id="cancellation">Cancellation &amp; Refund</button><button type="button" data-action="policy-open" data-id="privacy">Privacy Policy</button><button type="button" data-action="policy-open" data-id="terms">Terms of Service</button></div><details class="credits"><summary>Photographs via Unsplash</summary><p>Treatment and salon editorial photography via Unsplash (Unsplash License); product stills hosted locally.</p></details></div></footer>';
 }
 
 function mobileNav(){
@@ -2279,7 +2291,7 @@ function account(){
   else if(state.accountTab==='Wishlist'){const liked=[...services,...products].filter(x=>state.wishlist.includes(x.id));content='<div class="account-block"><h2>Your wishlist</h2><p>A space for everything that catches your eye.</p>'+(liked.length?'<div class="wishlist-grid">'+liked.map(x=>x.brand?productCard(x):homeCard(x)).join('')+'</div>':empty('heart','Nothing saved yet','Tap the heart on a service or product to keep it close.'))+'</div>';}
   else if(state.accountTab==='Payment methods') content='<div class="account-block"><h2>Payment methods</h2>'+empty('bag','Pay the way you prefer','Choose UPI, card or cash when you confirm a booking or order.')+'</div>';
   else if(state.accountTab==='Notifications') content='<div class="account-block"><h2>Notifications</h2>'+(state.notifications.length?state.notifications.map(n=>'<div class="notification-row">'+icon(n.type==='order'?'bag':'calendar',20)+'<span>'+esc(n.text)+'</span></div>').join(''):empty('bell','All caught up','Booking confirmations and order updates will appear here.'))+'</div>';
-  else if(state.accountTab==='Coupons & rewards') content='<div class="account-block"><h2>Coupons & rewards</h2><div class="coupon-card"><p class="eyebrow">WELCOME GIFT</p><h3>Take 10% off your first beauty store order.</h3><p>Use code <strong>GLAM10</strong> at checkout. Maximum discount ₹300.</p></div></div>';
+  else if(state.accountTab==='Coupons & rewards') content='<div class="account-block"><h2>Coupons &amp; rewards</h2><div class="coupon-card"><p class="eyebrow">WELCOME GIFT</p><h3>Take 10% off your first beauty store order.</h3><p>Use code <strong>GLAM10</strong> at checkout. Maximum discount ₹300.</p></div>'+renderRewardsWalletPanel(state,{esc,icon,money})+'</div>';
   else if(state.accountTab==='Reviews') content='<div class="account-block"><div class="account-heading"><h2>My reviews</h2>'+button('Write a review '+icon('plus',17),'review-add','btn-outline')+'</div><p>Verified reviews for completed doorstep care, salon appointments, and products.</p>'+(state.reviews.length?state.reviews.map(r=>'<div class="history-card"><div class="history-icon">'+icon('star',22)+'</div><div><span class="eyebrow">'+r.rating+' ★ · '+esc(r.item_type).toUpperCase()+'</span><h3>'+esc(r.comment)+'</h3><p>Reviewed on '+formatDate(r.created_at)+'</p></div></div>').join(''):empty('star','No reviews yet','Share your experience on services you have booked or beauty products you have received.'))+'</div>';
   else content='<div class="account-block"><h2>Customer support</h2><p>We are here to make every experience feel effortless.</p><div class="support-card"><h3>How can we help?</h3><p>For help with a booking or order, send us a message and include your booking or order number.</p><a href="mailto:care@glamgo.example">care@glamgo.example '+icon('arrow',16)+'</a></div></div>';
   return '<main class="account-page"><div class="account-title"><p class="eyebrow">YOUR GLAMGO ACCOUNT</p><h1>One account. <em>Every side of beauty.</em></h1></div><div class="account-layout"><aside class="account-sidebar"><div class="account-person"><span>'+(state.user?.name ? state.user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AM')+'</span><div><strong>'+esc(state.user.name)+'</strong><small>'+esc(state.user.email)+'</small></div></div>'+tabs.map(t=>'<button class="'+(state.accountTab===t?'active':'')+'" data-action="account-tab" data-id="'+t+'">'+t+icon('arrow',15)+'</button>').join('')+'<button class="logout" data-action="logout">'+icon('logout',17)+' Log out</button></aside><div class="account-content">'+content+'</div></div></main>';
@@ -2314,7 +2326,10 @@ function checkoutPage(){
   const discount = state.pendingCheckoutOrder?.order?.discount != null
     ? Number(state.pendingCheckoutOrder.order.discount)
     : (state.coupon ? Number(state.couponDiscount || (state.coupon === 'GLAM10' ? Math.min(300, Math.round(subtotal * 0.1)) : 0)) : 0);
-  const payableTotal = Math.max(0, subtotal + shipping - discount);
+  const preCreditTotal = Math.max(0, subtotal + shipping - discount);
+  const availWallet = Math.max(0, Number(state.walletCredits || 0));
+  const creditApplied = (state.applyWalletCredit && availWallet > 0) ? Math.min(availWallet, preCreditTotal) : 0;
+  const payableTotal = Math.max(0, preCreditTotal - creditApplied);
   const addrIdx = Math.min(Number(state.selectedCheckoutAddressIdx || 0), Math.max(0, state.addresses.length - 1));
 
   const sellerPackagesHtml = resData && Array.isArray(resData.sellers) && resData.sellers.length
@@ -2336,7 +2351,14 @@ function checkoutPage(){
     ? 'Processing...'
     : (state.paymentNotice && state.checkoutPayment !== 'Cash on delivery' ? 'Retry payment '+icon('arrow',17) : 'Place order '+icon('arrow',17));
 
-  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div><div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing, live stock hold &amp; secure checkout.</p></aside></div></main>';
+  const walletToggleHtml = availWallet > 0
+    ? '<button type="button" class="checkout-credit-toggle ' + (state.applyWalletCredit ? 'active' : '') + '" data-action="checkout-toggle-credit" aria-pressed="' + (state.applyWalletCredit ? 'true' : 'false') + '">' +
+        '<span>' + icon(state.applyWalletCredit ? 'check' : 'spark', 15) + ' Apply GlamGo Wallet Credit (Balance: ' + money(availWallet) + ')</span>' +
+        '<strong>' + (state.applyWalletCredit ? '−' + money(creditApplied) : 'Use credit') + '</strong>' +
+      '</button>'
+    : '';
+
+  return '<main class="checkout-page"><button class="back-link" data-action="cart">← Back to bag</button><div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon &amp; Wallet Credit</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+walletToggleHtml+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div>'+(creditApplied>0?'<div><span>Wallet credit applied</span><strong style="color:var(--champagne);font-variant-numeric:tabular-nums">−'+money(creditApplied)+'</strong></div>':'')+'<div class="summary-total"><span>Total payable</span><strong style="font-variant-numeric:tabular-nums">'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing, live stock hold &amp; secure checkout.</p></aside></div></main>';
 }
 
 function formatOrderPaymentStatusLabel(payStatus){
@@ -4204,6 +4226,7 @@ function modal(){
     inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+scopeBarHtml+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+(!x.inCity?' <span class="search-outside-pill">Outside '+esc(userCity)+'</span>':'')+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
   }
   else if(state.modal==='booking') inner=bookingModal();
+  else if(state.modal==='policy') inner=renderPolicyModalContent(state.activePolicyKey || 'hygiene', { esc, icon });
   else if(state.modal==='booking-reschedule'){
     const rb = state.rescheduleBooking || {};
     inner='<div class="modal-head"><p class="eyebrow">1-TAP RESCHEDULE</p><h2>Pick a new date &amp; time.</h2><p>Rescheduling <strong>'+esc(rb.title||'Appointment')+'</strong> with '+esc(rb.professional||'your specialist')+'.</p></div>' +
@@ -4838,6 +4861,31 @@ async function action(el){
     ensureCheckoutReservation();
   }
   else if(a==='payment'){ state.checkoutPayment=id; state.paymentNotice=null; render(); }
+  else if(a==='checkout-toggle-credit'){
+    state.applyWalletCredit = !state.applyWalletCredit;
+    invalidateCheckoutState(false);
+    persist();
+    render();
+  }
+  else if(a==='policy-open'){
+    state.activePolicyKey = POLICY_DOCS[id] ? id : 'hygiene';
+    state.modal = 'policy';
+    render();
+  }
+  else if(a==='gift-card-fill'){
+    const inp = document.getElementById('reward-code-input');
+    if (inp) {
+      inp.value = id || '';
+      inp.focus();
+    }
+  }
+  else if(a==='referral-copy'){
+    const code = id || state.referralCode || 'GLAM-INVITE';
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(code).catch(() => {});
+    }
+    toast(`Referral code ${code} copied to clipboard!`);
+  }
   else if(a==='place-order'){
     if(state.checkoutBusy) return;
     if(!requireAuth({ view: 'checkout' }, 'Sign in to place your order')) return;
@@ -4861,7 +4909,8 @@ async function action(el){
       items: itemsFingerprint,
       coupon: state.coupon || '',
       addr: (addr.label || '') + '|' + (addr.text || ''),
-      mode: isCod ? 'cod' : 'online'
+      mode: isCod ? 'cod' : 'online',
+      walletCredit: Boolean(state.applyWalletCredit)
     });
     state.checkoutBusy = true;
     state.paymentNotice = null;
@@ -4891,23 +4940,33 @@ async function action(el){
           address_text: addr.text,
           payment_method: state.checkoutPayment,
           coupon_code: state.coupon || null,
-          idempotency_key: state.pendingCheckoutKey
+          idempotency_key: state.pendingCheckoutKey,
+          apply_wallet_credit: Boolean(state.applyWalletCredit)
         });
         state.pendingCheckoutOrder = { fingerprint, order };
+        if (Number(order?.wallet_credit_applied || 0) > 0) {
+          state.walletCredits = Math.max(0, Number(state.walletCredits || 0) - Number(order.wallet_credit_applied));
+        }
       }
 
-      if (isCod) {
+      if (isCod || order.payment_status === 'completed' || Number(order.total) <= 0) {
         try {
           const freshOrders = await apiGetMyOrders();
           state.orders = freshOrders;
         } catch {
           if (!state.orders.some(o => o.id === order.id)) state.orders.unshift(order);
         }
-        state.notifications.unshift({ type: 'order', text: `Your order ${order.id} is confirmed (Cash on Delivery).` });
+        state.notifications.unshift({
+          type: 'order',
+          text: isCod
+            ? `Your order ${order.id} is confirmed (Cash on Delivery).`
+            : `Your order ${order.id} is confirmed with GlamGo Wallet Credits.`
+        });
         state.cart = {};
         state.cartVariants = {};
         state.coupon = '';
         state.couponDiscount = 0;
+        state.applyWalletCredit = false;
         invalidateCheckoutState(true);
         persist();
         navigate('order-success');
@@ -5841,16 +5900,21 @@ document.addEventListener('submit', async e => {
       state.authOtpStage = 'request';
       state.authDevHint = '';
       const bookingResume = applyPostAuthNavigation(res.role);
-      const [myB, myO, myA, myN] = await Promise.allSettled([
+      const [myB, myO, myA, myN, myRw] = await Promise.allSettled([
         apiGetMyBookings(),
         apiGetMyOrders(),
         apiGetAddresses(),
-        apiGetNotifications()
+        apiGetNotifications(),
+        apiGetMyRewards()
       ]);
       if(myB.status==='fulfilled') state.bookings = myB.value;
       if(myO.status==='fulfilled') state.orders = myO.value;
       if(myA.status==='fulfilled') state.addresses = myA.value;
       if(myN.status==='fulfilled') state.notifications = myN.value;
+      if(myRw.status==='fulfilled' && myRw.value){
+        state.walletCredits = Number(myRw.value.wallet_credits || 0);
+        state.referralCode = myRw.value.referral_code || state.referralCode;
+      }
       persist();
       render();
       if (bookingResume) openBooking(...bookingResume.args);
@@ -6008,6 +6072,22 @@ document.addEventListener('submit', async e => {
       render();
     } catch {
       toast('Coupon verification failed');
+    }
+  }
+  else if(f.id === 'reward-redeem-form'){
+    const code = String(d.get('code') || '').trim().toUpperCase();
+    if (!code) return;
+    try {
+      const res = await apiRedeemRewardCode(code);
+      state.walletCredits = Number(res.wallet_credits || 0);
+      try {
+        state.notifications = await apiGetNotifications();
+      } catch {}
+      persist();
+      render();
+      toast(res.message || `Redeemed ${code} (+${money(res.credited_amount)})`);
+    } catch (err) {
+      toast(err.message || 'Could not redeem reward code');
     }
   }
   else if(f.id === 'partner-apply-form'){
@@ -6459,16 +6539,21 @@ async function init() {
         state.user = { id: me.id, name: me.name, email: me.email, phone: me.phone, role: me.role };
         state.addresses = me.addresses || state.addresses;
         state.signedIn = true;
-        const [myB, myO, myN, myR] = await Promise.allSettled([
+        const [myB, myO, myN, myR, myRw] = await Promise.allSettled([
           apiGetMyBookings(),
           apiGetMyOrders(),
           apiGetNotifications(),
-          apiGetMyReviews()
+          apiGetMyReviews(),
+          apiGetMyRewards()
         ]);
         if(myB.status === 'fulfilled') state.bookings = myB.value;
         if(myO.status === 'fulfilled') state.orders = myO.value;
         if(myN.status === 'fulfilled') state.notifications = myN.value;
         if(myR.status === 'fulfilled') state.reviews = myR.value;
+        if(myRw.status === 'fulfilled' && myRw.value){
+          state.walletCredits = Number(myRw.value.wallet_credits || 0);
+          state.referralCode = myRw.value.referral_code || state.referralCode;
+        }
 
         if(me.role === 'admin'){
           if(initialHash === '#admin' || initialPath === '/admin'){

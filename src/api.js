@@ -248,6 +248,17 @@ export async function apiGetNotifications() {
   return await apiRequest('/users/notifications');
 }
 
+export async function apiGetMyRewards() {
+  return await apiRequest('/users/rewards');
+}
+
+export async function apiRedeemRewardCode(code) {
+  return await apiRequest('/users/rewards/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+}
+
 // Bookings
 export async function apiCreateBooking(payload) {
   return await apiRequest('/bookings/', {

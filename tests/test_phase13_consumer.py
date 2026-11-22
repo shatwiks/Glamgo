@@ -603,4 +603,118 @@ def test_arrival_otp_strict_validation_null_guard_and_partner_privacy(
     assert r_cancelled.status_code == 400
 
 
+def test_rewards_gift_card_referral_and_replay_guards(client):
+    _, reg1 = _register_unique_customer(client, _unique_phone(), prefix="referrer")
+    h1 = {"Authorization": f"Bearer {reg1['access_token']}"}
+
+    _, reg2 = _register_unique_customer(client, _unique_phone(), prefix="referee")
+    h2 = {"Authorization": f"Bearer {reg2['access_token']}"}
+
+    # (a) GET /api/v1/users/rewards issues a persistent referral_code
+    rw1 = client.get("/api/v1/users/rewards", headers=h1)
+    assert rw1.status_code == 200
+    rw1_data = rw1.json()
+    ref_code_1 = rw1_data["referral_code"]
+    assert ref_code_1.startswith("GLAM-")
+    assert rw1_data["wallet_credits"] == 0.0
+
+    # Calling again returns the same deterministic referral_code
+    assert client.get("/api/v1/users/rewards", headers=h1).json()["referral_code"] == ref_code_1
+
+    # (b.1) Redeem official gift card GLAM500 (+₹500)
+    gc_resp = client.post("/api/v1/users/rewards/redeem", headers=h2, json={"code": "glam500"})
+    assert gc_resp.status_code == 200, gc_resp.text
+    assert gc_resp.json()["kind"] == "gift_card"
+    assert gc_resp.json()["credited_amount"] == 500.0
+    assert gc_resp.json()["wallet_credits"] == 500.0
+
+    # (b.2) Duplicate replay of GLAM500 rejected with HTTP 409
+    replay_gc = client.post("/api/v1/users/rewards/redeem", headers=h2, json={"code": "GLAM500"})
+    assert replay_gc.status_code == 409
+
+    # (b.3) Self-referral rejected with HTTP 400
+    self_ref = client.post("/api/v1/users/rewards/redeem", headers=h1, json={"code": ref_code_1})
+    assert self_ref.status_code == 400
+
+    # (b.4) Valid referral credits +₹300 to both referee (user 2) and referrer (user 1)
+    ref_resp = client.post("/api/v1/users/rewards/redeem", headers=h2, json={"code": ref_code_1})
+    assert ref_resp.status_code == 200, ref_resp.text
+    assert ref_resp.json()["kind"] == "referral"
+    assert ref_resp.json()["credited_amount"] == 300.0
+    assert ref_resp.json()["wallet_credits"] == 800.0  # 500 + 300
+
+    # Referrer also received +₹300
+    rw1_after = client.get("/api/v1/users/rewards", headers=h1).json()
+    assert rw1_after["wallet_credits"] == 300.0
+
+    # Duplicate referral replay rejected with HTTP 409
+    replay_ref = client.post("/api/v1/users/rewards/redeem", headers=h2, json={"code": ref_code_1})
+    assert replay_ref.status_code == 409
+
+
+def test_checkout_with_apply_wallet_credit_deducts_balance_atomically(client, db):
+    email, reg = _register_unique_customer(client, _unique_phone(), prefix="wallet_checkout")
+    headers = {"Authorization": f"Bearer {reg['access_token']}"}
+
+    # Credit ₹500 via GLAM500 gift card
+    redeem_resp = client.post("/api/v1/users/rewards/redeem", headers=headers, json={"code": "GLAM500"})
+    assert redeem_resp.status_code == 200
+    assert redeem_resp.json()["wallet_credits"] == 500.0
+
+    # Reserve 1 unit of b1 (The Daily Renewal Serum, ₹1890 >= ₹1500 so shipping is 0)
+    res_resp = client.post(
+        "/api/v1/orders/reserve",
+        headers=headers,
+        json={"items": [{"product_id": "b1", "variant_name": "30 ml", "qty": 1}]},
+    )
+    assert res_resp.status_code in (200, 201), res_resp.text
+    res_data = res_resp.json()
+    reservation_token = res_data["reservation_token"]
+    gross_grand_total = float(res_data["grand_total"])
+    assert gross_grand_total > 500.0
+
+    # Checkout with apply_wallet_credit=True
+    idem_key = f"chk-wallet-{secrets.token_hex(4)}"
+    chk_resp = client.post(
+        "/api/v1/orders/checkout",
+        headers=headers,
+        json={
+            "reservation_token": reservation_token,
+            "address_label": "Home",
+            "address_text": "100 Feet Road, Indiranagar, Bengaluru 560038",
+            "payment_method": "Cash on delivery",
+            "idempotency_key": idem_key,
+            "apply_wallet_credit": True,
+        },
+    )
+    assert chk_resp.status_code in (200, 201), chk_resp.text
+    chk_data = chk_resp.json()
+
+    assert chk_data["wallet_credit_applied"] == 500.0
+    assert chk_data["total"] == round(gross_grand_total - 500.0, 2)
+
+    # Idempotent replay returns identical wallet_credit_applied without double-deducting
+    replay_chk = client.post(
+        "/api/v1/orders/checkout",
+        headers=headers,
+        json={
+            "reservation_token": reservation_token,
+            "address_label": "Home",
+            "address_text": "100 Feet Road, Indiranagar, Bengaluru 560038",
+            "payment_method": "Cash on delivery",
+            "idempotency_key": idem_key,
+            "apply_wallet_credit": True,
+        },
+    )
+    assert replay_chk.status_code in (200, 201)
+    assert replay_chk.json()["wallet_credit_applied"] == 500.0
+    assert replay_chk.json()["total"] == chk_data["total"]
+
+    # User's wallet_credits in DB is now 0.0
+    u_row = db.query(User).filter(User.email == email).first()
+    db.refresh(u_row)
+    assert float(u_row.wallet_credits or 0.0) == 0.0
+
+
+
 

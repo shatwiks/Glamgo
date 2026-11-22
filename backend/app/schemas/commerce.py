@@ -101,6 +101,7 @@ class MultiVendorCheckoutRequest(BaseModel):
     coupon_code: Optional[str] = None
     payment_method: Optional[str] = "Razorpay"
     idempotency_key: Optional[str] = None
+    apply_wallet_credit: bool = False
 
 
 class SubOrderSummary(BaseModel):
@@ -126,6 +127,7 @@ class MultiVendorCheckoutResponse(BaseModel):
     discount: float
     shipping: float
     shipping_fee: float
+    wallet_credit_applied: float = 0.0
     total: float
     reservation_token: Optional[str] = None
     address: Dict[str, Any] = {}

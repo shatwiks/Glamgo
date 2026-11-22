@@ -1172,6 +1172,7 @@ class CommerceService:
             "discount": order.discount,
             "shipping": order.shipping_fee,
             "shipping_fee": order.shipping_fee,
+            "wallet_credit_applied": float(order.wallet_credit_applied or 0.0),
             "total": order.total,
             "reservation_token": order.reservation_token,
             "address": {"label": order.address_label, "text": order.address_text},
@@ -1209,6 +1210,7 @@ class CommerceService:
                 "address_text": data.address_text.strip(),
                 "coupon_code": norm_coupon,
                 "payment_method": norm_method.upper(),
+                "apply_wallet_credit": bool(data.apply_wallet_credit),
             }, sort_keys=True).encode("utf-8")
         ).hexdigest()
 
@@ -1339,9 +1341,26 @@ class CommerceService:
         seller_weights = [seller_subtotals_paise[s_id] for s_id in ordered_seller_ids]
         seller_discounts_paise = allocate_proportionally_paise(total_discount_paise, seller_weights)
 
+        wallet_credit_paise = 0
+        if bool(data.apply_wallet_credit):
+            customer = db.query(User).filter(User.id == customer_id).with_for_update().first()
+            if customer:
+                avail_paise = to_paise(customer.wallet_credits or 0.0)
+                if avail_paise > 0 and parent_total_paise > 0:
+                    wallet_credit_paise = min(avail_paise, parent_total_paise)
+                    customer.wallet_credits = to_rupees(avail_paise - wallet_credit_paise)
+                    parent_total_paise = max(0, parent_total_paise - wallet_credit_paise)
+
         is_cod = is_cod_payment_method(norm_method)
-        initial_payment_status = "cod_pending" if is_cod else "pending"
-        payment_expires_at = None if is_cod else (now_utc + timedelta(minutes=RESERVATION_HOLD_MINUTES))
+        if is_cod:
+            initial_payment_status = "cod_pending" if parent_total_paise > 0 else "completed"
+            payment_expires_at = None
+        elif parent_total_paise == 0:
+            initial_payment_status = "completed"
+            payment_expires_at = None
+        else:
+            initial_payment_status = "pending"
+            payment_expires_at = now_utc + timedelta(minutes=RESERVATION_HOLD_MINUTES)
 
         order_id = f"GG{secrets.token_hex(4).upper()}"
         order_date = now_utc.strftime("%Y-%m-%d")
@@ -1353,6 +1372,7 @@ class CommerceService:
             subtotal=to_rupees(gross_subtotal_paise),
             discount=to_rupees(total_discount_paise),
             shipping_fee=to_rupees(total_shipping_paise),
+            wallet_credit_applied=to_rupees(wallet_credit_paise),
             total=to_rupees(parent_total_paise),
             status=OrderStatus.PLACED,
             payment_method=norm_method,
@@ -1368,6 +1388,13 @@ class CommerceService:
         )
         db.add(parent_order)
         db.flush()
+
+        if wallet_credit_paise > 0:
+            db.add(Notification(
+                user_id=customer_id,
+                type="order",
+                text=f"Applied ₹{to_rupees(wallet_credit_paise):.0f} GlamGo wallet credit to order {order_id}."
+            ))
 
         for r in reservations:
             r.order_id = parent_order.id
@@ -1525,6 +1552,7 @@ class CommerceService:
             "discount": parent_order.discount,
             "shipping": parent_order.shipping_fee,
             "shipping_fee": parent_order.shipping_fee,
+            "wallet_credit_applied": float(parent_order.wallet_credit_applied or 0.0),
             "total": parent_order.total,
             "reservation_token": parent_order.reservation_token,
             "address": {"label": parent_order.address_label, "text": parent_order.address_text},
