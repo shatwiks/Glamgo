@@ -89,6 +89,7 @@ import {
 } from './api.js';
 
 const HOME_IMG = './assets/home-editorial.webp';
+const AUTH_IMG = './assets/auth-editorial.webp';
 const SALON_IMG = './assets/salon-editorial.webp';
 const SHOP_IMG = './assets/shop-editorial.webp';
 const photo = (id, w = 900) => 'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=85';
@@ -975,7 +976,7 @@ function auth(){
   const bottomSwitch = mode==='reset'
     ? '<p class="auth-switch"><button type="button" data-action="auth-mode-set" data-id="signin">Back to Email Sign In</button></p>'
     : '<p class="auth-switch">'+(mode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(mode==='signup'?'Sign in':'Create an account')+'</button></p>';
-  return '<div class="auth-layout"><div class="auth-image">'+image(HOME_IMG,'At-home beauty treatment')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">GLAMGO<span>✦</span></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+heading+'</h2><p>'+sub+'</p>'+methodPills+formHtml+bottomSwitch+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
+  return '<div class="auth-layout"><div class="auth-image">'+image(AUTH_IMG,'GlamGo beauty sanctuary')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">GLAMGO<span>✦</span></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+heading+'</h2><p>'+sub+'</p>'+methodPills+formHtml+bottomSwitch+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
 }
 
 function header(){

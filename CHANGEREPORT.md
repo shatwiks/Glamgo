@@ -4,6 +4,22 @@
 
 ---
 
+## Prompt Entry #18 — `2026-11-22`: Update Home Beauty Hero & Auth Sign-In Left Panel Imagery (`release/54ba3db`)
+
+**Prompt Summary:** Convert and deploy the two custom realistic editorial photographs into `public/assets/auth-editorial.webp` (Auth left panel) and `public/assets/home-editorial.webp` (Home Beauty Hero) and wire `AUTH_IMG` in `src/app.js`.
+
+**Added / Modified Files (`branch-release-54ba3db`):**
+- `public/assets/auth-editorial.webp`: Created WebP (`width <= 1000`, `quality: 85`) from uploaded warm-taupe vanity photograph (`media_1795350209198_f08d23a5.jpg`) with calm negative space on the left for white editorial typography.
+- `public/assets/home-editorial.webp`: Updated WebP (`width <= 1000`, `quality: 85`) from uploaded natural-daylight at-home facial mask photograph (`media_1795350218626_4ef9c83b.jpg`).
+- `src/app.js`: Added `AUTH_IMG = './assets/auth-editorial.webp'` and updated `auth()` to render `AUTH_IMG`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #18.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js` -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `1.26s` (`dist/index.html` `1.40 kB`, `dist/assets/index-D8631_dt.css` `108.70 kB`, `dist/assets/index-6yoqn67I.js` `232.90 kB`).
+
+---
+
 ## Prompt Entry #17 — `2026-11-22`: Replace Nails Image with Custom AI-Generated Editorial Asset (`release/54ba3db`)
 
 **Prompt Summary:** Convert and deploy the user's newly generated editorial almond-gel manicure image as `public/assets/cat-nails.webp`.
