@@ -8,6 +8,7 @@ import {
   apiGetServices,
   apiGetProfessionals,
   apiGetSalons,
+  apiGetCatalogSalons,
   apiGetProducts,
   apiUpdateProfile,
   apiGetAddresses,
@@ -639,7 +640,18 @@ const mergeCatalogWithCityDefaults = (rows, defaultsList, excludeAdminRows = fal
   const defaultsMap = new Map(defaultsList.map(d => [String(d.id), d]));
   const merged = list.map(item => {
     const d = defaultsMap.get(String(item.id));
-    return d ? { ...d, ...item, cities: item.cities || d.cities, city: item.city || d.city, lat: item.lat ?? d.lat, lng: item.lng ?? d.lng } : item;
+    if (!d) return item;
+    return {
+      ...d,
+      ...item,
+      cities: Array.isArray(item.cities) && item.cities.length ? item.cities : d.cities,
+      city: item.city || d.city,
+      area: item.area || d.area,
+      lat: item.lat ?? d.lat,
+      lng: item.lng ?? d.lng,
+      distance_km: item.distance_km ?? d.distance_km,
+      is_far: item.is_far ?? d.is_far,
+    };
   });
   const seenIds = new Set(merged.map(x => String(x.id)));
   for (const d of defaultsList) {
@@ -1054,14 +1066,16 @@ const syncOverallCatalogLoading = () => {
   const f = state.catalogFeedsLoading;
   state.catalogLoading = Boolean(f.services || f.professionals || f.salons || f.products);
 };
-async function loadCatalogFeeds() {
-  state.catalogFeedsLoading = {
-    services: true,
-    professionals: true,
-    salons: true,
-    products: true
-  };
-  state.catalogLoading = true;
+async function loadCatalogFeeds({ silent = false } = {}) {
+  if (!silent) {
+    state.catalogFeedsLoading = {
+      services: true,
+      professionals: true,
+      salons: true,
+      products: true
+    };
+    state.catalogLoading = true;
+  }
   let deferredRender = false;
   const refreshUI = () => {
     syncOverallCatalogLoading();
@@ -1090,11 +1104,14 @@ async function loadCatalogFeeds() {
         refreshUI();
       });
 
+  const userCoords = resolveUserCoords();
+  const salonOptions = userCoords ? { lat: userCoords[0], lng: userCoords[1] } : {};
+
   await Promise.allSettled([
-    fetchFeed('services', apiGetServices, v => { services = mergeCatalogWithCityDefaults(v, DEFAULT_SERVICES); }, () => { if (!services.length) services = DEFAULT_SERVICES; }),
-    fetchFeed('professionals', apiGetProfessionals, v => { professionals = mergeCatalogWithCityDefaults(v, DEFAULT_PROFESSIONALS, true); }, () => { if (!professionals.length) professionals = DEFAULT_PROFESSIONALS; }),
-    fetchFeed('salons', apiGetSalons, v => { salons = mergeCatalogWithCityDefaults(v, DEFAULT_SALONS); }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
-    fetchFeed('products', apiGetProducts, v => { products = (v && v.length) ? v : DEFAULT_PRODUCTS; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
+    fetchFeed('services', () => apiGetServices(), v => { services = mergeCatalogWithCityDefaults(v, DEFAULT_SERVICES); }, () => { if (!services.length) services = DEFAULT_SERVICES; }),
+    fetchFeed('professionals', () => apiGetProfessionals(), v => { professionals = mergeCatalogWithCityDefaults(v, DEFAULT_PROFESSIONALS, true); }, () => { if (!professionals.length) professionals = DEFAULT_PROFESSIONALS; }),
+    fetchFeed('salons', () => apiGetCatalogSalons(salonOptions), v => { salons = mergeCatalogWithCityDefaults(v, DEFAULT_SALONS); }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
+    fetchFeed('products', () => apiGetProducts(), v => { products = (v && v.length) ? v : DEFAULT_PRODUCTS; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
   ]);
   state.catalogLoading = false;
   if (deferredRender && canSafelyBackgroundRender()) render();
@@ -1770,9 +1787,10 @@ function enrichSalonWithDistance(s) {
   const userCoords = resolveUserCoords();
   const salonCoords = resolveSalonCoords(s);
   const computedKm = (userCoords && salonCoords) ? haversineKm(userCoords, salonCoords) : null;
+  const serverKm = (s.distance_km !== null && s.distance_km !== undefined && Number.isFinite(Number(s.distance_km))) ? Number(s.distance_km) : null;
   const parsedFallback = parseFloat(String(s.distance || '').replace(/[^0-9.]/g, ''));
-  const distanceKm = computedKm !== null ? computedKm : (Number.isFinite(parsedFallback) ? parsedFallback : null);
-  const isFar = distanceKm !== null && distanceKm > NEAR_SALON_RADIUS_KM;
+  const distanceKm = computedKm !== null ? computedKm : (serverKm !== null ? serverKm : (Number.isFinite(parsedFallback) ? parsedFallback : null));
+  const isFar = distanceKm !== null ? (distanceKm > NEAR_SALON_RADIUS_KM) : Boolean(s.is_far);
   const distanceLabel = distanceKm !== null
     ? (distanceKm < 0.2 ? 'Right in your area (< 0.2 km)' : `${distanceKm.toFixed(1).replace(/\.0$/, '')} km away`)
     : (s.distance || '');
@@ -4357,7 +4375,7 @@ async function action(el){
   }
   else if(a==='mobile-toggle'){ state.mobileMenu=!state.mobileMenu; render(); }
   else if(a==='location'){ state.modal='location'; render(); }
-  else if(a==='location-set'){ state.location=id; state.userCoords=null; state.salonDistanceFilter='all'; state.modal=null; persist(); render(); toast('Location updated to ' + normalizeCity(id)); }
+  else if(a==='location-set'){ state.location=id; state.userCoords=null; state.salonDistanceFilter='all'; state.modal=null; persist(); render(); toast('Location updated to ' + normalizeCity(id)); void loadCatalogFeeds({ silent: true }); }
   else if(a==='salon-distance'){ state.salonDistanceFilter=id||'all'; render(); }
   else if(a==='location-pick'){
     const label = el.dataset.label || '';
@@ -4373,6 +4391,7 @@ async function action(el){
     if(input && label) input.value = label;
     const dd = document.getElementById('location-autocomplete-list');
     if(dd){ dd.hidden = true; dd.innerHTML = ''; }
+    void loadCatalogFeeds({ silent: true });
   }
   else if(a==='search-open'){ state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
   else if(a==='search-quick'){
@@ -5537,6 +5556,7 @@ document.addEventListener('submit', async e => {
     persist();
     render();
     toast('Location updated to ' + normalizeCity(state.location));
+    void loadCatalogFeeds({ silent: true });
   }
   else if(f.id === 'profile-form'){
     const name = String(d.get('name')).trim();

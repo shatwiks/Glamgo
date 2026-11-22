@@ -121,23 +121,60 @@ export async function apiGetMe() {
 }
 
 // Catalog
-export async function apiGetServices(category = null, query = null) {
+export async function apiGetServices(category = null, query = null, city = null) {
   const params = new URLSearchParams();
   if (category && category !== 'All') params.append('category', category);
   if (query) params.append('query', query);
+  if (city) params.append('city', city);
   const qStr = params.toString() ? `?${params.toString()}` : '';
-  return await apiRequest(`/services/${qStr}`);
+  return await apiRequest(`/catalog/services${qStr}`);
 }
 
-export async function apiGetProfessionals() {
-  return await apiRequest('/professionals/');
+export async function apiGetProfessionals(city = null, specialty = null) {
+  const params = new URLSearchParams();
+  if (city) params.append('city', city);
+  if (specialty) params.append('specialty', specialty);
+  const qStr = params.toString() ? `?${params.toString()}` : '';
+  return await apiRequest(`/catalog/professionals${qStr}`);
 }
 
-export async function apiGetSalons(category = null, sort = 'featured', query = null) {
+export async function apiGetCatalogSalons(options = {}) {
+  const {
+    category = null,
+    sort = 'featured',
+    query = null,
+    city = null,
+    lat = null,
+    lng = null,
+    max_distance_km = null,
+  } = options || {};
   const params = new URLSearchParams();
   if (category && category !== 'All') params.append('category', category);
   if (sort) params.append('sort', sort);
   if (query) params.append('query', query);
+  if (city) params.append('city', city);
+  if (lat !== null && lat !== undefined && Number.isFinite(Number(lat))) params.append('lat', String(lat));
+  if (lng !== null && lng !== undefined && Number.isFinite(Number(lng))) params.append('lng', String(lng));
+  if (max_distance_km !== null && max_distance_km !== undefined && Number.isFinite(Number(max_distance_km))) {
+    params.append('max_distance_km', String(max_distance_km));
+  }
+  const qStr = params.toString() ? `?${params.toString()}` : '';
+  return await apiRequest(`/catalog/salons${qStr}`);
+}
+
+export async function apiGetSalons(category = null, sort = 'featured', query = null, geo = null) {
+  const params = new URLSearchParams();
+  if (category && category !== 'All') params.append('category', category);
+  if (sort) params.append('sort', sort);
+  if (query) params.append('query', query);
+  if (geo && typeof geo === 'object') {
+    if (geo.city) params.append('city', geo.city);
+    if (geo.lat !== null && geo.lat !== undefined && Number.isFinite(Number(geo.lat))) params.append('lat', String(geo.lat));
+    if (geo.lng !== null && geo.lng !== undefined && Number.isFinite(Number(geo.lng))) params.append('lng', String(geo.lng));
+    if (geo.max_distance_km !== null && geo.max_distance_km !== undefined && Number.isFinite(Number(geo.max_distance_km))) {
+      params.append('max_distance_km', String(geo.max_distance_km));
+    }
+  }
   const qStr = params.toString() ? `?${params.toString()}` : '';
   return await apiRequest(`/salons/${qStr}`);
 }

@@ -101,3 +101,29 @@ def test_catalog_services_and_professionals_city_filtering(client):
     assert {"Ananya Rao", "Kavya Menon", "Divya Nair"}.issubset(pro_names)
     assert "Nisha Kapoor" not in pro_names
     assert all(p["city"] == "Bengaluru" for p in blr_pros)
+
+
+def test_catalog_salons_sort_nearest_and_invalid_coords_rejected(client):
+    nearest_resp = client.get(
+        "/api/v1/catalog/salons",
+        params={
+            "city": "Bengaluru",
+            "lat": 12.9784,
+            "lng": 77.6408,
+            "sort": "nearest",
+        },
+    )
+    assert nearest_resp.status_code == 200
+    salons = nearest_resp.json()
+    assert len(salons) == 4
+    distances = [s["distance_km"] for s in salons]
+    assert all(d is not None for d in distances)
+    assert distances == sorted(distances)
+    assert salons[0]["id"] == "l5"
+
+    bad_resp = client.get(
+        "/api/v1/catalog/salons",
+        params={"lat": 200, "lng": 77.6408},
+    )
+    assert bad_resp.status_code == 422
+
