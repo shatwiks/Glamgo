@@ -1,5 +1,31 @@
 # Change Report
 
+## Prompt Entry #24 — 2026-11-22 08:30 IST — Execute Phase 13 Consumer Website Upgrades (`13-01` & `13-02` on `main`)
+**Objective:** Execute Waves 1 and 2 (`13-01-PLAN.md` and `13-02-PLAN.md`) of Phase 13 on the flagship consumer branch `main`, delivering multi-city GPS persistence & Haversine radius filtering (`MAIN-01`), hardened self-service Password Reset / Mobile OTP auth & Admin Partner role activation (`MAIN-02`), 1-tap booking reschedule, strict 4-digit arrival OTP sync & server-priced add-ons (`MAIN-03`), city-scoped `⌘K` search, clean autocomplete dismissal & lazy dashboard/Leaflet code splitting under 500 kB (`MAIN-04`), and editorial Legal/Policy drawers, `BeautySalon` JSON-LD SEO & end-to-end Referral / Gift Card wallet credit redemption at checkout (`MAIN-05`).
+
+### Files Created / Modified
+- `backend/app/core/database.py`: Guarded PostgreSQL-only engine pool kwargs on SQLite URLs and implemented idempotent cross-dialect `ensure_phase13_schema_columns(bind_engine)` startup & seed migration.
+- `backend/app/core/rate_limit.py`: Added thread-safe `_in_memory_windows` sliding-window fallback under `threading.Lock()` when Redis is unavailable.
+- `backend/app/main.py`: Wired `ensure_phase13_schema_columns(engine)` into FastAPI `lifespan` startup.
+- `backend/app/models/catalog.py`, `backend/app/schemas/catalog.py`, `backend/app/services/seed_service.py`: Added `city`, `lat`, `lng` on `Salon` and `ProfessionalProfile` (plus `area`), and `service_cities` + `@property def cities` on `Service`; seeded and backfilled Bengaluru (`l5`–`l8`, `101`–`103`, `s9`), Mumbai (`l1`–`l4`, `1`–`3`), and Delhi (`l9`, `104`) catalog records.
+- `backend/app/api/v1/salons.py`, `backend/app/api/v1/api.py`: Implemented `_haversine_km`, `NEAR_SALON_RADIUS_KM = 8.0`, `city`/`lat`/`lng`/`max_distance_km`/`sort=nearest` filtering, and `/api/v1/catalog/{salons,services,professionals}` routes.
+- `backend/app/models/user.py`, `backend/app/api/v1/auth.py`: Added reset/OTP/referral/wallet columns on `User` and rate-limited `/api/v1/auth/password-reset/{request,confirm}` + `/api/v1/auth/otp/{request,verify}` endpoints with Admin 403 exclusion, 5-attempt lockout invalidation, multi-account phone ambiguity 409, and environment-gated dev-code echoing.
+- `backend/app/api/v1/admin.py`: Fixed `approve_partner_draft` `Salon(...)` constructor kwargs, mapped `[City: ...]` coordinates, prevented admin role downgrade, and emitted workspace-specific activation notifications.
+- `backend/app/models/booking.py`, `backend/app/schemas/booking.py`, `backend/app/api/v1/bookings.py`: Added `arrival_otp`, `addons_json`, and `@property def addons` on `Booking`, strict 4-digit regex `^\d{4}$` on `BookingOtpVerifyRequest`, server-priced `BOOKING_ADDONS_CATALOG`, `PUT /api/v1/bookings/{id}/reschedule` with `with_for_update()` slot-collision and BOLA checks, and `POST /api/v1/bookings/{id}/verify-arrival-otp` with NULL/cancelled/completed pre-compare guards.
+- `backend/app/models/order.py`, `backend/app/schemas/commerce.py`, `backend/app/services/commerce_service.py`, `backend/app/api/v1/users.py`: Added `Order.wallet_credit_applied`, `GET /api/v1/users/rewards`, `POST /api/v1/users/rewards/redeem` (gift cards `GLAM500`/`LUXE1000`/`BRIDAL2500` + bilateral ₹300 friend referrals with self-referral 400 and replay 409 guards), and row-locked atomic customer `wallet_credits` deduction in `CommerceService.checkout_multi_vendor`.
+- `src/consumer-trust.js` (created): Exported `POLICY_DOCS`, `GIFT_CARDS_CATALOG`, `renderPolicyModalContent`, and `renderRewardsWalletPanel` using `icon()` SVGs exclusively.
+- `src/api.js`, `src/app.js`, `vite.config.js`, `styles.css`, `index.html`: Wired multi-city catalog distance hydration, non-admin OTP/reset auth UI, booking add-ons, Arrival PIN chip & 1-tap reschedule modal, Specialist Studio arrival OTP verification modal, city-scoped `⌘K` search with `Outside <City>` pills, `hideLocationAutocomplete()`, lazy `loadDashboardsSuite()` + `loadLeaflet()` with Vite `manualChunks`, footer policy drawers, Account/Checkout rewards wallet integration, and OpenGraph + Schema.org `BeautySalon` JSON-LD metadata.
+- `tests/test_phase13_consumer.py` (created): Added 16 comprehensive integration tests covering `MAIN-01` through `MAIN-05`.
+- `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-01-SUMMARY.md`, `.planning/phases/13-dual-track-consumer-and-turnkey-upgrades/13-02-SUMMARY.md`: Authored execution summaries for Waves 1 and 2 on `main`.
+
+### Verification Commands & Results
+- `.venv\Scripts\python.exe -m py_compile` across all modified backend modules: Exited `0`.
+- `node -c src/api.js`, `node -c src/consumer-trust.js`, `node -c src/dashboards-suite.js`, `node -c src/app.js`, `node -c vite.config.js`: All exited `0`.
+- `index.html` SEO & JSON-LD PowerShell check: Verified `og:title` and valid `@type == "BeautySalon"` JSON-LD.
+- `npm run build`: Built cleanly in `3.13s` with code-split chunks (`index` `311.88 kB`, `vendor-leaflet` `150.07 kB`, `dashboards-suite` `54.09 kB`) and **zero** `>500 kB` chunk warnings.
+- `.venv\Scripts\python.exe -m pytest tests/ -v`: All **99/99** backend tests passed across 16 test files (`16/16` in `tests/test_phase13_consumer.py`).
+- Headless Playwright E2E check against `http://127.0.0.1:5173/` (`1440x900` desktop & `375x812` mobile): Confirmed `0` `.turnkey-demo-bar`, logged-out `#admin` requires Admin sign-in, city-scoped `⌘K` search shows `Outside <City>` tags, `#location-autocomplete-list` dismisses on outside click, footer opens Policy Drawer modal, Account & Checkout render Referral/Gift Card wallet controls, lazy `dashboards-suite.js` loads when signed in, `0px` horizontal overflow, and `0` runtime `pageerror`s.
+
 ## Prompt Entry #23 — 2026-11-22 07:33 IST — GSD Plan Phase 13: Dual-Track Main Consumer & Turnkey Showcase Upgrades
 **Objective:** Run `/gsd-plan-phase` to register, author, and independently verify executable GSD phase plans covering the prioritized upgrades for both websites (`main` flagship consumer site and `feat/turnkey-platform` turnkey buyer & partner showcase).
 
