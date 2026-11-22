@@ -4,6 +4,19 @@
 
 ---
 
+## Prompt Entry #17 — `2026-11-22`: Replace Nails Image with Custom AI-Generated Editorial Asset (`release/54ba3db`)
+
+**Prompt Summary:** Convert and deploy the user's newly generated editorial almond-gel manicure image as `public/assets/cat-nails.webp`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `public/assets/cat-nails.webp`: Replaced with `640x480` WebP (`quality: 85`) converted from the custom editorial manicure image (`media_1795349293172_9d63ba74.jpg`).
+- `CHANGEREPORT.md`: Prepended Prompt Entry #17.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `1.22s` (`dist/index.html` `1.40 kB`, `dist/assets/index-D8631_dt.css` `108.70 kB`, `dist/assets/index-K_iUKb2H.js` `232.87 kB`).
+
+---
+
 ## Prompt Entry #16 — `2026-11-22`: Replace Nails Category Image with Centered Luxury Manicure Asset (`release/54ba3db`)
 
 **Prompt Summary:** Replace the low-framing Nails photo with a clear, centered luxury nude gel manicure photograph across the `#categories` grid.
