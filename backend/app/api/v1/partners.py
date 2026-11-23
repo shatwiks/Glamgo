@@ -567,7 +567,7 @@ def update_professional_booking_status(
     ).first()
     pro_id = pro.id if pro else -1
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
@@ -582,6 +582,11 @@ def update_professional_booking_status(
         new_status = BookingStatus(payload.status.lower())
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid booking status '{payload.status}'.")
+
+    if new_status == BookingStatus.CANCELLED and booking.payment_status == "pending" and db.query(PaymentTransaction).filter(PaymentTransaction.booking_id == booking.id).first():
+        raise HTTPException(status_code=409, detail="A payment attempt is awaiting reconciliation; this appointment cannot be cancelled yet.")
+    if new_status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) and booking.payment_status != "completed":
+        raise HTTPException(status_code=400, detail="Payment must be completed before this appointment can be confirmed or completed.")
 
     booking.status = new_status
 
@@ -753,7 +758,7 @@ def update_salon_booking_status(
     db: Session = Depends(get_db)
 ):
     salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
@@ -767,6 +772,11 @@ def update_salon_booking_status(
         new_status = BookingStatus(payload.status.lower())
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid booking status '{payload.status}'.")
+
+    if new_status == BookingStatus.CANCELLED and booking.payment_status == "pending" and db.query(PaymentTransaction).filter(PaymentTransaction.booking_id == booking.id).first():
+        raise HTTPException(status_code=409, detail="A payment attempt is awaiting reconciliation; this appointment cannot be cancelled yet.")
+    if new_status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) and booking.payment_status != "completed":
+        raise HTTPException(status_code=400, detail="Payment must be completed before this appointment can be confirmed or completed.")
 
     booking.status = new_status
 

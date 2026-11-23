@@ -147,146 +147,12 @@ const experiences = [
   {id:'shop', eyebrow:'03 / BEAUTY SHOPPING', title:'Everything beauty, in one place.', desc:'Discover and shop your favourite beauty and personal care products.', cta:'Explore Beauty Store', img:SHOP_IMG, icon:'bag'}
 ];
 
-const CATALOG_CACHE_KEY = 'glamgo-catalog-cache-v1';
-const CATALOG_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-function readCatalogCache() {
-  try {
-    const raw = localStorage.getItem(CATALOG_CACHE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    if (parsed.ts && Date.now() - Number(parsed.ts) > CATALOG_CACHE_TTL_MS) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-function writeCatalogCache() {
-  try {
-    localStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({
-      ts: Date.now(),
-      services,
-      professionals,
-      salons,
-      products
-    }));
-  } catch {}
-}
-const DEFAULT_SERVICES = [
-  { id: "s1", name: "The Signature Facial", category: "Skin", price: 1499, duration: "75 min", rating: 4.9, reviews: 126, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1570172619644-dfd03ed5d881", 900), desc: "A restorative botanical cleanse, lymphatic massage, and glow infusion tailored to your skin." },
-  { id: "s2", name: "Express Hair Styling", category: "Hair", price: 899, duration: "45 min", rating: 4.8, reviews: 98, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1562322140-8baeececf3df", 900), desc: "A polished blowout, silk press, or event-ready waves by a vetted hairstylist." },
-  { id: "s3", name: "Classic Manicure & Gel", category: "Nails", price: 699, duration: "50 min", rating: 4.9, reviews: 84, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1604654894610-df63bc536371", 900), desc: "Nail shaping, cuticle care, hydrating hand massage, and long-wear chip-free polish." },
-  { id: "s4", name: "Occasion & Bridal Makeup", category: "Makeup", price: 2499, duration: "90 min", rating: 4.9, reviews: 112, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1487412720507-e7ab37603c6f", 900), desc: "Tailored makeup looks from soft radiant day finish to high-definition evening glamour." },
-  { id: "s5", name: "Relax & Restore Massage", category: "Spa", price: 1799, duration: "60 min", rating: 4.8, reviews: 71, cities: ["Mumbai", "Bengaluru"], img: photo("photo-1540555700478-4be289fbecef", 900), desc: "Deeply relaxing full body ritual with botanical oils in the sanctuary of your home." },
-  { id: "s6", name: "Smooth Botanical Waxing", category: "Waxing", price: 599, duration: "40 min", rating: 4.8, reviews: 63, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1519823551278-64ac92734fb1", 900), desc: "Gentle, painless peel waxing with chamomile soothing lotion for silky smooth finish." },
-  { id: "s7", name: "Brow & Threading Precision", category: "Threading", price: 299, duration: "25 min", rating: 4.9, reviews: 103, cities: ["Mumbai", "Delhi"], img: photo("photo-1516975080664-ed2fc6a32937", 900), desc: "Precise eyebrow mapping, clean threading, and optional tint for defined natural arches." },
-  { id: "s8", name: "The Complete Glow Ritual", category: "Packages", price: 3299, duration: "150 min", rating: 4.9, reviews: 56, cities: ["Mumbai", "Bengaluru", "Delhi"], img: photo("photo-1515377905703-c4788e51af15", 900), desc: "Botanical facial, classic manicure, and blowout bundled into one seamless session." },
-  { id: "s9", name: "Botanical De-Tan & Glass Skin", category: "Skin", price: 1699, duration: "65 min", rating: 4.9, reviews: 88, cities: ["Bengaluru"], img: photo("photo-1552693673-1bf958298935", 900), desc: "Bengaluru-exclusive niacinamide enzyme peel, cryo roller lymphatic drainage, and peptide sheet mask." }
-];
-
-const DEFAULT_PROFESSIONALS = [
-  { id: 1, name: "Nisha Kapoor", city: "Mumbai", area: "Bandra West, Mumbai", experience: "8 years of experience", rating: 4.9, reviews: 212, price: 699, img: photo("photo-1559839734-2b71ea197ec2", 500), specialty: "Skin & makeup" },
-  { id: 2, name: "Riya Malhotra", city: "Mumbai", area: "Juhu, Mumbai", experience: "6 years of experience", rating: 4.9, reviews: 186, price: 599, img: photo("photo-1534528741775-53994a69daeb", 500), specialty: "Hair & styling" },
-  { id: 3, name: "Meera Shah", city: "Mumbai", area: "Khar West, Mumbai", experience: "10 years of experience", rating: 4.8, reviews: 241, price: 799, img: photo("photo-1580489944761-15a19d654956", 500), specialty: "Spa & wellness" },
-  { id: 101, name: "Ananya Rao", city: "Bengaluru", area: "Indiranagar, Bengaluru", experience: "7 years of experience", rating: 4.9, reviews: 194, price: 749, img: photo("photo-1573496359142-b8d87734a5a2", 500), specialty: "Glass skin & bridal" },
-  { id: 102, name: "Kavya Menon", city: "Bengaluru", area: "Koramangala, Bengaluru", experience: "6 years of experience", rating: 4.9, reviews: 167, price: 649, img: photo("photo-1544005313-94ddf0286df2", 500), specialty: "Hair & editorial blowout" },
-  { id: 103, name: "Divya Nair", city: "Bengaluru", area: "HSR Layout, Bengaluru", experience: "9 years of experience", rating: 4.8, reviews: 152, price: 799, img: photo("photo-1531746020798-e6953c6e8e04", 500), specialty: "Botanical spa & nails" },
-  { id: 104, name: "Tara Verma", city: "Delhi", area: "Hauz Khas, South Delhi", experience: "8 years of experience", rating: 4.9, reviews: 175, price: 799, img: photo("photo-1508214751196-bcfd4ca60f91", 500), specialty: "Bridal & skin curation" }
-];
-
-const DEFAULT_SALONS = [
-  {
-    id: "l1", name: "The Ivory Room", city: "Mumbai", area: "Bandra West, Mumbai", lat: 19.0596, lng: 72.8295, distance: "1.8 km away", rating: 4.9, reviews: 312, price: 800, img: SALON_IMG, tag: "Most loved",
-    services: ["Hair", "Skin", "Nails"], hours: "10:00 AM – 8:00 PM", about: "A quiet, contemporary salon where considered care meets effortless style.",
-    staff: [
-      { name: "Nisha Kapoor", specialty: "Skin & makeup", img: photo("photo-1559839734-2b71ea197ec2", 500) },
-      { name: "Riya Malhotra", specialty: "Hair & styling", img: photo("photo-1534528741775-53994a69daeb", 500) }
-    ]
-  },
-  {
-    id: "l2", name: "Atelier Beauty House", city: "Mumbai", area: "Juhu, Mumbai", lat: 19.1075, lng: 72.8263, distance: "3.2 km away", rating: 4.8, reviews: 204, price: 650, img: photo("photo-1560066984-138dadb4c035"), tag: "Popular",
-    services: ["Hair", "Makeup", "Spa"], hours: "9:30 AM – 8:30 PM", about: "A warm, creative space for personal beauty rituals and expert styling.",
-    staff: [{ name: "Meera Shah", specialty: "Spa & wellness", img: photo("photo-1580489944761-15a19d654956", 500) }]
-  },
-  {
-    id: "l3", name: "Maison de Glow", city: "Mumbai", area: "Khar West, Mumbai", lat: 19.0708, lng: 72.8339, distance: "2.4 km away", rating: 4.9, reviews: 178, price: 900, img: photo("photo-1521590832167-7bcbfaa6381f"), tag: "New to GlamGo",
-    services: ["Skin", "Nails", "Spa"], hours: "10:00 AM – 7:30 PM", about: "Skin and wellness treatments in a calming neighbourhood retreat.",
-    staff: [{ name: "Nisha Kapoor", specialty: "Skin & makeup", img: photo("photo-1559839734-2b71ea197ec2", 500) }]
-  },
-  {
-    id: "l4", name: "Velvet Lounge Studio", city: "Mumbai", area: "Powai, Mumbai", lat: 19.1176, lng: 72.9060, distance: "11.6 km away", rating: 4.8, reviews: 146, price: 850, img: photo("photo-1522337360788-8b13dee7a37e"), tag: "Lakeview Studio",
-    services: ["Hair", "Skin", "Makeup", "Spa"], hours: "10:00 AM – 8:30 PM", about: "Powai flagship studio offering keratin rituals, bridal prep, and clinical facials.",
-    staff: [{ name: "Riya Malhotra", specialty: "Hair & styling", img: photo("photo-1534528741775-53994a69daeb", 500) }]
-  },
-  {
-    id: "l5", name: "Saffron & Silk Atelier", city: "Bengaluru", area: "Indiranagar, Bengaluru", lat: 12.9784, lng: 77.6408, distance: "1.6 km away", rating: 4.9, reviews: 268, price: 850, img: SALON_IMG, tag: "Most loved",
-    services: ["Hair", "Skin", "Nails", "Makeup"], hours: "10:00 AM – 8:30 PM", about: "A quiet luxury parlour on 100 Feet Road known for glass-skin facials and precision colour.",
-    staff: [{ name: "Ananya Rao", specialty: "Skin & glow facials", img: photo("photo-1573496359142-b8d87734a5a2", 500) }]
-  },
-  {
-    id: "l6", name: "Kora Botanical Salon", city: "Bengaluru", area: "Koramangala, Bengaluru", lat: 12.9352, lng: 77.6245, distance: "4.9 km away", rating: 4.8, reviews: 195, price: 750, img: photo("photo-1560066984-138dadb4c035"), tag: "Popular",
-    services: ["Hair", "Nails", "Spa"], hours: "9:30 AM – 8:00 PM", about: "Plant-active botanical hair spas and gel nail suites in Koramangala 4th Block.",
-    staff: [{ name: "Kavya Menon", specialty: "Hair & editorial blowout", img: photo("photo-1544005313-94ddf0286df2", 500) }]
-  },
-  {
-    id: "l7", name: "The Whitefield Sanctuary", city: "Bengaluru", area: "Whitefield, Bengaluru", lat: 12.9698, lng: 77.7499, distance: "11.8 km away", rating: 4.9, reviews: 154, price: 950, img: photo("photo-1521590832167-7bcbfaa6381f"), tag: "Signature Spa",
-    services: ["Skin", "Spa", "Makeup"], hours: "10:00 AM – 9:00 PM", about: "Destination Ayurvedic and clinical spa suite serving East Bengaluru.",
-    staff: [{ name: "Divya Nair", specialty: "Botanical spa & nails", img: photo("photo-1531746020798-e6953c6e8e04", 500) }]
-  },
-  {
-    id: "l8", name: "Lumen Hair & Beauty Loft", city: "Bengaluru", area: "Yelahanka, Bengaluru", lat: 13.1007, lng: 77.5963, distance: "14.2 km away", rating: 4.7, reviews: 112, price: 699, img: photo("photo-1522337360788-8b13dee7a37e"), tag: "North Bengaluru",
-    services: ["Hair", "Skin", "Nails"], hours: "10:00 AM – 8:00 PM", about: "Sunlit neighbourhood salon in North Bengaluru for express styling and dermal peels.",
-    staff: [{ name: "Ananya Rao", specialty: "Skin & glow facials", img: photo("photo-1573496359142-b8d87734a5a2", 500) }]
-  },
-  {
-    id: "l9", name: "Haus of Radiance", city: "Delhi", area: "Hauz Khas, South Delhi", lat: 28.5494, lng: 77.2001, distance: "2.1 km away", rating: 4.9, reviews: 229, price: 999, img: SALON_IMG, tag: "South Delhi",
-    services: ["Hair", "Skin", "Makeup", "Spa"], hours: "10:00 AM – 8:30 PM", about: "Editorial hair and bridal studio overlooking Hauz Khas enclave.",
-    staff: [{ name: "Tara Verma", specialty: "Bridal & skin curation", img: photo("photo-1508214751196-bcfd4ca60f91", 500) }]
-  }
-];
-
-const DEFAULT_PRODUCTS = [
-  { id: "b1", brand: "LUMIÈRE", name: "The Daily Renewal Serum", category: "Skincare", price: 1890, old: 2290, rating: 4.9, reviews: 86, img: "./assets/serum.webp", tag: "BESTSELLER", description: "A lightweight daily serum for skin that feels hydrated and quietly radiant.", ingredients: "Niacinamide, hyaluronic acid, glycerin", variants: ["30 ml", "50 ml"], stock: 94, variant_stocks: { "30 ml": 42, "50 ml": 52 } },
-  { id: "b2", brand: "THE BOTANIST", name: "Barrier Repair Moisturiser", category: "Skincare", price: 1490, old: 0, rating: 4.8, reviews: 67, img: "./assets/moisturiser.webp", tag: "NEW", description: "Comforting everyday moisture with a soft, non-greasy finish.", ingredients: "Ceramides, squalane, oat extract", variants: ["50 ml", "100 ml"], stock: 66, variant_stocks: { "50 ml": 38, "100 ml": 28 } },
-  { id: "b3", brand: "VELVET FORM", name: "Satin Colour Lipstick", category: "Makeup", price: 990, old: 1290, rating: 4.8, reviews: 124, img: "./assets/lipstick.webp", tag: "TRENDING", description: "Rich colour and a smooth satin feel that lasts beautifully.", ingredients: "Jojoba oil, vitamin E, colour pigments", variants: ["Rosewood", "Soft Nude", "Deep Berry"], stock: 39, variant_stocks: { "Rosewood": 18, "Soft Nude": 7, "Deep Berry": 14 } },
-  { id: "b4", brand: "NOURISH & CO.", name: "Restorative Hair Oil", category: "Haircare", price: 1190, old: 0, rating: 4.7, reviews: 42, img: "./assets/hair-oil.webp", tag: "", description: "A pre-wash ritual to nourish lengths and leave hair feeling softer.", ingredients: "Argan oil, almond oil, rosemary", variants: ["100 ml", "200 ml"], stock: 40, variant_stocks: { "100 ml": 24, "200 ml": 16 } },
-  { id: "b5", brand: "MAISON CALME", name: "Linen & Neroli Eau de Parfum", category: "Fragrance", price: 3490, old: 0, rating: 4.9, reviews: 31, img: "./assets/fragrance.webp", tag: "NEW", description: "A delicate, airy fragrance with a warm, lasting trail.", ingredients: "Neroli, white musk, cedarwood", variants: ["30 ml", "75 ml"], stock: 18, variant_stocks: { "30 ml": 12, "75 ml": 6 } },
-  { id: "b6", brand: "STUDIO EDIT", name: "The Everyday Brush Set", category: "Beauty Tools", price: 1790, old: 2190, rating: 4.8, reviews: 59, img: "./assets/brushes.webp", tag: "", description: "Five thoughtfully chosen brushes for an easy, polished routine.", ingredients: "Soft synthetic bristles, wooden handles", variants: ["5 piece set"], stock: 45, variant_stocks: { "5 piece set": 45 } },
-  { id: "b7", brand: "THE BOTANIST", name: "Soft Skin Body Cream", category: "Body Care", price: 1290, old: 0, rating: 4.8, reviews: 38, img: "./assets/moisturiser.webp", tag: "", description: "A rich daily body cream that leaves skin comfortable and softly scented.", ingredients: "Shea butter, oat extract, glycerin", variants: ["200 ml", "400 ml"], stock: 87, variant_stocks: { "200 ml": 55, "400 ml": 32 } }
-];
-
-const initialCatalogCache = readCatalogCache();
-const mergeCatalogWithCityDefaults = (rows, defaultsList, excludeAdminRows = false) => {
-  const list = (Array.isArray(rows) && rows.length ? rows : []).filter(item =>
-    !excludeAdminRows || String(item?.name || '').trim().toLowerCase() !== 'glamgo admin'
-  );
-  if (!list.length) return defaultsList;
-  const defaultsMap = new Map(defaultsList.map(d => [String(d.id), d]));
-  const merged = list.map(item => {
-    const d = defaultsMap.get(String(item.id));
-    if (!d) return item;
-    return {
-      ...d,
-      ...item,
-      cities: Array.isArray(item.cities) && item.cities.length ? item.cities : d.cities,
-      city: item.city || d.city,
-      area: item.area || d.area,
-      lat: item.lat ?? d.lat,
-      lng: item.lng ?? d.lng,
-      distance_km: item.distance_km ?? d.distance_km,
-      is_far: item.is_far ?? d.is_far
-    };
-  });
-  const seenIds = new Set(merged.map(x => String(x.id)));
-  for (const d of defaultsList) {
-    if (!seenIds.has(String(d.id))) merged.push(d);
-  }
-  return merged;
-};
-let services = mergeCatalogWithCityDefaults(initialCatalogCache?.services, DEFAULT_SERVICES);
-let professionals = mergeCatalogWithCityDefaults(initialCatalogCache?.professionals, DEFAULT_PROFESSIONALS, true);
-let salons = mergeCatalogWithCityDefaults(initialCatalogCache?.salons, DEFAULT_SALONS);
-let products = Array.isArray(initialCatalogCache?.products) && initialCatalogCache.products.length ? initialCatalogCache.products : DEFAULT_PRODUCTS;
+// Never bootstrap public listings from the old cache: it could contain demo rows.
+// Keep customer state (cart, bookings, account and preferences) separately intact.
+let services = [];
+let professionals = [];
+let salons = [];
+let products = [];
 
 const BOOKING_ADDONS = [
   { id: 'addon-head-massage', name: 'Ayurvedic Head Massage', duration: '15 min', price: 299 },
@@ -350,17 +216,10 @@ function resolveSalonCoords(s) {
   return AREA_COORDS[k || 'mumbai'];
 }
 function enrichSalonWithDistance(s) {
-  const uCoords = resolveUserCoords();
-  const sCoords = resolveSalonCoords(s);
-  let km = Number.isFinite(Number(s?.distance_km)) ? Number(s.distance_km) : haversineKm(uCoords[0], uCoords[1], sCoords[0], sCoords[1]);
-  km = Math.round(km * 10) / 10;
-  const isFar = km > NEAR_SALON_RADIUS_KM;
-  return {
-    ...s,
-    distanceKm: km,
-    isFar,
-    distanceLabel: `${km.toFixed(1)} km away`
-  };
+  const coords = Array.isArray(state.userCoords) ? state.userCoords : null;
+  const hasPosition = coords && s.lat != null && s.lng != null && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng));
+  const km = hasPosition ? Math.round(haversineKm(coords[0], coords[1], Number(s.lat), Number(s.lng)) * 10) / 10 : null;
+  return { ...s, distanceKm: km, isFar: km == null ? null : km > NEAR_SALON_RADIUS_KM, distanceLabel: km == null ? '' : `${km.toFixed(1)} km away` };
 }
 function isServiceAvailableInCity(s, city) {
   const c = String(city || '').trim().toLowerCase();
@@ -405,13 +264,13 @@ const roleSections = {
 const defaults = {
   signedIn: false,
   experience: null,
-  user: {name:'Aanya Mehta', email:'aanya@example.com', phone:'98765 43210', role:'customer'},
+  user: null,
   location:'Bandra West, Mumbai',
   userCoords: null,
   walletCredits: 0,
   referralCode: '',
   salonDistanceFilter: 'all',
-  addresses:[{label:'Home',text:'24 Sea View Road, Bandra West, Mumbai 400050'}],
+  addresses:[],
   wishlist:[],
   cart:{},
   bookings:[],
@@ -483,6 +342,7 @@ const state = {
   productVariant: null,
   pdpTab: 'details',
   productReviews: {},
+  listingReviews: {},
   accountTab: 'Overview',
   partnerRole: 'Professional',
   partnerTab: 'Overview',
@@ -572,10 +432,11 @@ const getProductStock = (p, variant) => {
   const vs = p.variant_stocks && typeof p.variant_stocks === 'object' ? p.variant_stocks : null;
   if (variant && vs && Object.prototype.hasOwnProperty.call(vs, variant)) return Number(vs[variant]);
   if (p.stock !== undefined && p.stock !== null) return Number(p.stock);
-  return 100;
+  return null;
 };
 const getStockInfo = (p, variant) => {
   const qty = getProductStock(p, variant);
+  if (qty === null || !Number.isFinite(qty)) return { qty: null, soldOut: false, low: false, label: 'Availability at checkout' };
   if (qty <= 0) return { qty: 0, soldOut: true, low: false, label: 'Sold out' };
   if (qty <= 5) return { qty, soldOut: false, low: true, label: 'Low stock · ' + qty + ' left' };
   return { qty, soldOut: false, low: false, label: 'In stock' };
@@ -618,13 +479,7 @@ const getFilteredShopProducts = (items = products) => {
   else if (state.sort === 'reviews') sorted.sort((a, b) => Number(b.reviews || 0) - Number(a.reviews || 0));
   return sorted;
 };
-const getRelatedProducts = (p, limit = 3) => {
-  if (!p) return [];
-  const others = products.filter(item => item.id !== p.id);
-  const sameCategory = others.filter(item => item.category === p.category);
-  const rest = others.filter(item => item.category !== p.category).sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
-  return [...sameCategory, ...rest].slice(0, limit);
-};
+const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => item.id !== p.id && item.category === p.category).slice(0, limit) : [];
 const parseIngredientsList = raw => String(raw || '').split(/[,;•\n]+/).map(s => s.trim()).filter(Boolean);
 const ensureProductExtras = id => {
   if (!id) return;
@@ -643,10 +498,31 @@ const ensureProductExtras = id => {
       state.productReviews[id] = { loading: false, items: Array.isArray(res) ? res : (res?.reviews || []) };
       if (state.view === 'product-detail' && state.selectedProduct === id) render();
     }).catch(() => {
-      state.productReviews[id] = { loading: false, items: [] };
+      state.productReviews[id] = { loading: false, error: true, items: [] };
       if (state.view === 'product-detail' && state.selectedProduct === id) render();
     });
   }
+};
+const ensureListingReviews = (type, id) => {
+  const key = `${type}:${id}`;
+  if (state.listingReviews[key]) return;
+  state.listingReviews[key] = { loading: true, items: [] };
+  apiGetReviews(id, type).then(items => {
+    state.listingReviews[key] = { loading: false, items: Array.isArray(items) ? items : [] };
+  }).catch(() => {
+    state.listingReviews[key] = { loading: false, error: true, items: [] };
+  }).finally(() => {
+    if ((type === 'service' && state.view === 'service-detail' && String(state.selectedService) === String(id)) ||
+        (type === 'salon' && state.view === 'salon-detail' && String(state.selectedSalon) === String(id))) render();
+  });
+};
+const listingReviewSection = (type, id) => {
+  const reviews = state.listingReviews[`${type}:${id}`];
+  const body = !reviews || reviews.loading ? '<p>Loading customer reviews…</p>'
+    : reviews.error ? '<p>Reviews could not be loaded right now.</p>'
+    : !reviews.items.length ? '<p>No customer reviews to show yet.</p>'
+    : '<div class="pdp-review-list">'+reviews.items.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name || 'GlamGo customer')+'</strong><span class="rating">'+icon('star',14)+' '+esc(r.rating)+'/5</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>';
+  return '<section class="detail-block"><h2>Customer reviews</h2>'+body+'</section>';
 };
 const getActiveSubnavKey = () => {
   if (state.view === 'landing') {
@@ -721,10 +597,10 @@ function requireAuth(resume = null, message = 'Please sign in to continue.') {
 }
 const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
-const image = (src, alt, cls='') => '<img class="'+cls+'" src="'+src+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
+const image = (src, alt, cls='') => '<img class="'+esc(cls)+'" src="'+esc(src)+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
 const sectionHead = (eyebrow,title,sub='',action='') => '<div class="section-head"><div><p class="eyebrow">'+eyebrow+'</p><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
-const rating = (value,count) => '<span class="rating">'+icon('star',14)+' '+value+' <span>('+count+')</span></span>';
+
 const empty = (symbol,title,text,action='') => '<div class="empty-state"><div class="empty-symbol">'+icon(symbol,28)+'</div><h3>'+title+'</h3><p>'+text+'</p>'+action+'</div>';
 const catalogLoadingState = label => '<div class="catalog-loading-panel"><p>Curating live '+esc(label)+'...</p></div>';
 const catalogUnavailableState = (title, message = 'Live inventory could not be loaded right now. Please try again in a moment.') => '<div class="catalog-unavailable">'+empty('bag', title + ' unavailable', message, button('Retry loading '+icon('arrow',16), 'retry-catalog', 'btn-primary'))+'</div>';
@@ -740,7 +616,11 @@ const syncOverallCatalogLoading = () => {
   const f = state.catalogFeedsLoading;
   state.catalogLoading = Boolean(f.services || f.professionals || f.salons || f.products);
 };
+let catalogRequestGeneration = 0;
 async function loadCatalogFeeds() {
+  const generation = ++catalogRequestGeneration;
+  services = []; professionals = []; salons = []; products = [];
+  state.catalogErrors = { services: false, professionals: false, salons: false, products: false };
   state.catalogFeedsLoading = {
     services: true,
     professionals: true,
@@ -754,36 +634,31 @@ async function loadCatalogFeeds() {
     if (canSafelyBackgroundRender()) render();
     else deferredRender = true;
   };
-  const fetchFeed = (key, fetcher, applyValue, resetEmpty) =>
-    Promise.resolve()
-      .then(fetcher)
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          applyValue(data);
-          state.catalogErrors[key] = false;
-          writeCatalogCache();
-        } else {
-          resetEmpty();
-          state.catalogErrors[key] = false;
-        }
-      })
-      .catch(() => {
-        resetEmpty();
-        state.catalogErrors[key] = false;
-      })
-      .finally(() => {
-        state.catalogFeedsLoading[key] = false;
-        refreshUI();
-      });
+  const fetchFeed = (key, fetcher, applyValue) =>
+    Promise.resolve().then(fetcher).then(data => {
+      if (generation !== catalogRequestGeneration) return;
+      if (!Array.isArray(data)) throw new Error('Invalid catalogue response');
+      applyValue(data);
+      state.catalogErrors[key] = false;
+    }).catch(() => {
+      if (generation !== catalogRequestGeneration) return;
+      applyValue([]);
+      state.catalogErrors[key] = true;
+    }).finally(() => {
+      if (generation !== catalogRequestGeneration) return;
+      state.catalogFeedsLoading[key] = false;
+      refreshUI();
+    });
 
   const userCity = normalizeCity(state.location);
-  const coords = resolveUserCoords();
+  const coords = Array.isArray(state.userCoords) ? state.userCoords : null;
   await Promise.allSettled([
-    fetchFeed('services', () => apiGetServices(null, null, userCity), v => { services = mergeCatalogWithCityDefaults(v, DEFAULT_SERVICES); }, () => { if (!services.length) services = DEFAULT_SERVICES; }),
-    fetchFeed('professionals', () => apiGetProfessionals(userCity), v => { professionals = mergeCatalogWithCityDefaults(v, DEFAULT_PROFESSIONALS, true); }, () => { if (!professionals.length) professionals = DEFAULT_PROFESSIONALS; }),
-    fetchFeed('salons', () => apiGetCatalogSalons({ city: userCity, lat: coords?.[0], lng: coords?.[1] }), v => { salons = mergeCatalogWithCityDefaults(v, DEFAULT_SALONS); }, () => { if (!salons.length) salons = DEFAULT_SALONS; }),
-    fetchFeed('products', apiGetProducts, v => { products = v; }, () => { if (!products.length) products = DEFAULT_PRODUCTS; })
+    fetchFeed('services', () => apiGetServices(null, null, userCity), v => { services = v; }),
+    fetchFeed('professionals', () => apiGetProfessionals(userCity), v => { professionals = v.filter(p => String(p.name || '').trim().toLowerCase() !== 'glamgo admin'); }),
+    fetchFeed('salons', () => apiGetCatalogSalons({ city: userCity, lat: coords?.[0], lng: coords?.[1] }), v => { salons = v; }),
+    fetchFeed('products', apiGetProducts, v => { products = v; })
   ]);
+  if (generation !== catalogRequestGeneration) return;
   state.catalogLoading = false;
   if (deferredRender && canSafelyBackgroundRender()) render();
 }
@@ -987,7 +862,7 @@ function header(){
     : '<button class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',15)+'</button>';
   const activeKey = getActiveSubnavKey();
   const navBtn = (act, label, key, extraAttrs='') => '<button data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
-  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="Open menu">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('shop-all','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('shop-collection','Best sellers','bestsellers','data-collection="BESTSELLER" data-target="bestsellers"')+navBtn('shop-collection','New arrivals','new-arrivals','data-collection="NEW" data-target="bestsellers"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle" aria-expanded="'+state.menu+'"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="'+(state.mobileMenu?'Close menu':'Open menu')+'" aria-expanded="'+state.mobileMenu+'">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('shop-all','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
 }
 
 function footer(){
@@ -995,15 +870,20 @@ function footer(){
 }
 
 function mobileNav(){
-  return '<nav class="mobile-bottom" aria-label="Mobile navigation"><button data-action="landing" class="'+(state.view==='landing'?'active':'')+'">'+icon('home',21)+'<span>Explore</span></button><button data-action="search-open">'+icon('search',21)+'<span>Search</span></button><button data-action="switch-toggle">'+icon('grid',21)+'<span>Switch</span></button><button data-action="cart">'+icon('bag',21)+'<span>Cart</span></button><button data-action="account" class="'+(state.view==='account'?'active':'')+'">'+icon('user',21)+'<span>Account</span></button></nav>';
+  return '<nav class="mobile-bottom" aria-label="Mobile navigation"><button data-action="landing" class="'+(state.view==='landing'?'active':'')+'">'+icon('home',21)+'<span>Explore</span></button><button data-action="search-open">'+icon('search',21)+'<span>Search</span></button><button data-action="switch-toggle" aria-expanded="'+state.mobileMenu+'">'+icon('grid',21)+'<span>Switch</span></button><button data-action="cart">'+icon('bag',21)+'<span>Cart</span></button><button data-action="account" class="'+(state.view==='account'?'active':'')+'">'+icon('user',21)+'<span>Account</span></button></nav>';
 }
 
 function homeCard(s){
-  return '<article class="service-card">'+image(s.img,s.name,'card-img')+'<button class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+s.id+'" aria-label="Save '+s.name+'">'+icon('heart',18)+'</button><div class="card-body"><span class="card-kicker">'+s.category.toUpperCase()+'</span><h3>'+s.name+'</h3><div class="card-meta">'+icon('clock',15)+s.duration+rating(s.rating,s.reviews)+'</div><div class="card-bottom"><strong>From '+money(s.price)+'</strong><button data-action="book-home" data-id="'+s.id+'">Book now '+icon('arrow',16)+'</button></div></div></article>';
+  return '<article class="service-card"><button class="listing-image-button" data-action="service-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name,'card-img')+'</button><button class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'" aria-label="Save '+esc(s.name)+'">'+icon('heart',18)+'</button><div class="card-body"><span class="card-kicker">'+esc(s.category)+'</span><h3>'+esc(s.name)+'</h3><div class="card-meta">'+icon('clock',15)+esc(s.duration)+'</div><div class="card-bottom"><strong>'+money(s.price)+'</strong><button data-action="service-detail" data-id="'+esc(s.id)+'">View service '+icon('arrow',16)+'</button></div></div></article>';
+}
+function serviceDetail(){
+  const s = services.find(x => String(x.id) === String(state.selectedService));
+  if (!s) return '<main class="detail-page">'+backButton('landing','Back to services')+(state.catalogFeedsLoading.services?catalogLoadingState('service details'):state.catalogErrors.services?catalogUnavailableState('Service details'):empty('spark','Service unavailable','This service is no longer listed.'))+'</main>';
+  return '<main class="detail-page">'+backButton('landing','Back to services')+'<div class="service-detail"><div class="service-detail-image">'+image(s.img,s.name)+'</div><div class="service-detail-copy"><p class="eyebrow">AT-HOME BEAUTY · '+esc(s.category)+'</p><h1>'+esc(s.name)+'</h1><p class="service-detail-intro">'+esc(s.desc || 'Explore this service and choose a professional during booking.')+'</p><div class="service-detail-facts"><div><span>Service price</span><strong>'+money(s.price)+'</strong></div><div><span>Duration</span><strong>'+esc(s.duration)+'</strong></div><div><span>Experience</span><strong>At your home</strong></div></div><p class="service-detail-note">Choose a professional, date and time in the next steps. Availability is confirmed during booking.</p><div class="service-detail-actions">'+button('Book this service '+icon('arrow',17),'book-home','btn-primary','data-id="'+esc(s.id)+'"')+'<button class="btn btn-outline" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'">'+icon('heart',17)+' '+(state.wishlist.includes(s.id)?'Saved':'Save service')+'</button></div></div></div><section class="detail-block service-detail-about"><p class="eyebrow">YOUR BEAUTY, YOUR WAY</p><h2>Care that comes to you.</h2><p>Discover the service, choose an independent professional, and plan your appointment in one place.</p></section>'+listingReviewSection('service',s.id)+'</main>';
 }
 
 function professionalCard(p){
-  return '<article class="pro-card"><div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+p.name+'</h3><span>'+p.specialty+'</span></div></div><p>'+p.experience+'</p><div class="verified">'+icon('shield',15)+' GlamGo verified</div><div class="pro-bottom">'+rating(p.rating,p.reviews)+'<span>From '+money(p.price)+'</span></div><button class="pro-book" data-action="book-pro" data-id="'+p.id+'">View availability '+icon('arrow',16)+'</button></article>';
+  return '<article class="pro-card"><div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+esc(p.name)+'</h3><span>'+esc(p.specialty)+'</span></div></div><p>'+esc(p.experience)+'</p><div class="pro-bottom">'+''+'<span>From '+money(p.price)+'</span></div><button class="pro-book" data-action="book-pro" data-id="'+p.id+'">View availability '+icon('arrow',16)+'</button></article>';
 }
 
 function homePage(){
@@ -1029,7 +909,7 @@ function homePage(){
       ? catalogUnavailableState('Professionals directory')
       : cityPros.length
         ? '<div class="pro-grid">'+cityPros.map(professionalCard).join('')+'</div>'
-        : empty('user','No specialists listed in '+esc(userCity)+' yet','We are expanding our vetted at-home roster across new cities.');
+        : empty('user','No specialists listed in '+esc(userCity)+' yet','Try another city or check back later.');
   const homeCategoryImages = {
     Hair: './assets/cat-hair.webp',
     Skin: photo('photo-1570172619644-dfd03ed5d881', 640),
@@ -1040,12 +920,12 @@ function homePage(){
     Spa: photo('photo-1540555700478-4be289fbecef', 640),
     Packages: photo('photo-1515377905703-c4788e51af15', 640)
   };
-  return '<main><section class="home-hero"><div class="hero-copy"><p class="eyebrow line-eyebrow">BEAUTY, BROUGHT TO YOU</p><h1>Professional beauty care. <em>Right at your doorstep.</em></h1><p>Expert hands, thoughtful rituals and time for yourself—beautifully brought to the comfort of home.</p><div class="hero-buttons">'+button('Book a service '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+button('How it works','scroll','btn-outline','data-target="how"')+'</div><div class="hero-proof"><span>'+icon('shield',17)+' Verified professionals</span><span>'+icon('spark',17)+' Care chosen for you</span></div></div><div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'<div class="visual-note"><span>THE GLAMGO EDIT</span><strong>Your moment of care,<br>in your own space.</strong></div></div></section><section class="search-strip"><div><span class="eyebrow">WHAT FEELS GOOD TODAY?</span><h2>Find your next moment of care.</h2></div><button data-action="search-open">'+icon('search',19)+' Search for a service <span>Explore '+icon('arrow',16)+'</span></button></section><section class="section" id="categories">'+sectionHead('EXPLORE BY CATEGORY','The care you\'re looking for.','From a little refresh to a complete ritual.')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span>'+icon('arrow',17)+'</button>').join('')+'</div></section><section class="section soft-section" id="popular">'+sectionHead('BOOK WHAT YOU LOVE','Popular home services in '+esc(userCity)+'.','Expert care for the moments that matter.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</section><section class="section" id="professionals">'+sectionHead('IN GOOD HANDS','Meet your beauty experts.','Verified professionals available in '+esc(userCity)+'.','<span class="section-aside">Personal service, every time.</span>')+' '+prosSection+'</section><section class="how-section" id="how"><div class="how-heading"><p class="eyebrow">SIMPLE BY DESIGN</p><h2>A beautiful experience, <em>from start to finish.</em></h2></div><div class="steps">'+[['01','Choose your service','Find the treatment or package that feels right.'],['02','Meet your professional','Select an expert whose style suits you.'],['03','Pick your moment','Book a date and time that fits your day.'],['04','Enjoy your service','Make room for beauty, right at home.']].map(x=>'<div class="step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('')+'</div></section><section class="section package-section"><div class="package-image">'+image(images.spa,'Relaxing beauty ritual')+'</div><div class="package-copy"><p class="eyebrow">THE GLAMGO RITUAL</p><h2>Make time for <em>all of you.</em></h2><p>The Complete Glow brings together facial care, manicure and hair styling into one unhurried moment.</p><div class="package-price">From '+money(3299)+' <span>· 150 minutes</span></div>'+button('Explore the package '+icon('arrow',17),'book-home','btn-primary','data-id="s8"')+'</div></section><section class="section review-section">'+sectionHead('YOUR EXPERIENCE MATTERS','Care worth coming back to.','After every booking, your feedback helps shape a better GlamGo.')+'<div class="review-panel">'+icon('star',30)+'<div><h3>Your voice belongs here.</h3><p>Book a service and share a review from your account after your appointment.</p></div>'+button('Explore services '+icon('arrow',17),'scroll','btn-outline','data-target="popular"')+'</div></section></main>';
+  return '<main><section class="home-hero"><div class="hero-copy"><p class="eyebrow line-eyebrow">BEAUTY, BROUGHT TO YOU</p><h1>Professional beauty care. <em>Right at your doorstep.</em></h1><p>Expert hands, thoughtful rituals and time for yourself—beautifully brought to the comfort of home.</p><div class="hero-buttons">'+button('Book a service '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+button('How it works','scroll','btn-outline','data-target="how"')+'</div><div class="hero-proof"><span>'+icon('spark',17)+' Independent professionals</span><span>'+icon('spark',17)+' Care chosen for you</span></div></div><div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'<div class="visual-note"><span>THE GLAMGO EDIT</span><strong>Your moment of care,<br>in your own space.</strong></div></div></section><section class="search-strip"><div><span class="eyebrow">WHAT FEELS GOOD TODAY?</span><h2>Find your next moment of care.</h2></div><button data-action="search-open">'+icon('search',19)+' Search for a service <span>Explore '+icon('arrow',16)+'</span></button></section><section class="section" id="categories">'+sectionHead('EXPLORE BY CATEGORY','The care you\'re looking for.','From a little refresh to a complete ritual.')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span>'+icon('arrow',17)+'</button>').join('')+'</div></section><section class="section soft-section" id="popular">'+sectionHead('BOOK WHAT YOU LOVE','Home services in '+esc(userCity)+'.','Expert care for the moments that matter.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'" aria-pressed="'+(state.homeCategory===c)+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</section><section class="section" id="professionals">'+sectionHead('IN GOOD HANDS','Meet your beauty experts.','Explore professionals available in '+esc(userCity)+'.','<span class="section-aside">Personal service, every time.</span>')+' '+prosSection+'</section><section class="how-section" id="how"><div class="how-heading"><p class="eyebrow">SIMPLE BY DESIGN</p><h2>A beautiful experience, <em>from start to finish.</em></h2></div><div class="steps">'+[['01','Choose your service','Find the treatment or package that feels right.'],['02','Meet your professional','Select an expert whose style suits you.'],['03','Pick your moment','Book a date and time that fits your day.'],['04','Enjoy your service','Make room for beauty, right at home.']].map(x=>'<div class="step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('')+'</div></section><section class="section package-section"><div class="package-image">'+image(images.spa,'Relaxing beauty ritual')+'</div><div class="package-copy"><p class="eyebrow">THE GLAMGO EDIT</p><h2>Make time for <em>all of you.</em></h2><p>Explore spa services from independent beauty professionals and find a moment that feels right for you.</p>'+button('Explore spa services '+icon('arrow',17),'home-category','btn-primary','data-id="Spa"')+'</div></section><section class="section review-section">'+sectionHead('YOUR EXPERIENCE MATTERS','Care worth coming back to.','After every booking, your feedback helps shape a better GlamGo.')+'<div class="review-panel">'+icon('star',30)+'<div><h3>Your voice belongs here.</h3><p>Book a service and share a review from your account after your appointment.</p></div>'+button('Explore services '+icon('arrow',17),'scroll','btn-outline','data-target="popular"')+'</div></section></main>';
 }
 
 function salonCard(s){
-  const distText = (s.distanceLabel || s.distance) + (typeof s.isFar === 'boolean' ? ' · ' + (s.isFar ? 'Far from you' : 'Near you') : '');
-  return '<article class="salon-card"><div class="salon-image">'+image(s.img,s.name+' salon','card-img')+'<span>'+s.tag+'</span></div><div class="salon-body"><div class="salon-title"><h3>'+s.name+'</h3>'+rating(s.rating,s.reviews)+'</div><p>'+icon('pin',15)+esc(s.area)+' <i>·</i> '+esc(distText)+'</p><div class="salon-services">'+s.services.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="card-bottom"><strong>Services from '+money(s.price)+'</strong><button data-action="salon-detail" data-id="'+s.id+'">View salon '+icon('arrow',16)+'</button></div></div></article>';
+  const distText = s.distanceLabel || '';
+  return '<article class="salon-card"><div class="salon-image">'+image(s.img,s.name+' salon','card-img')+'</div><div class="salon-body"><div class="salon-title"><h3>'+s.name+'</h3>'+''+'</div><p>'+icon('pin',15)+esc(s.area)+(distText?' <i>·</i> '+esc(distText):'')+'</p><div class="salon-services">'+s.services.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="card-bottom"><strong>Services from '+money(s.price)+'</strong><button data-action="salon-detail" data-id="'+s.id+'">View salon '+icon('arrow',16)+'</button></div></div></article>';
 }
 
 function salonPage(){
@@ -1053,42 +933,42 @@ function salonPage(){
   const citySalons = salons
     .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase())
     .map(enrichSalonWithDistance);
-  const maxKm = state.salonDistanceFilter === 'all'
+  const maxKm = !Array.isArray(state.userCoords) || state.salonDistanceFilter === 'all'
     ? Infinity
     : state.salonDistanceFilter === 'nearest'
       ? NEAR_SALON_RADIUS_KM
       : Number(state.salonDistanceFilter || Infinity);
-  let list = citySalons.filter(s => (state.salonCategory === 'All' || s.services.includes(state.salonCategory)) && s.distanceKm <= maxKm);
+  let list = citySalons.filter(s => (state.salonCategory === 'All' || s.services.includes(state.salonCategory)) && (maxKm === Infinity || (s.distanceKm != null && s.distanceKm <= maxKm)));
   if(state.sort === 'rating') list = [...list].sort((a,b) => Number(b.rating) - Number(a.rating));
   else if(state.sort === 'price') list = [...list].sort((a,b) => a.price - b.price);
-  else list = [...list].sort((a,b) => Number(a.distanceKm) - Number(b.distanceKm));
-  const nearbyCount = citySalons.filter(s => !s.isFar).length;
+  else list = [...list].sort((a,b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+  const nearbyCount = citySalons.filter(s => s.isFar === false).length;
+  const hasDistances = citySalons.some(s => s.distanceKm != null);
   const distanceOptions = [
     { id: 'all', label: 'All distances' },
     { id: 'nearest', label: 'Near you (≤8 km)' },
     { id: '5', label: 'Within 5 km' },
     { id: '10', label: 'Within 10 km' }
   ];
-  const distanceRow = '<div class="filter-row" style="margin:-14px 0 26px">' +
+  const distanceRow = !hasDistances ? '' : '<div class="filter-row" style="margin:-14px 0 26px">' +
     distanceOptions.map(opt => '<button type="button" class="filter-chip '+((state.salonDistanceFilter||'all')===opt.id?'active':'')+'" data-action="salon-distance" data-id="'+opt.id+'">'+esc(opt.label)+'</button>').join('') +
     '</div>';
   const salonsSection = !salons.length && state.catalogFeedsLoading.salons
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search','No salons match this distance or category','Try All distances or switch city to discover more spaces.', '<button type="button" class="btn btn-outline" data-action="salon-distance" data-id="all">Show all distances</button>'));
-  return '<main><section class="salon-hero"><div class="salon-hero-image">'+image(SALON_IMG,'Luxury contemporary salon interior')+'</div><div class="salon-hero-copy"><p class="eyebrow line-eyebrow">THE SALON EDIT</p><h1>Discover salons that make you <em>feel your best.</em></h1><p>Beautiful spaces, trusted hands and the perfect appointment—sorted by distance from '+esc(state.location)+'.</p>'+button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</div></section><section class="salon-search-box"><div><label>WHERE</label><button data-action="location">'+icon('pin',18)+esc(state.location)+'</button></div><div><label>WHAT</label><button data-action="search-open">'+icon('search',18)+' Service or salon name</button></div><div><label>WHEN</label><button data-action="salon-date">'+icon('calendar',18)+' '+(state.salonDate?formatDate(state.salonDate):'Choose a date')+'</button></div>'+button('Find salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</section><section class="section" id="salon-categories">'+sectionHead('FIND YOUR FIT','An appointment for every mood.','Discover a salon by the care you have in mind.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="salons">'+sectionHead('CURATED NEAR YOU','Salons in '+esc(userCity)+'.',(citySalons.length?(nearbyCount+' near you (≤8 km) · '+citySalons.length+' studios around '+esc(state.location)):('Thoughtful spaces around '+esc(state.location)+'.')))+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+((state.sort==='featured'||state.sort==='nearest')?'selected':'')+'>Nearest first</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+distanceRow+salonsSection+'</section><section class="section salon-note"><div><p class="eyebrow">A LITTLE MORE PERSONAL</p><h2>Find your place. <em>Feel at home.</em></h2><p>Browse real services and available times before you commit to an appointment.</p></div>'+button('View appointments '+icon('arrow',17),'account-bookings','btn-outline')+'</section></main>';
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try another category or distance.':'Try another city or check back later.', (hasDistances && state.salonDistanceFilter!=='all'?'<button type="button" class="btn btn-outline" data-action="salon-distance" data-id="all">Show all distances</button>':'')));
+  return '<main><section class="salon-hero"><div class="salon-hero-image">'+image(SALON_IMG,'Luxury contemporary salon interior')+'</div><div class="salon-hero-copy"><p class="eyebrow line-eyebrow">THE SALON EDIT</p><h1>Discover salons that make you <em>feel your best.</em></h1><p>Explore independent salons and parlours in '+esc(userCity)+'.</p>'+button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</div></section><section class="salon-search-box"><div><label>WHERE</label><button data-action="location">'+icon('pin',18)+esc(state.location)+'</button></div><div><label>WHAT</label><button data-action="search-open">'+icon('search',18)+' Service or salon name</button></div>'+button('Find salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</section><section class="section" id="salon-categories">'+sectionHead('FIND YOUR FIT','An appointment for every mood.','Discover a salon by the care you have in mind.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="salons">'+sectionHead('DISCOVER SALONS','Salons in '+esc(userCity)+'.',(citySalons.length?(citySalons.length+(citySalons.length===1?' salon in ':' salons in ')+esc(userCity)+(hasDistances?' · '+nearbyCount+' within 8 km':'')):('Discover independent salons in '+esc(userCity)+'.')))+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'" aria-pressed="'+(state.salonCategory===c)+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+((state.sort==='featured'||state.sort==='nearest')?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+distanceRow+salonsSection+'</section><section class="section salon-note"><div><p class="eyebrow">A LITTLE MORE PERSONAL</p><h2>Find your place. <em>Feel at home.</em></h2><p>Explore a salon’s services before you plan your visit.</p></div>'+button('View appointments '+icon('arrow',17),'account-bookings','btn-outline')+'</section></main>';
 }
 
 const backButton = (act, label = 'Go back') => '<button class="back-link" data-action="'+act+'" aria-label="'+esc(label)+'" title="'+esc(label)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
 function salonDetail(){
-  const rawSalon = salons.find(x => x.id === state.selectedSalon) || salons[0];
-  if (!rawSalon) {
-    return '<main class="detail-page">'+backButton('landing','Back to salons')+(state.catalogFeedsLoading.salons?catalogLoadingState('salon details'):catalogUnavailableState('Salon details'))+'</main>';
-  }
+  const rawSalon = salons.find(x => String(x.id) === String(state.selectedSalon));
+  if (!rawSalon) return '<main class="detail-page">'+backButton('landing','Back to salons')+(state.catalogFeedsLoading.salons?catalogLoadingState('salon details'):state.catalogErrors.salons?catalogUnavailableState('Salon details'):empty('salon','Salon unavailable','This salon is no longer listed.'))+'</main>';
   const s = enrichSalonWithDistance(rawSalon);
-  const staffList = (s.staff && s.staff.length) ? s.staff : professionals.slice(0, 2);
-  return '<main class="detail-page">'+backButton('landing','Back to salons')+'<div class="salon-detail-gallery"><div>'+image(s.img,s.name+' interior')+'</div><div>'+image(images.salon2,'Salon styling space')+image(images.salon3,'Salon seating')+'</div></div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+s.name+'</h1><p>'+icon('pin',17)+s.area+' · '+(s.distanceLabel||s.distance)+' · '+(s.isFar?'Far from you':'Near you')+'</p></div><div class="detail-header-rating">'+rating(s.rating,s.reviews)+'<span>Verified by GlamGo</span></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+s.about+'</p></section><section class="detail-block"><h2>Services & pricing</h2>'+s.services.map((c,i)=>'<div class="service-line"><div><strong>'+({Hair:'Signature cut & style',Skin:'Radiance facial',Nails:'Classic manicure',Makeup:'Occasion makeup',Spa:'Restorative ritual'}[c]||c)+'</strong><span>'+c+' · '+[60,75,50,90,60][i%5]+' min</span></div><strong>From '+money(s.price+i*350)+'</strong><button data-action="book-salon" data-id="'+s.id+'" data-service="'+c+'">Book</button></div>').join('')+'</section><section class="detail-block"><h2>Our team</h2><div class="staff-row">'+staffList.map(p=>'<div>'+image(p.img||images.pro1,p.name)+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section><section class="detail-block"><h2>Reviews</h2><p>'+rating(s.rating,s.reviews)+' &nbsp; Rated by GlamGo customers. Reviews appear here after completed appointments.</p></section></div><aside class="detail-aside"><h3>Plan your visit</h3><p>'+icon('pin',17)+s.area+'</p><p>'+icon('clock',17)+'Open daily · '+s.hours+'</p><div class="map-placeholder"><span>'+icon('pin',30)+'</span><strong>'+s.area+'</strong><small>'+(s.distanceLabel||s.distance)+'</small></div>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+s.id+'"')+'</aside></div></main>';
+  const staff = Array.isArray(s.staff) ? s.staff : [];
+  const categories = Array.isArray(s.services) ? s.services : [];
+  return '<main class="detail-page">'+backButton('landing','Back to salons')+'<div class="salon-profile-image">'+image(s.img,s.name+' salon')+'</div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+esc(s.name)+'</h1><p>'+icon('pin',17)+esc(s.area)+(s.distanceLabel?' · '+esc(s.distanceLabel):'')+'</p></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+esc(s.about||'Discover the services offered by this independent salon.')+'</p></section><section class="detail-block"><h2>Explore services</h2><p>Explore the categories offered by this salon, then choose a service in the booking flow.</p>'+(categories.length?categories.map(c=>'<div class="service-line"><div><strong>'+esc(c)+'</strong></div></div>').join(''):'<p>Service categories are not available yet.</p>')+'</section><section class="detail-block"><h2>Meet the team</h2>'+(staff.length?'<div class="staff-row">'+staff.map(p=>'<div>'+(p.img?image(p.img,p.name):'')+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Beauty professional')+'</span></div>').join('')+'</div>':'<p>Team information has not been added yet.</p>')+'</section>'+listingReviewSection('salon',s.id)+'</div><aside class="detail-aside"><p class="eyebrow">YOUR VISIT</p><h3>Plan your appointment</h3><p>'+icon('pin',17)+esc(s.area)+'</p>'+(s.hours?'<p>'+icon('clock',17)+esc(s.hours)+'</p>':'')+(s.price!=null?'<p>Services from <strong>'+money(s.price)+'</strong></p>':'')+'<p>Choose a service and appointment time in the booking flow.</p>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+esc(s.id)+'"')+'</aside></div></main>';
 }
 
 function productCard(p){
@@ -1102,15 +982,16 @@ function productCard(p){
   const tagClass = p.tag ? 'tag-' + String(p.tag).toLowerCase().replace(/[^a-z0-9]+/g,'-') : '';
   const btnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added '+icon('check',15) : 'Add to Bag';
   const sizeHint = p.variants && p.variants.length ? (p.variants.length > 1 ? defaultVariant + ' · ' + p.variants.length + ' options' : defaultVariant) : '';
-  return '<article class="product-card"><div class="product-image" data-action="product-detail" data-id="'+p.id+'">'+image(p.img,p.name)+(p.tag?'<span class="product-tag '+tagClass+'">'+esc(p.tag)+'</span>':'')+'<button class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button></div><div class="product-body"><span class="product-brand">'+esc(p.brand)+'</span><button class="product-name" data-action="product-detail" data-id="'+p.id+'">'+esc(p.name)+'</button><div class="product-rating">'+rating(p.rating,p.reviews)+'</div>'+(sizeHint||stockInfo.low?'<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>':'')+'<div class="product-bottom"><div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div><button class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+p.id+'"'+(defaultVariant?' data-variant="'+esc(defaultVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button></div></div></article>';
+  return '<article class="product-card"><div class="product-image" data-action="product-detail" data-id="'+p.id+'">'+image(p.img,p.name)+''+'<button class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button></div><div class="product-body"><span class="product-brand">'+esc(p.brand)+'</span><button class="product-name" data-action="product-detail" data-id="'+p.id+'">'+esc(p.name)+'</button>'+(sizeHint||stockInfo.low?'<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>':'')+'<div class="product-bottom"><div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div><button class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+p.id+'"'+(defaultVariant?' data-variant="'+esc(defaultVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button></div></div></article>';
 }
 
 function shopPage(){
+  if (!['All','OFFERS'].includes(state.shopCollection)) state.shopCollection = 'All';
   const list = getFilteredShopProducts(products);
   const catalogDown = !products.length && state.catalogErrors.products;
   const catalogBusy = !products.length && state.catalogFeedsLoading.products;
   const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
-  const visibleCollections = shopCollections.filter(col => col.id === 'All' || products.some(p => matchesShopCollection(p, col.id)));
+  const visibleCollections = shopCollections.filter(col => col.id === 'All' || (col.id === 'OFFERS' && products.some(p => getDiscountPct(p) > 0)));
   const activeFilters = [];
   if (state.shopCollection !== 'All') {
     const colObj = shopCollections.find(c => c.id === state.shopCollection);
@@ -1130,17 +1011,17 @@ function shopPage(){
     ? catalogLoadingState('beauty store')
     : catalogDown
       ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
-      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search','No products match these filters','Try clearing one of your active filters or explore the full edit.')+'<div class="empty-actions">'+button('Reset all filters '+icon('arrow',16),'shop-reset','btn-outline')+'</div></div>');
-  const brandButtons = (shopBrands.length > 1 ? shopBrands.slice(1) : ['LUMIÈRE','THE BOTANIST','VELVET FORM','MAISON CALME']).map(b => '<button class="brand-pill'+(state.shopBrand===b?' active':'')+'" data-action="shop-brand" data-id="'+esc(b)+'">'+esc(b)+'</button>').join('');
+      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length?'No products match these filters':'No products are listed yet',products.length?'Try clearing one of your active filters or explore the full edit.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Reset all filters '+icon('arrow',16),'shop-reset','btn-outline')+'</div></div>');
+  const brandButtons = shopBrands.slice(1).map(b => '<button class="brand-pill'+(state.shopBrand===b?' active':'')+'" data-action="shop-brand" data-id="'+esc(b)+'">'+esc(b)+'</button>').join('');
 
-  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Complimentary delivery</span><span>'+icon('shield',18)+' Authentic products</span></div><div class="shop-mobile-search"><button class="mobile-search-trigger" data-action="search-open" aria-label="Search beauty store products, ingredients or brands">'+icon('search',18)+'<span>Search products, brands or ingredients</span></button></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
+  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Explore beauty sellers</span><span>'+icon('spark',18)+' Beauty for your routine</span></div><div class="shop-mobile-search"><button class="mobile-search-trigger" data-action="search-open" aria-label="Search beauty store products, ingredients or brands">'+icon('search',18)+'<span>Search products, brands or ingredients</span></button></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
     const count = products.filter(p => p.category === c).length;
     return '<button class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
-  }).join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen formulas filtered by category, edit, brand and price.')+'<div class="collection-pills" role="group" aria-label="Filter by collection">'+visibleCollections.map(col => '<button class="collection-pill'+(state.shopCollection===col.id?' active':'')+'" data-action="shop-collection" data-collection="'+col.id+'">'+col.label+'</button>').join('')+'</div><div class="listing-tools"><div class="filter-row" role="group" aria-label="Filter by category">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><div class="shop-controls-right">'+(shopBrands.length>2?'<label class="sort-label">Brand <select id="shop-brand-select" aria-label="Filter by brand">'+shopBrands.map(b=>'<option value="'+esc(b)+'" '+(state.shopBrand===b?'selected':'')+'>'+esc(b==='All'?'All brands':b)+'</option>').join('')+'</select></label>':'')+'<label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price-asc" '+(state.sort==='price-asc'||state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="price-desc" '+(state.sort==='price-desc'?'selected':'')+'>Price: high to low</option><option value="rating" '+(state.sort==='rating'?'selected':'')+'>Top rated</option><option value="reviews" '+(state.sort==='reviews'?'selected':'')+'>Most reviewed</option></select></label></div></div>'+(products.length?'<div class="shop-shelf-meta"><span class="shelf-count">Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products')+'</span>'+(hasFilters?'<div class="active-filters">'+activeFilters.map(f=>'<button class="active-filter-chip" data-action="'+f.action+'" data-id="'+esc(f.id)+'" data-collection="All" aria-label="Remove '+esc(f.label)+' filter">'+esc(f.label)+' '+icon('close',13)+'</button>').join('')+'<button class="reset-filters-link" data-action="shop-reset">Reset all</button></div>':'')+'</div>':'')+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore the pieces that make every day feel a little more yours.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section><section class="brand-section"><p class="eyebrow">THE BRANDS WE LOVE</p><div>'+brandButtons+'</div></section></main>';
+  }).join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen formulas filtered by category, edit, brand and price.')+'<div class="collection-pills" role="group" aria-label="Filter by collection">'+visibleCollections.map(col => '<button class="collection-pill'+(state.shopCollection===col.id?' active':'')+'" data-action="shop-collection" data-collection="'+col.id+'" aria-pressed="'+(state.shopCollection===col.id)+'">'+col.label+'</button>').join('')+'</div><div class="listing-tools"><div class="filter-row" role="group" aria-label="Filter by category">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'" aria-pressed="'+(state.shopCategory===c)+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><div class="shop-controls-right">'+(shopBrands.length>2?'<label class="sort-label">Brand <select id="shop-brand-select" aria-label="Filter by brand">'+shopBrands.map(b=>'<option value="'+esc(b)+'" '+(state.shopBrand===b?'selected':'')+'>'+esc(b==='All'?'All brands':b)+'</option>').join('')+'</select></label>':'')+'<label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price-asc" '+(state.sort==='price-asc'||state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="price-desc" '+(state.sort==='price-desc'?'selected':'')+'>Price: high to low</option></select></label></div></div>'+(products.length?'<div class="shop-shelf-meta"><span class="shelf-count">Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products')+'</span>'+(hasFilters?'<div class="active-filters">'+activeFilters.map(f=>'<button class="active-filter-chip" data-action="'+f.action+'" data-id="'+esc(f.id)+'" data-collection="All" aria-label="Remove '+esc(f.label)+' filter">'+esc(f.label)+' '+icon('close',13)+'</button>').join('')+'<button class="reset-filters-link" data-action="shop-reset">Reset all</button></div>':'')+'</div>':'')+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore products offered by beauty sellers on GlamGo.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section>'+(brandButtons?'<section class="brand-section"><p class="eyebrow">DISCOVER BRANDS</p><div>'+brandButtons+'</div></section>':'')+'</main>';
 }
 
 function productDetail(){
-  const p = products.find(x => x.id === state.selectedProduct) || products[0];
+  const p = products.find(x => String(x.id) === String(state.selectedProduct));
   if (!p) {
     return '<main class="detail-page">'+backButton('landing','Back to shop')+(state.catalogFeedsLoading.products?catalogLoadingState('product details'):catalogUnavailableState('Product details'))+'</main>';
   }
@@ -1158,9 +1039,9 @@ function productDetail(){
   const detailBtnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added to Bag '+icon('check',17) : 'Add to Bag '+icon('bag',18);
   const offersData = state.productOffers ? state.productOffers[p.id] : null;
   const offers = (offersData && offersData.offers) || [];
-  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Verified partners fulfilling this product with real-time stock.</p>'+offers.map(off=>{
+  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Explore available offers from marketplace sellers.</p>'+offers.map(off=>{
     const offerVariant = off.variant_name || variant || '';
-    return '<div class="offer-row"><div><strong>'+esc(off.seller_name||'Certified Merchant')+'</strong><small>'+(offerVariant?esc(offerVariant)+' · ':'')+'SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'" data-listing="'+off.id+'"'+(offerVariant?' data-variant="'+esc(offerVariant)+'"':'')+(off.stock<=0?' disabled':'')+'>Select Offer</button></div></div>';
+    return '<div class="offer-row"><div><strong>'+esc(off.seller_name||'Marketplace seller')+'</strong><small>'+(offerVariant?esc(offerVariant)+' · ':'')+'SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'" data-listing="'+off.id+'"'+(offerVariant?' data-variant="'+esc(offerVariant)+'"':'')+(off.stock<=0?' disabled':'')+'>Select Offer</button></div></div>';
   }).join('')+'</div>' : '';
 
   const ingredientItems = parseIngredientsList(p.ingredients);
@@ -1170,31 +1051,33 @@ function productDetail(){
 
   let tabPanelHtml = '';
   if (activeTab === 'details') {
-    tabPanelHtml = '<p class="pdp-tab-copy">'+esc(p.description)+'</p><dl class="pdp-specs"><div><dt>Brand</dt><dd>'+esc(p.brand)+'</dd></div><div><dt>Category</dt><dd>'+esc(shopCategoryLabel(p.category))+'</dd></div>'+(variants.length?'<div><dt>Available options</dt><dd>'+esc(variants.join(', '))+'</dd></div>':'')+'<div><dt>Availability</dt><dd>'+esc(stockInfo.label)+'</dd></div>'+(p.tag?'<div><dt>Edit</dt><dd>'+esc(p.tag)+'</dd></div>':'')+'</dl>';
+    tabPanelHtml = '<p class="pdp-tab-copy">'+esc(p.description)+'</p><dl class="pdp-specs"><div><dt>Brand</dt><dd>'+esc(p.brand)+'</dd></div><div><dt>Category</dt><dd>'+esc(shopCategoryLabel(p.category))+'</dd></div>'+(variants.length?'<div><dt>Available options</dt><dd>'+esc(variants.join(', '))+'</dd></div>':'')+'<div><dt>Availability</dt><dd>'+esc(stockInfo.label)+'</dd></div>'+''+'</dl>';
   } else if (activeTab === 'ingredients') {
     tabPanelHtml = ingredientItems.length
       ? '<p class="pdp-tab-sub">Key botanicals and formulation ingredients listed for this product:</p><div class="ingredient-chips">'+ingredientItems.map(ing=>'<span class="ingredient-chip">'+esc(ing)+'</span>').join('')+'</div><p class="pdp-tab-note">Full ingredient breakdown: '+esc(p.ingredients)+'</p>'
       : '<p class="pdp-tab-copy">See outer product packaging for complete batch ingredients.</p>';
   } else if (activeTab === 'delivery') {
-    tabPanelHtml = '<div class="pdp-policy-list"><div><strong>Shipping</strong><p>Complimentary delivery across India calculated transparently at checkout.</p></div><div><strong>Authenticity</strong><p>100% authentic curated inventory fulfilled from verified stock ('+esc(stockInfo.label)+').</p></div><div><strong>Returns &amp; Support</strong><p>Delivered orders can request returns directly from <em>My orders</em> or via <code>care@glamgo.example</code>.</p></div></div>';
+    tabPanelHtml = '<div class="pdp-policy-list"><div><strong>Delivery</strong><p>Available delivery options and charges are shown during checkout.</p></div><div><strong>Returns &amp; support</strong><p>For help with an order, visit My orders or contact customer support.</p></div></div>';
   } else {
     const reviewsBody = reviewState?.loading
       ? '<p class="pdp-tab-sub">Loading customer reviews…</p>'
-      : liveReviews.length
-        ? '<div class="pdp-review-list">'+liveReviews.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name||'Verified buyer')+'</strong><span class="rating">'+icon('star',14)+' '+Number(r.rating||0)+'</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>'
-        : '<p class="pdp-tab-sub">Rated '+p.rating+' across '+p.reviews+' ratings. Detailed written feedback appears here once delivered buyers submit a review from My orders.</p>';
-    tabPanelHtml = '<div class="pdp-review-summary"><div><strong>'+Number(p.rating||0).toFixed(1)+'</strong><span class="rating">'+icon('star',15)+' · '+p.reviews+' ratings</span></div></div>'+reviewsBody;
+      : reviewState?.error
+        ? '<p class="pdp-tab-sub">Reviews could not be loaded. Please try again later.</p>'
+        : liveReviews.length
+          ? '<div class="pdp-review-list">'+liveReviews.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name||'GlamGo customer')+'</strong><span class="rating">'+icon('star',14)+' '+Number(r.rating||0)+'</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>'
+          : '<p class="pdp-tab-sub">No customer reviews to show yet.</p>';
+    tabPanelHtml = reviewsBody;
   }
 
   const related = getRelatedProducts(p, 3);
   const relatedHtml = related.length
-    ? '<section class="pdp-related" aria-label="Pairs well with"><div class="pdp-related-head"><div><p class="eyebrow">COMPLETE THE ROUTINE</p><h2>More from the beauty shelf</h2></div>'+button('Browse full edit '+icon('arrow',16),'shop-all','btn-outline')+'</div><div class="product-grid pdp-related-grid">'+related.map(productCard).join('')+'</div></section>'
+    ? '<section class="pdp-related" aria-label="More in this category"><div class="pdp-related-head"><div><p class="eyebrow">MORE TO DISCOVER</p><h2>More from the beauty shelf</h2></div>'+button('Browse full edit '+icon('arrow',16),'shop-all','btn-outline')+'</div><div class="product-grid pdp-related-grid">'+related.map(productCard).join('')+'</div></section>'
     : '';
 
-  return '<main class="detail-page"><nav class="pdp-breadcrumb" aria-label="Breadcrumb"><button data-action="shop-all">Beauty Store</button><span>/</span><button data-action="shop-category" data-id="'+esc(p.category)+'">'+esc(shopCategoryLabel(p.category))+'</button><span>/</span><span aria-current="page">'+esc(p.name)+'</span></nav><div class="product-detail"><div class="product-detail-image">'+image(p.img,p.name)+(p.tag?'<span class="product-tag">'+esc(p.tag)+'</span>':'')+(discountPct>0?'<span class="pdp-discount-badge">'+discountPct+'% OFF</span>':'')+'</div><div class="product-detail-info"><div class="pdp-brand-row"><button class="eyebrow pdp-brand-link" data-action="shop-brand" data-id="'+esc(p.brand)+'">'+esc(p.brand)+'</button>'+(p.tag?'<span class="pdp-edit-pill">'+esc(p.tag)+'</span>':'')+'</div><h1>'+esc(p.name)+'</h1><div class="pdp-rating-row"><button class="pdp-rating-jump" data-action="pdp-reviews-jump" aria-label="Jump to product reviews">'+rating(p.rating,p.reviews)+'</button><span class="stock-pill '+(stockInfo.soldOut?'out':stockInfo.low?'low':'in')+'">'+esc(stockInfo.label)+'</span></div><div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+' ('+discountPct+'% off)</span>':'')+'</div><p class="pdp-tax-note">Inclusive of all taxes · Complimentary delivery across India</p>'+(couponSave>0?'<div class="pdp-coupon-banner"><div><strong>Save with code GLAM10</strong><span>Get 10% off up to ₹300 · Est. '+money(couponPrice)+'</span></div><button class="btn-link-accent" data-action="apply-pdp-coupon" data-code="GLAM10">'+(couponApplied?'Code applied '+icon('check',14):'Apply code')+'</button></div>':'')+'<p class="product-desc">'+esc(p.description)+'</p>'+(variants.length?'<div class="variant-select"><span>'+getVariantHeading(p,variants)+'</span><div>'+variants.map(v=>{
+  return '<main class="detail-page"><nav class="pdp-breadcrumb" aria-label="Breadcrumb"><button data-action="shop-all">Beauty Store</button><span>/</span><button data-action="shop-category" data-id="'+esc(p.category)+'">'+esc(shopCategoryLabel(p.category))+'</button><span>/</span><span aria-current="page">'+esc(p.name)+'</span></nav><div class="product-detail"><div class="product-detail-image">'+image(p.img,p.name)+''+(discountPct>0?'<span class="pdp-discount-badge">'+discountPct+'% OFF</span>':'')+'</div><div class="product-detail-info"><div class="pdp-brand-row"><button class="eyebrow pdp-brand-link" data-action="shop-brand" data-id="'+esc(p.brand)+'">'+esc(p.brand)+'</button>'+''+'</div><h1>'+esc(p.name)+'</h1><div class="pdp-rating-row"><button class="pdp-rating-jump" data-action="pdp-reviews-jump">Customer reviews</button><span class="stock-pill '+(stockInfo.soldOut?'out':stockInfo.low?'low':'in')+'">'+esc(stockInfo.label)+'</span></div><div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+' ('+discountPct+'% off)</span>':'')+'</div>'+'<p class="product-desc">'+esc(p.description)+'</p>'+(variants.length?'<div class="variant-select"><span>'+getVariantHeading(p,variants)+'</span><div>'+variants.map(v=>{
     const vStock = getStockInfo(p, v);
     return '<button class="'+(v===variant?'active':'')+(vStock.soldOut?' sold-out-var':'')+'" data-action="variant" data-id="'+esc(v)+'">'+esc(v)+'</button>';
-  }).join('')+'</div></div>':'')+'<div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>'+offersHtml+'<div class="product-facts"><div>'+icon('truck',20)+' Delivery across India</div><div>'+icon('shield',20)+' 100% authentic curated products</div></div><div class="pdp-tabs" role="tablist" aria-label="Product information">'+[['details','Details'],['ingredients','Ingredients'],['delivery','Delivery & Returns'],['reviews','Reviews ('+p.reviews+')']].map(([tid,tlabel])=>'<button role="tab" aria-selected="'+(activeTab===tid?'true':'false')+'" class="pdp-tab '+(activeTab===tid?'active':'')+'" data-action="pdp-tab" data-id="'+tid+'">'+tlabel+'</button>').join('')+'</div><div class="pdp-tab-panel" id="pdp-tab-panel" role="tabpanel">'+tabPanelHtml+'</div></div></div>'+relatedHtml+'</main>';
+  }).join('')+'</div></div>':'')+'<div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>'+offersHtml+'<div class="product-facts"><div>'+icon('bag',20)+' Offered by marketplace sellers</div><div>'+icon('truck',20)+' Delivery options at checkout</div></div><div class="pdp-tabs" role="tablist" aria-label="Product information">'+[['details','Details'],['ingredients','Ingredients'],['delivery','Delivery & Returns'],['reviews','Reviews']].map(([tid,tlabel])=>'<button role="tab" aria-selected="'+(activeTab===tid?'true':'false')+'" class="pdp-tab '+(activeTab===tid?'active':'')+'" data-action="pdp-tab" data-id="'+tid+'">'+tlabel+'</button>').join('')+'</div><div class="pdp-tab-panel" id="pdp-tab-panel" role="tabpanel">'+tabPanelHtml+'</div></div></div>'+relatedHtml+'</main>';
 }
 
 function account(){
@@ -1204,16 +1087,17 @@ function account(){
   else if(state.accountTab==='Personal information') content='<div class="account-block"><h2>Personal information</h2><p>Keep your contact details current for bookings and orders.</p><form id="profile-form" class="form-grid"><label>Full name<input name="name" required value="'+esc(state.user.name)+'"></label><label>Email address<input name="email" type="email" required value="'+esc(state.user.email)+'"></label><label>Phone number<input name="phone" required value="'+esc(state.user.phone)+'"></label><button class="btn btn-primary" type="submit">Save changes</button></form></div>';
   else if(state.accountTab==='Saved addresses') content='<div class="account-block"><div class="account-heading"><h2>Saved addresses</h2>'+button('Add address '+icon('plus',17),'address-add','btn-outline')+'</div>'+state.addresses.map((a,i)=>'<div class="address-card"><div>'+icon('pin',20)+'<span><strong>'+esc(a.label)+'</strong><small>'+esc(a.text)+'</small></span></div><button data-action="address-delete" data-id="'+i+'">Remove</button></div>').join('')+'</div>';
   else if(state.accountTab==='My bookings') content='<div class="account-block"><h2>My bookings</h2><p>Home services and salon appointments, together.</p>'+(state.bookings.length?state.bookings.map(b=>{
-    const isConfirmed = !b.status || b.status.toLowerCase() === 'confirmed';
+    const isPending = (b.status && b.status.toLowerCase() === 'pending') || (b.status && b.status.toLowerCase() === 'confirmed' && b.payment_status === 'pending');
+    const isConfirmed = !isPending && (!b.status || b.status.toLowerCase() === 'confirmed');
     const isCompleted = b.status && b.status.toLowerCase() === 'completed';
     const isCancelled = b.status && b.status.toLowerCase() === 'cancelled';
     const rescheduleBtn = isConfirmed ? '<button class="text-action" style="margin-top:6px;margin-right:14px;font-size:12px;font-weight:600" data-action="booking-reschedule-open" data-id="'+esc(b.id)+'">1-tap Reschedule</button>' : '';
-    const cancelBtn = isConfirmed ? '<button class="text-action" style="color:var(--burgundy,#b33939);margin-top:6px;font-size:12px;font-weight:600" data-action="booking-cancel" data-id="'+b.id+'">Cancel appointment</button>' : '';
+    const cancelBtn = (isConfirmed || isPending) ? '<button class="text-action" style="color:var(--burgundy,#b33939);margin-top:6px;font-size:12px;font-weight:600" data-action="booking-cancel" data-id="'+b.id+'">Cancel appointment</button>' : '';
     const reviewBtn = isCompleted ? '<button class="text-action" style="color:var(--champagne,#c5a77d);margin-top:6px;font-size:12px;font-weight:600" data-action="review-add">Write a review</button>' : '';
-    const otpLine = (isConfirmed && b.arrival_otp) ? '<small style="display:block;margin-top:3px;color:var(--ink)">Arrival PIN: <strong>'+esc(b.arrival_otp)+'</strong> (share with your specialist at doorstep)</small>' : '';
+    const otpLine = (isConfirmed && b.payment_status === 'completed' && b.arrival_otp) ? '<small style="display:block;margin-top:3px;color:var(--ink)">Arrival PIN: <strong>'+esc(b.arrival_otp)+'</strong> (share with your specialist at doorstep)</small>' : '';
     const addonsLine = (Array.isArray(b.addons) && b.addons.length) ? '<small style="display:block;margin-top:3px;color:var(--muted)">Add-ons: '+esc(b.addons.map(x => x.name || x).join(', '))+'</small>' : '';
     const payStatus = b.payment_status ? '<small style="display:block;margin-top:3px;color:var(--muted)">Payment: '+esc(b.payment_status)+'</small>' : '';
-    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.location)+'</p>'+addonsLine+otpLine+payStatus+'<div>'+rescheduleBtn+cancelBtn+reviewBtn+'</div></div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.status||'Confirmed')+'</span></div>';
+    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.location)+'</p>'+addonsLine+otpLine+payStatus+'<div>'+rescheduleBtn+cancelBtn+reviewBtn+'</div></div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.payment_status==='expired'?'Expired':isPending?'Awaiting payment':b.status||'Confirmed')+'</span></div>';
   }).join(''):empty('calendar','Your next moment awaits','Choose a home service or salon appointment to see it here.',button('Explore beauty '+icon('arrow',16),'experience','btn-primary','data-id="home"')))+'</div>';
   else if(state.accountTab==='My orders') content='<div class="account-block"><h2>My orders</h2><p>Your beauty store purchases and delivery updates.</p>'+(state.orders.length?state.orders.map(o=>'<div class="history-card"><div class="history-icon">'+icon('bag',22)+'</div><div><span class="eyebrow">ORDER '+esc(o.id)+' · '+esc(String(o.status||'placed').replace('_',' ').toUpperCase())+'</span><h3>'+(o.items||[]).map(i=>esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty).join(', ')+'</h3><p>'+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(o.payment_status||'pending')+'</p></div><button class="text-action" data-action="tracking" data-id="'+esc(o.id)+'">Track order '+icon('arrow',15)+'</button></div>').join(''):empty('bag','Your beauty bag is waiting','Discover your first favourite in the GlamGo beauty store.',button('Explore the store '+icon('arrow',16),'experience','btn-primary','data-id="shop"')))+'</div>';
   else if(state.accountTab==='Wishlist'){const liked=[...services,...products].filter(x=>state.wishlist.includes(x.id));content='<div class="account-block"><h2>Your wishlist</h2><p>A space for everything that catches your eye.</p>'+(liked.length?'<div class="wishlist-grid">'+liked.map(x=>x.brand?productCard(x):homeCard(x)).join('')+'</div>':empty('heart','Nothing saved yet','Tap the heart on a service or product to keep it close.'))+'</div>';}
@@ -1224,15 +1108,19 @@ function account(){
     (state.referralCode ? '<p style="margin-top:8px">Your Referral Code: <strong>'+esc(state.referralCode)+'</strong> · Share with friends to earn ₹250 credit.</p>' : '') +
     '<form id="reward-redeem-form" class="coupon-form" style="margin-top:12px"><input name="code" required placeholder="Enter Gift Card (GLAM500, LUXE1000) or Referral Code"><button type="submit">Redeem</button></form></div>' +
     '<div class="coupon-card"><p class="eyebrow">WELCOME GIFT</p><h3>Take 10% off your first beauty store order.</h3><p>Use code <strong>GLAM10</strong> at checkout. Maximum discount ₹300.</p></div></div>';
-  else if(state.accountTab==='Reviews') content='<div class="account-block"><div class="account-heading"><h2>My reviews</h2>'+button('Write a review '+icon('plus',17),'review-add','btn-outline')+'</div><p>Verified reviews for completed doorstep care, salon appointments, and products.</p>'+(state.reviews.length?state.reviews.map(r=>'<div class="history-card"><div class="history-icon">'+icon('star',22)+'</div><div><span class="eyebrow">'+r.rating+' ★ · '+esc(r.item_type).toUpperCase()+'</span><h3>'+esc(r.comment)+'</h3><p>Reviewed on '+formatDate(r.created_at)+'</p></div></div>').join(''):empty('star','No reviews yet','Share your experience on services you have booked or beauty products you have received.'))+'</div>';
-  else content='<div class="account-block"><h2>Customer support</h2><p>We are here to make every experience feel effortless.</p><div class="support-card"><h3>How can we help?</h3><p>For help with a booking or order, send us a message and include your booking or order number.</p><a href="mailto:care@glamgo.example">care@glamgo.example '+icon('arrow',16)+'</a></div></div>';
+  else if(state.accountTab==='Reviews') content='<div class="account-block"><div class="account-heading"><h2>My reviews</h2>'+button('Write a review '+icon('plus',17),'review-add','btn-outline')+'</div><p>Your reviews of services, salons, and products.</p>'+(state.reviews.length?state.reviews.map(r=>'<div class="history-card"><div class="history-icon">'+icon('star',22)+'</div><div><span class="eyebrow">'+r.rating+' ★ · '+esc(r.item_type).toUpperCase()+'</span><h3>'+esc(r.comment)+'</h3><p>Reviewed on '+formatDate(r.created_at)+'</p></div></div>').join(''):empty('star','No reviews yet','Share your experience on services you have booked or beauty products you have received.'))+'</div>';
+  else content='<div class="account-block"><h2>Customer support</h2><p>We are here to make every experience feel effortless.</p><div class="support-card"><h3>How can we help?</h3><p>Support contact information is not available yet.</p></div></div>';
   return '<main class="account-page"><div class="account-title"><p class="eyebrow">YOUR GLAMGO ACCOUNT</p><h1>One account. <em>Every side of beauty.</em></h1></div><div class="account-layout"><aside class="account-sidebar"><div class="account-person"><span>'+(state.user?.name ? state.user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AM')+'</span><div><strong>'+esc(state.user.name)+'</strong><small>'+esc(state.user.email)+'</small></div></div>'+tabs.map(t=>'<button class="'+(state.accountTab===t?'active':'')+'" data-action="account-tab" data-id="'+t+'">'+t+icon('arrow',15)+'</button>').join('')+'<button class="logout" data-action="logout">'+icon('logout',17)+' Log out</button></aside><div class="account-content">'+content+'</div></div></main>';
 }
 
 function cartPage(){
   const savedCount = countCart();
   const entries = getCartEntries();
-  const popularPicks = [...products].sort((a,b)=> (b.tag==='BESTSELLER'?3:b.tag==='TRENDING'?2:b.tag==='NEW'?1:0) - (a.tag==='BESTSELLER'?3:a.tag==='TRENDING'?2:a.tag==='NEW'?1:0) || Number(b.rating)-Number(a.rating)).slice(0,3);
+  const popularPicks = products.slice(0,3);
+  const unavailableKeys = Object.keys(state.cart || {}).filter(key => Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId));
+  const catalogReady = !state.catalogFeedsLoading.products && !state.catalogErrors.products;
+  const unavailableHtml = catalogReady && unavailableKeys.length ? '<div class="unavailable-cart-items" role="status"><h3>Unavailable items</h3><p>These items are no longer in the catalogue. Remove them before checkout.</p>'+unavailableKeys.map(key=>'<div><span>Item '+esc(parseCartKey(key).productId)+' · quantity '+Number(state.cart[key])+'</span><button class="text-action" data-action="cart-remove" data-id="'+esc(key)+'">Remove unavailable item</button></div>').join('')+'</div>' : '';
+  if (unavailableHtml && !entries.length) return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1></div>'+unavailableHtml+button('Explore the store '+icon('arrow',17),'shop-all','btn-outline')+'</main>';
   if (savedCount > 0 && !entries.length) {
     const noticeBody = state.catalogFeedsLoading.products
       ? catalogLoadingState('your saved beauty bag (' + savedCount + ' item' + (savedCount > 1 ? 's' : '') + ')')
@@ -1240,13 +1128,13 @@ function cartPage(){
     return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Saved items remain preserved until the catalog is ready.</p></div>'+noticeBody+'</main>';
   }
   const subtotal = entries.reduce((sum, e) => sum + e.lineTotal, 0);
-  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(entries.length?'<div class="cart-layout"><div class="cart-items">'+entries.map(e=>'<div class="cart-item">'+image(e.product.img,e.product.name)+'<div><span class="product-brand">'+esc(e.product.brand)+'</span><h3>'+esc(e.product.name)+'</h3><p>'+esc(e.variant || '')+(e.sellerName?' · Sold by '+esc(e.sellerName):'')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+esc(e.key)+'">Remove</button></div><div class="cart-item-end"><strong>'+money(e.lineTotal)+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+e.qty+'</span><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div><div><span>Delivery</span><strong>'+(subtotal >= 1500 ? 'Complimentary (≥ ₹1,500/seller)' : 'Calculated per seller at checkout')+'</strong></div><div class="summary-total"><span>Estimated subtotal</span><strong>'+money(subtotal)+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full')+'<p>Secure checkout · Authentic products</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore Bestsellers '+icon('arrow',17),'explore-bestsellers','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">POPULAR PICKS</p><h2 id="empty-recs-title">Most-loved beauty rituals</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
+  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(entries.length?'<div class="cart-layout"><div class="cart-items">'+entries.map(e=>'<div class="cart-item">'+image(e.product.img,e.product.name)+'<div><span class="product-brand">'+esc(e.product.brand)+'</span><h3>'+esc(e.product.name)+'</h3><p>'+esc(e.variant || '')+(e.sellerName?' · Sold by '+esc(e.sellerName):'')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+esc(e.key)+'">Remove</button></div><div class="cart-item-end"><strong>'+money(e.lineTotal)+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+e.qty+'</span><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+unavailableHtml+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div><div><span>Delivery</span><strong>'+'Calculated at checkout'+'</strong></div><div class="summary-total"><span>Estimated subtotal</span><strong>'+money(subtotal)+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full',unavailableKeys.length?'disabled aria-disabled="true"':'')+'<p>Delivery and payment options are shown at checkout.</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore the store '+icon('arrow',17),'shop-all','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">EXPLORE THE STORE</p><h2 id="empty-recs-title">More to discover</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
 }
 
 function checkoutPage(){
   if(!countCart()) return cartPage();
   const entries = getCartEntries();
-  if(!entries.length && (state.catalogFeedsLoading.products || state.catalogErrors.products)) return cartPage();
+  if (state.catalogFeedsLoading.products || state.catalogErrors.products || Object.keys(state.cart || {}).some(key => Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId))) return cartPage();
 
   const fp = getCartItemsFingerprint(entries);
   const resState = state.pendingReservation;
@@ -1286,7 +1174,7 @@ function checkoutPage(){
   const walletBtn = availWallet > 0
     ? '<div style="margin-top:14px"><button type="button" class="filter-chip '+(state.applyWalletCredit?'active':'')+'" data-action="checkout-toggle-credit" aria-pressed="'+(state.applyWalletCredit?'true':'false')+'">'+icon(state.applyWalletCredit?'check':'spark',14)+' Apply GlamGo Wallet Credit (Balance: '+money(availWallet)+')'+(state.applyWalletCredit?' · −'+money(creditApplied):'')+'</button></div>'
     : '';
-  return '<main class="checkout-page">'+backButton('cart','Back to bag')+'<div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+walletBtn+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div>'+(creditApplied>0?'<div><span>Wallet credit applied</span><strong>−'+money(creditApplied)+'</strong></div>':'')+'<div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Server-verified pricing, live stock hold &amp; secure checkout.</p></aside></div></main>';
+  return '<main class="checkout-page">'+backButton('cart','Back to bag')+'<div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+walletBtn+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div>'+(creditApplied>0?'<div><span>Wallet credit applied</span><strong>−'+money(creditApplied)+'</strong></div>':'')+'<div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Pricing and availability are checked with the seller before your order is placed.</p></aside></div></main>';
 }
 
 function orderSuccess(){
@@ -1307,7 +1195,7 @@ function trackingPage(){
       o.suborders.map(s => `
         <div class="package-card" style="border:1px solid #eaeaea;border-radius:8px;padding:16px;margin-bottom:14px;background:#faf9f8;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <strong>Package from ${esc(s.seller_name || 'Verified Merchant')}</strong>
+            <strong>Package from ${esc(s.seller_name || 'Marketplace seller')}</strong>
             <span class="status-badge" style="background:#222;color:#fff;padding:3px 8px;border-radius:4px;font-size:11px;text-transform:uppercase;">${esc(s.status)}</span>
           </div>
           ${s.shipment ? `
@@ -2146,7 +2034,7 @@ function modal(){
     const rb = state.rescheduleBooking || {};
     inner='<div class="modal-head"><p class="eyebrow">1-TAP RESCHEDULE</p><h2>Pick a new date &amp; time.</h2><p>Rescheduling <strong>'+esc(rb.title||'Appointment')+'</strong> with '+esc(rb.professional||'your specialist')+'.</p></div>' +
       '<div class="date-grid modal-dates">'+dateOptions().map(d=>'<button type="button" class="'+(rb.date===d.value?'selected':'')+'" data-action="booking-reschedule-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>' +
-      '<p class="slot-label" style="margin:14px 0 8px">AVAILABLE TIMES</p>' +
+      '<p class="slot-label" style="margin:14px 0 8px">PREFERRED TIMES</p>' +
       '<div class="time-grid" style="margin-bottom:18px">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button type="button" class="'+(rb.time===t?'selected':'')+'" data-action="booking-reschedule-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>' +
       '<button type="button" class="btn btn-primary full" data-action="booking-reschedule-save">Confirm new slot '+icon('check',17)+'</button>';
   }
@@ -2176,25 +2064,20 @@ function bookingModal(){
   const basePrice = Number(service?.price || 0);
   const totalPrice = basePrice + addonsSum;
   const userCity = normalizeCity(state.location);
-  const addonsHtml = '<p class="slot-label" style="margin:14px 0 8px">OPTIONAL ENHANCEMENT ADD-ONS</p><div class="filter-row" style="gap:8px">' +
-    BOOKING_ADDONS.map(a => {
-      const isSel = selectedAddons.includes(a.id);
-      return '<button type="button" class="filter-chip '+(isSel?'active':'')+'" data-action="booking-addon-toggle" data-id="'+esc(a.id)+'" aria-pressed="'+(isSel?'true':'false')+'">'+esc(a.name)+' · +'+money(a.price)+'</button>';
-    }).join('') +
-    '</div>';
+  const addonsHtml = ''; // No partner-backed add-on catalogue is available yet.
   const steps = b.type==='home'?['Service','Professional','Date & time','Confirm']:['Service','Staff','Date & time','Confirm'];
   let body = '';
   if(b.step===0){
     const cityHomeServices = services.filter(s => isServiceAvailableInCity(s, userCity));
-    const list0 = b.type==='home' ? (cityHomeServices.length ? cityHomeServices : services) : services.filter(s=>salon&&salon.services.includes(s.category));
-    body='<h3>Choose your service</h3><div class="booking-options">'+list0.map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join('')+'</div>'+addonsHtml;
+    const list0 = b.type==='home' ? cityHomeServices : services.filter(s=>salon&&salon.services.includes(s.category));
+    body='<h3>Choose your service</h3>'+(salon?'<p class="booking-hint">Choose a catalogue service in one of this salon’s listed categories. Prices shown are catalogue prices.</p>':'')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>'+addonsHtml;
   }
   if(b.step===1){
     const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
-    const list1 = b.type==='home' ? (cityPros.length ? cityPros : professionals) : professionals;
-    body='<h3>'+(b.type==='home'?'Choose your professional':'Select a staff member')+'</h3><p class="booking-hint">Choose a specialist, or let us find the best available expert for you.</p><div class="booking-options"><button class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>We will match you with a trusted professional.</small></span></button>'+list1.map(p=>'<button class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+p.name+'">'+image(p.img,p.name,'booking-avatar')+'<span><strong>'+p.name+'</strong><small>'+p.specialty+' · '+p.rating+' ★</small></span></button>').join('')+'</div>';
+    const list1 = b.type==='home' ? cityPros : (Array.isArray(salon?.staff) ? salon.staff : []);
+    body='<h3>'+(b.type==='home'?'Choose your professional':'Select a staff member')+'</h3><p class="booking-hint">Choose a specialist, or let us find the best available expert for you.</p><div class="booking-options"><button class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>We will match you with a trusted professional.</small></span></button>'+list1.map(p=>'<button class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+p.name+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
   }
-  if(b.step===2) body='<h3>Pick your moment</h3><p class="booking-hint">Available appointments for '+(salon?salon.name:'at-home beauty care')+'.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">AVAILABLE TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>'+addonsHtml;
+  if(b.step===2) body='<h3>Pick your moment</h3><p class="booking-hint">Choose a preferred time for '+esc(salon?salon.name:'at-home beauty care')+'. Availability is checked when you book.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">PREFERRED TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>'+addonsHtml;
   if(b.step===3){
     const noticeHtml = state.bookingNotice
       ? '<div class="payment-notice payment-notice-'+esc(state.bookingNotice.type||'error')+'" role="alert"><strong>'+esc(state.bookingNotice.title)+'</strong><p>'+esc(state.bookingNotice.message)+'</p></div>'
@@ -2236,7 +2119,7 @@ function render(){
       return;
     }
   }
-  let page = state.view==='landing' ? (state.experience==='home'?homePage():state.experience==='salon'?salonPage():shopPage()) : state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
+  let page = state.view==='landing' ? (state.experience==='home'?homePage():state.experience==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
   app.innerHTML = header() + page + footer() + mobileNav() + modal();
   document.body.classList.toggle('modal-open', !!state.modal);
 }
@@ -2297,6 +2180,16 @@ async function action(el){
   else if(a==='guest-browse'){ pendingAuthResume=null; state.mobileMenu=false; state.menu=false; state.view=state.experience?'landing':'public'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
+  else if(a==='discover-goal'){
+    const experience = el.dataset.experience;
+    const category = el.dataset.category;
+    if(experience === 'home' && homeCategories.includes(category)) state.homeCategory = category;
+    if(experience === 'salon') { state.salonCategory = 'All'; state.salonDistanceFilter = 'all'; }
+    if(experience === 'shop' && shopCategories.includes(category)){ state.shopCategory = category; state.shopCollection = 'All'; state.shopBrand = 'All'; }
+    setExperience(experience);
+    const target = experience === 'home' ? 'popular' : experience === 'salon' ? 'salons' : 'bestsellers';
+    setTimeout(()=>document.getElementById(target)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}),80);
+  }
   else if(a==='switch-toggle'){
     if(window.innerWidth<=700){ state.mobileMenu=!state.mobileMenu; state.menu=false; }
     else { state.menu=!state.menu; state.mobileMenu=false; }
@@ -2355,9 +2248,9 @@ async function action(el){
   }
   else if(a==='search-result'){
     state.modal=null;
-    if(el.dataset.type==='Salon'){ state.experience='salon'; state.selectedSalon=id; navigate('salon-detail'); }
+    if(el.dataset.type==='Salon'){ state.experience='salon'; state.selectedSalon=id; navigate('salon-detail'); ensureListingReviews('salon',id); }
     else if(el.dataset.type==='Product'){ state.experience='shop'; state.selectedProduct=id; state.productVariant=null; state.pdpTab='details'; navigate('product-detail'); ensureProductExtras(id); }
-    else { state.experience='home'; openBooking('home',id); }
+    else { state.experience='home'; state.selectedService=id; navigate('service-detail'); ensureListingReviews('service',id); }
     persist();
   }
   else if(a==='scroll'){
@@ -2443,8 +2336,9 @@ async function action(el){
     document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'});
   }
   else if(a==='book-home') openBooking('home',id);
-  else if(a==='book-pro') openBooking('home',null,null,professionals.find(p=>p.id===id)?.name);
-  else if(a==='salon-detail'){ state.selectedSalon=id; navigate('salon-detail'); }
+  else if(a==='book-pro') openBooking('home',null,null,professionals.find(p=>String(p.id)===String(id))?.name);
+  else if(a==='service-detail'){ state.selectedService=id; navigate('service-detail'); ensureListingReviews('service',id); }
+  else if(a==='salon-detail'){ state.selectedSalon=id; navigate('salon-detail'); ensureListingReviews('salon',id); }
   else if(a==='book-salon') openBooking('salon',id,el.dataset.service?services.find(s=>s.category===el.dataset.service)?.id:null);
   else if(a==='salon-date'){ state.mobileMenu=false; state.menu=false; state.modal='date'; render(); }
   else if(a==='date-set'){ state.salonDate=id; state.modal=null; render(); toast('Visit date selected'); }
@@ -2547,6 +2441,7 @@ async function action(el){
     render();
   }
   else if(a==='checkout'){
+    if (Object.keys(state.cart || {}).some(key => Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId))) { toast('Remove unavailable items before checkout.'); return; }
     if(!requireAuth({ view: 'checkout' }, 'Sign in to proceed to checkout')) return;
     navigate('checkout');
     ensureCheckoutReservation();
@@ -2554,6 +2449,7 @@ async function action(el){
   else if(a==='payment'){ state.checkoutPayment=id; state.paymentNotice=null; render(); }
   else if(a==='place-order'){
     if(state.checkoutBusy) return;
+    if (state.catalogFeedsLoading.products || state.catalogErrors.products || Object.keys(state.cart || {}).some(key => Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId))) { toast('Review your bag before checkout.'); navigate('cart'); return; }
     if(!requireAuth({ view: 'checkout' }, 'Sign in to place your order')) return;
     if(!state.addresses.length){
       state.modal='address';
@@ -3262,6 +3158,9 @@ async function action(el){
         }
         booked = await apiCreateBooking({ ...payload, idempotency_key: state.pendingBookingKey });
         state.pendingBooking = { fingerprint, booked };
+        const bookingIndex = state.bookings.findIndex(item => item.id === booked.id);
+        if (bookingIndex < 0) state.bookings.unshift(booked); else state.bookings[bookingIndex] = booked;
+        persist();
       }
 
       if (booked.price > 0) {
@@ -3299,8 +3198,10 @@ async function action(el){
                 razorpay_signature: response.razorpay_signature,
                 booking_id: booked.id
               });
-              const paidBooking = { ...booked, payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
-              if (!state.bookings.some(item => item.id === booked.id)) state.bookings.unshift(paidBooking);
+              let paidBooking = { ...booked, status: 'confirmed', payment_status: 'completed', razorpay_order_id: payOrder.razorpay_order_id };
+              try { const refreshed = await apiGetMyBookings(); paidBooking = refreshed.find(item => item.id === booked.id) || paidBooking; } catch {}
+              const bookingIndex = state.bookings.findIndex(item => item.id === booked.id);
+              if (bookingIndex < 0) state.bookings.unshift(paidBooking); else state.bookings[bookingIndex] = { ...paidBooking, status: 'confirmed' };
               state.notifications.unshift({ type: 'booking', text: `Your ${s?.name||'service'} appointment #${booked.id} is confirmed & paid.` });
               state.modal = null;
               state.pendingBooking = null;

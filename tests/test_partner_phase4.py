@@ -1,3 +1,4 @@
+from backend.app.models.booking import Booking
 import time
 import secrets
 import pytest
@@ -66,7 +67,7 @@ def test_professional_with_same_name_cannot_access_another_professional(client, 
     assert bookings.status_code == 200 and booking_id not in [b["id"] for b in bookings.json()]
     change = client.patch(f"/api/v1/partners/professional/bookings/{booking_id}/status", headers=other_headers, json={"status": "completed"})
     assert change.status_code == 403
-    verify = client.post(f"/api/v1/bookings/{booking_id}/verify-arrival-otp", headers=other_headers, json={"otp": booking.json()["arrival_otp"]})
+    verify = client.post(f"/api/v1/bookings/{booking_id}/verify-arrival-otp", headers=other_headers, json={"otp": "1234"})
     assert verify.status_code == 403
 
 
@@ -286,6 +287,12 @@ def test_professional_booking_lifecycle_and_idor(client, pro_auth_headers, custo
     }, headers=customer_auth_headers)
     assert idor_resp.status_code == 403
 
+    # Unpaid appointments cannot be completed; test the paid lifecycle separately.
+    unpaid_resp = client.patch(f"/api/v1/partners/professional/bookings/{booking_id}/status", json={"status": "completed"}, headers=pro_auth_headers)
+    assert unpaid_resp.status_code == 400
+    paid_booking = db.query(Booking).filter(Booking.id == booking_id).one()
+    paid_booking.payment_status = "completed"
+    db.commit()
     # Professional completes the appointment (PART-005)
     comp_resp = client.patch(f"/api/v1/partners/professional/bookings/{booking_id}/status", json={
         "status": "completed"
@@ -300,7 +307,7 @@ def test_professional_booking_lifecycle_and_idor(client, pro_auth_headers, custo
     assert any("completed" in t and "review" in t for t in texts)
 
 
-def test_salon_profile_staff_and_booking_management(client):
+def test_salon_profile_staff_and_booking_management(client, db):
     salon_headers = get_auth_headers(client, "salon@glamgo.com", "Salon@123456")
     customer_headers = get_auth_headers(client, "aanya@example.com", "Password@123")
 
@@ -349,6 +356,12 @@ def test_salon_profile_staff_and_booking_management(client):
     assert b_resp.status_code == 200
     booking_id = b_resp.json()["id"]
 
+    # Salon owners cannot complete unpaid appointments.
+    unpaid_resp = client.patch(f"/api/v1/partners/salon/bookings/{booking_id}/status", json={"status": "completed"}, headers=salon_headers)
+    assert unpaid_resp.status_code == 400
+    paid_booking = db.query(Booking).filter(Booking.id == booking_id).one()
+    paid_booking.payment_status = "completed"
+    db.commit()
     # Salon owner updates appointment status
     stat_resp = client.patch(f"/api/v1/partners/salon/bookings/{booking_id}/status", json={
         "status": "completed"

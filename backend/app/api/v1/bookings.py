@@ -12,6 +12,7 @@ from backend.app.models.user import User, UserRole, Notification
 from backend.app.models.catalog import Service, Salon, ProfessionalProfile
 from backend.app.models.booking import Booking, BookingStatus
 from backend.app.models.payment import PaymentTransaction
+from backend.app.services.booking_expiry import expire_unpaid_bookings
 from backend.app.schemas.booking import (
     BookingCreate,
     BookingOtpVerifyRequest,
@@ -56,6 +57,7 @@ def create_booking(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    expire_unpaid_bookings(db)
     idem_key = b_in.idempotency_key.strip() if b_in.idempotency_key and b_in.idempotency_key.strip() else None
     if idem_key:
         existing_booking = db.query(Booking).filter(
@@ -63,6 +65,8 @@ def create_booking(
             Booking.idempotency_key == idem_key
         ).first()
         if existing_booking:
+            if existing_booking.status == BookingStatus.CANCELLED:
+                raise HTTPException(status_code=409, detail="This booking is no longer active. Please start a new booking.")
             return existing_booking
 
     service = db.query(Service).filter(Service.id == b_in.service_id).first()
@@ -126,7 +130,6 @@ def create_booking(
             addons_total += float(item["price"])
 
     total_price = float(service.price) + addons_total
-    arrival_otp = f"{secrets.randbelow(9000) + 1000}"
 
     try:
         booking = Booking(
@@ -142,10 +145,10 @@ def create_booking(
             time=b_in.time,
             location=location,
             price=total_price,
-            status=BookingStatus.CONFIRMED,
+            status=BookingStatus.PENDING,
             payment_status="pending",
             idempotency_key=idem_key,
-            arrival_otp=arrival_otp,
+            arrival_otp=None,
             addons_json=json.dumps(selected_addons) if selected_addons else None,
         )
         db.add(booking)
@@ -154,7 +157,7 @@ def create_booking(
         notif = Notification(
             user_id=user.id,
             type="booking",
-            text=f"Your {service.name} booking is confirmed for {b_in.date} at {b_in.time}. Arrival PIN: {arrival_otp}."
+            text=f"Your {service.name} booking for {b_in.date} at {b_in.time} is awaiting payment."
         )
         db.add(notif)
         db.commit()
@@ -181,6 +184,7 @@ def get_my_bookings(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    expire_unpaid_bookings(db)
     return db.query(Booking).filter(Booking.customer_id == user.id).order_by(Booking.created_at.desc()).all()
 
 
@@ -205,7 +209,7 @@ def update_booking_status(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
 
@@ -240,6 +244,11 @@ def update_booking_status(
             )
     elif user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Not authorized to modify this booking.")
+
+    if new_status == BookingStatus.CANCELLED and booking.payment_status == "pending" and db.query(PaymentTransaction).filter(PaymentTransaction.booking_id == booking.id).first():
+        raise HTTPException(status_code=409, detail="A payment attempt is awaiting reconciliation; this appointment cannot be cancelled yet.")
+    if new_status in (BookingStatus.CONFIRMED, BookingStatus.COMPLETED) and booking.payment_status != "completed":
+        raise HTTPException(status_code=400, detail="Payment must be completed before this appointment can be confirmed or completed.")
 
     try:
         booking.status = new_status

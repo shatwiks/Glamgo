@@ -95,7 +95,7 @@ def _resolve_payment_target(db: Session, user: User, order_id: str | None, booki
             raise HTTPException(status_code=400, detail="Order total must be greater than zero for online payment.")
         return "order", order, amount
 
-    booking = db.query(Booking).filter(Booking.id == booking_id).first()
+    booking = db.query(Booking).filter(Booking.id == booking_id).with_for_update().populate_existing().first()
     if not booking:
         raise HTTPException(status_code=404, detail="Booking not found.")
     if booking.customer_id != user.id and user.role != UserRole.ADMIN:
@@ -274,6 +274,10 @@ def _apply_capture_in_tx(
         if booking:
             was_paid = booking.payment_status == "completed"
             booking.payment_status = "completed"
+            if booking.status == BookingStatus.PENDING:
+                booking.status = BookingStatus.CONFIRMED
+                if not booking.arrival_otp:
+                    booking.arrival_otp = f"{secrets.randbelow(9000) + 1000}"
             if transaction.razorpay_order_id:
                 booking.razorpay_order_id = transaction.razorpay_order_id
             if not was_paid:
@@ -544,6 +548,10 @@ def create_razorpay_order(
         if target_type == "order"
         else PaymentTransaction.booking_id == target.id
     )
+    if target_type == "booking" and db.query(PaymentTransaction).filter(
+        existing_filter, PaymentTransaction.status == "initiating"
+    ).first():
+        raise HTTPException(status_code=409, detail="A payment attempt is still being reconciled. Please contact support before trying again.")
     existing_tx = db.query(PaymentTransaction).filter(
         existing_filter,
         PaymentTransaction.status == "created"
@@ -629,7 +637,10 @@ def create_razorpay_order(
     ) as exc:
         failed_tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
         if failed_tx and failed_tx.status == "initiating":
-            db.delete(failed_tx)
+            # Booking initiation may have succeeded despite a lost response.
+            # Keep it for reconciliation; do not release a potentially paid slot.
+            if target_type != "booking":
+                db.delete(failed_tx)
             db.commit()
         _raise_gateway_error(exc, "order creation")
 
@@ -644,7 +655,9 @@ def create_razorpay_order(
     ):
         bad_tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
         if bad_tx and bad_tx.status == "initiating":
-            db.delete(bad_tx)
+            # Preserve unresolved booking attempts for reconciliation.
+            if target_type != "booking":
+                db.delete(bad_tx)
             db.commit()
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

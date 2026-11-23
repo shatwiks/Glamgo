@@ -22,7 +22,8 @@ def test_booking_workflow_and_conflict_prevention(client, customer_auth_headers)
     assert booking["id"].startswith("BK")
     assert booking["title"] == "The Signature Facial"
     assert booking["professional"] == "Nisha Kapoor"
-    assert booking["status"] == "confirmed"
+    assert booking["status"] == "pending"
+    assert booking["arrival_otp"] is None
 
     # 2. Duplicate booking for the same professional, date and time should be blocked with 409 Conflict
     conflict_resp = client.post("/api/v1/bookings/", json=booking_payload, headers=customer_auth_headers)
@@ -47,7 +48,7 @@ def test_booking_workflow_and_conflict_prevention(client, customer_auth_headers)
     }
     salon_resp = client.post("/api/v1/bookings/", json=salon_booking, headers=customer_auth_headers)
     assert salon_resp.status_code == 200
-    assert salon_resp.json()["status"] == "confirmed"
+    assert salon_resp.json()["status"] == "pending"
     b_id = salon_resp.json()["id"]
 
     # 4. MAJ-01 verification: Customer cannot complete their own booking (403 Forbidden)

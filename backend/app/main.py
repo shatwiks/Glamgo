@@ -1,4 +1,5 @@
 import hmac
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends, Header, HTTPException, Response, status
@@ -22,6 +23,25 @@ configure_structured_logging()
 logger = logging.getLogger("glamgo.app")
 
 
+def _expire_bookings_once():
+    from backend.app.core.database import SessionLocal
+    from backend.app.services.booking_expiry import expire_unpaid_bookings
+    db = SessionLocal()
+    try:
+        expire_unpaid_bookings(db)
+    except Exception:
+        db.rollback()
+        logger.exception("Booking expiry failed")
+    finally:
+        db.close()
+
+
+async def _booking_expiry_loop():
+    while True:
+        await asyncio.to_thread(_expire_bookings_once)
+        await asyncio.sleep(max(10, settings.BOOKING_EXPIRY_INTERVAL_SECONDS))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # --- Startup Lifecycle ---
@@ -42,7 +62,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Redis is currently unreachable; operating in degraded mode.")
 
-    yield
+    expiry_task = asyncio.create_task(_booking_expiry_loop())
+    try:
+        yield
+    finally:
+        expiry_task.cancel()
+        try:
+            await expiry_task
+        except asyncio.CancelledError:
+            pass
 
     # --- Shutdown Lifecycle ---
     logger.info("Shutting down GlamGo Marketplace Application...")

@@ -427,8 +427,8 @@ def test_booking_addons_server_pricing_and_consistent_serialization(client, cust
 
     # s1 base price is 1499.0 + head massage (299.0) + sheet mask (349.0) = 2147.0
     assert created["price"] == 2147.0
-    assert created["arrival_otp"] is not None
-    assert len(created["arrival_otp"]) == 4 and created["arrival_otp"].isdigit()
+    assert created["status"] == "pending"
+    assert created["arrival_otp"] is None
     addon_ids = [a["id"] for a in created["addons"]]
     assert addon_ids == ["addon-head-massage", "addon-sheet-mask"]
 
@@ -543,7 +543,14 @@ def test_arrival_otp_strict_validation_null_guard_and_partner_privacy(
     assert b_resp.status_code == 200, b_resp.text
     b_data = b_resp.json()
     booking_id = b_data["id"]
-    true_otp = b_data["arrival_otp"]
+    assert b_data["arrival_otp"] is None
+    # Arrival verification applies after payment; prepare a paid booking for these PIN checks.
+    b_row = db.query(Booking).filter(Booking.id == booking_id).one()
+    b_row.payment_status = "completed"
+    b_row.status = BookingStatus.CONFIRMED
+    b_row.arrival_otp = "1234"
+    db.commit()
+    true_otp = b_row.arrival_otp
 
     # (d) Partner bookings listing MUST omit plaintext arrival_otp (T-13-06 privacy boundary)
     pro_list_resp = client.get("/api/v1/partners/professional/bookings", headers=pro_auth_headers)

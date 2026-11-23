@@ -141,7 +141,7 @@ def test_booking_creation_and_row_lock_concurrency(client: TestClient, customer_
     res = client.post("/api/v1/bookings/", json=booking_payload, headers=customer_auth_headers)
     assert res.status_code == 200
     booking = res.json()
-    assert booking["status"] == "confirmed"
+    assert booking["status"] == "pending"
     assert booking["professional"] == "Nisha Kapoor"
 
     # 2. Concurrency Conflict: duplicate slot rejected with 409 Conflict
@@ -160,7 +160,7 @@ def test_booking_creation_and_row_lock_concurrency(client: TestClient, customer_
     }
     dispatch_res = client.post("/api/v1/bookings/", json=dispatch_payload, headers=customer_auth_headers)
     assert dispatch_res.status_code == 200
-    assert dispatch_res.json()["status"] == "confirmed"
+    assert dispatch_res.json()["status"] == "pending"
 
 
 def test_booking_cancellation_and_idor_protection(client: TestClient, customer_auth_headers, pro_auth_headers):

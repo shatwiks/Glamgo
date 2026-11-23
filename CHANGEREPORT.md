@@ -4,6 +4,33 @@
 
 ---
 
+## Prompt Entry #19 — `2026-11-23`: Commit & Push Booking Payment-State Lifecycle, Service Detail & Landing Updates (`release/54ba3db`)
+
+**Prompt Summary:** Inspect, record, commit, and push the user's backend booking payment-state & expiry lifecycle changes, API-driven frontend/service-detail & public landing updates, and updated test suites on `release/54ba3db`.
+
+**Added / Modified Files (`branch-release-54ba3db`):**
+- `backend/app/api/v1/bookings.py`: Bookings start in `BookingStatus.PENDING` (`payment_status="pending"`, `arrival_otp=None`), invoke `expire_unpaid_bookings(db)` on create/list, lock booking rows with `.with_for_update().populate_existing()` on status updates, return `409` if cancelling a pending booking with an existing `PaymentTransaction`, and return `400` if confirming/completing an unpaid booking.
+- `backend/app/api/v1/partners.py`: Added `.with_for_update().populate_existing()` row locking plus pending-payment cancellation (`409`) and unpaid confirmation/completion (`400`) guards on professional and salon booking status updates.
+- `backend/app/api/v1/payments.py`: Locked target booking rows in `_resolve_payment_target`, promoted `PENDING -> CONFIRMED` and generated `arrival_otp` upon capture inside `_apply_capture_in_tx`, returned `409` on concurrent `initiating` booking payment attempts, and preserved `initiating` booking `PaymentTransaction` rows on gateway errors for reconciliation.
+- `backend/app/services/booking_expiry.py`: *(new)* Added `expire_unpaid_bookings()` to expire unpaid `PENDING` holds older than `BOOKING_HOLD_MINUTES` that have no associated `PaymentTransaction`.
+- `backend/app/core/config.py`: Added `BOOKING_HOLD_MINUTES = 15` and `BOOKING_EXPIRY_INTERVAL_SECONDS = 60`.
+- `backend/app/main.py`: Added background `_booking_expiry_loop()` task in FastAPI `lifespan`.
+- `backend/app/services/maintenance_runner.py`: Added `expire-bookings` maintenance task calling `expire_unpaid_bookings(db, dry_run=dry_run)`.
+- `backend/tests/test_booking_payment_state.py`: *(new)* Added isolated SQLite tests for booking pending-until-capture state and expiry exclusion rules.
+- `tests/test_bookings.py`, `tests/test_customer_phase3.py`, `tests/test_partner_phase4.py`, `tests/test_phase13_consumer.py`: Updated booking assertions/flows to reflect pending-until-paid booking states.
+- `src/app.js`: Removed hardcoded `DEFAULT_SERVICES`/`DEFAULT_PROFESSIONALS`/`localStorage` catalog cache, added `service-detail` routing + listing review fetching, added unavailable-cart-item checkout guards, and updated booking creation/Razorpay verification state sync (`apiGetMyBookings()`).
+- `src/public-landing.js`, `public-landing.css`: Added customer discovery goals grid (`.public-discovery`, `.public-goals`) and 3-step customer how-it-works section (`.public-customer-how`).
+- `styles.css`: Added `.service-detail`, `.listing-image-button`, `.salon-profile-image`, `.unavailable-cart-items`, mobile `.subnav` horizontal scroll, and `prefers-reduced-motion` rules.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #19.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/api.js`, `node -c src/app.js`, `node -c src/public-landing.js` -> exited `0`.
+- `.\.venv\Scripts\python.exe -m compileall -q backend tests` (with `branch-release-54ba3db` CWD) -> exited `0`.
+- `npm run build` (`vite build` v7.3.7) -> `8 modules transformed`, built in `996ms`.
+- `.\.venv\Scripts\python.exe -m pytest branch-release-54ba3db/backend/tests/test_booking_payment_state.py -q` -> `2 passed` (isolated SQLite; `tests/test_bookings.py` errored at setup because local PostgreSQL on `127.0.0.1:5439` was not running).
+
+---
+
 ## Prompt Entry #18 — `2026-11-22`: Update Home Beauty Hero & Auth Sign-In Left Panel Imagery (`release/54ba3db`)
 
 **Prompt Summary:** Convert and deploy the two custom realistic editorial photographs into `public/assets/auth-editorial.webp` (Auth left panel) and `public/assets/home-editorial.webp` (Home Beauty Hero) and wire `AUTH_IMG` in `src/app.js`.

@@ -28,6 +28,7 @@ from typing import Any, Dict
 from backend.app.core.database import SessionLocal
 from backend.app.services.commerce_service import CommerceService
 from backend.app.services.refund_service import RefundService
+from backend.app.services.booking_expiry import expire_unpaid_bookings
 
 logger = logging.getLogger("glamgo.maintenance")
 
@@ -47,6 +48,9 @@ def run_maintenance_cycle(db, task: str = "all", *, dry_run: bool = False) -> Di
             summary["expired_unpaid_orders_count"] = exp_prev["expired_unpaid_orders_count"]
         else:
             summary["expired_reservations_count"] = CommerceService.expire_pending_reservations(db)
+
+    if task in ("all", "expire-bookings"):
+        summary["expired_bookings_count"] = expire_unpaid_bookings(db, dry_run=dry_run)
 
     if task in ("all", "mature-escrow"):
         if dry_run:
@@ -72,7 +76,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="GlamGo Commerce Maintenance Runner")
     parser.add_argument(
         "--task",
-        choices=["all", "expire-reservations", "mature-escrow", "recover-refunds"],
+        choices=["all", "expire-reservations", "expire-bookings", "mature-escrow", "recover-refunds"],
         default="all",
         help="Which maintenance job to run.",
     )

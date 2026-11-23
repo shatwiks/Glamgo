@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://127.0.0.1:6382/0"
     REDIS_REQUIRED: bool = False
 
+    # Unpaid booking holds without a gateway payment attempt.
+    BOOKING_HOLD_MINUTES: int = 15
+    BOOKING_EXPIRY_INTERVAL_SECONDS: int = 60
+
     # Payments (Razorpay) - loaded exclusively from environment variables / .env
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
