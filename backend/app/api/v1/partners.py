@@ -341,14 +341,22 @@ def create_draft(
     return draft
 
 
+def _ensure_default_availability(user_id: int, db: Session) -> None:
+    """Seed Mon-Fri availability rows if the user has no availability records yet."""
+    has_any = db.query(Availability).filter(Availability.user_id == user_id).first()
+    if not has_any:
+        for default_day in ("Mon", "Tue", "Wed", "Thu", "Fri"):
+            db.add(Availability(user_id=user_id, day=default_day, is_available=True))
+        db.commit()
+
+
 @router.get("/availability", response_model=List[str])
 def get_my_availability(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    _ensure_default_availability(user.id, db)
     avails = db.query(Availability).filter(Availability.user_id == user.id, Availability.is_available == True).all()
-    if not avails:
-        return ["Mon", "Tue", "Wed", "Thu", "Fri"]
     return [a.day for a in avails]
 
 
@@ -359,6 +367,7 @@ def toggle_availability(
     db: Session = Depends(get_db)
 ):
     clean_day = day.strip()
+    _ensure_default_availability(user.id, db)
     existing = db.query(Availability).filter(Availability.user_id == user.id, Availability.day == clean_day).first()
     if existing:
         existing.is_available = not existing.is_available

@@ -4,6 +4,63 @@
 
 ---
 
+## Prompt Entry — `2026-11-24`: Remove "Audience not specified" Badge & Clean Catalogue Note
+
+**Objective:** Remove the unnecessary `"Audience not specified"` badge on listing cards and simplify the Women/Men catalogue note.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Updated `audienceBadge` to render only the `Unisex` badge (hiding `'Audience not specified'`) and simplified `generalCatalogueNote` to `'Showing Men and unisex listings.'` / `'Showing Women and unisex listings.'`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry.
+
+**Verification Results:**
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Passed.
+- `node --test tests/*.test.mjs`: 6/6 passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Full Desktop & Mobile Role Audit Fixes (Customer, Admin & Salon Owner)
+
+**Objective:** Run a full desktop (`1280x720`) and phone (`390x844`) browser audit across Customer, Admin, and Salon Owner roles, verify all backend/database connections, and fix every discovered UI/API bug.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/app/api/v1/partners.py`: Added `_ensure_default_availability()` so `GET /api/v1/partners/availability` and `POST /api/v1/partners/availability/toggle` persist default `Mon`–`Fri` rows before toggling weekend days, preventing rapid toggles of `Sat` from wiping `Mon`–`Fri`.
+- `src/app.js`:
+  - Fixed Shop `Add to Bag` / `Added` button `aria-label` so it uses plain text (`ariaBtnText`) instead of raw `<svg>` HTML.
+  - Updated Admin Overview initial loading copy (`Loading applications...`) so it does not flash `Applications unavailable` before initial fetches resolve.
+  - Fixed duplicate Admin Users heading (`Users & Role Management`).
+  - Cleared stale `#admin` URL hash when non-admin roles sign in via `applyPostAuthNavigation()`.
+- `styles.css`:
+  - Shifted desktop `.toast` to `top: 84px` so notifications do not occlude top-right header action buttons.
+  - Refined `.icon-button b` (`top: 6px; line-height: 1;`) to prevent top-edge badge clipping on `390x844` mobile header.
+- `CHANGEREPORT.md`: Prepended Prompt Entry for the Desktop/Phone audit fixes.
+
+**Verification Results:**
+- Backend & DB health checks: HTTP `200 OK` across `/health/live` and all 8 `women`/`men` catalog APIs.
+- Desktop (`1280x720`) & Phone (`390x844`) QA across Customer, Admin, and Salon Owner: 0 failed network requests, 0 JS console errors, 0 horizontal overflow.
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Passed.
+- `node --test tests/*.test.mjs`: 6/6 passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Auth Page Viewport Alignment & Bottom-Clipping Fix
+
+**Objective:** Fix vertical overflow and bottom-edge clipping on the Auth page (`http://127.0.0.1:5173/`) so the left hero panel (`GLAMGO✦`, `Your beauty. Your way.`, `One account for every side of beauty.`) and right sign-in panel align cleanly within `100vh`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`:
+  - Updated `.auth-layout` with `align-items: stretch` and `.auth-image` with `position: sticky; top: 0; height: 100vh; min-height: 540px; overflow: hidden;`.
+  - Added `.auth-image img` (`position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center;`) so the background image never stretches the container taller than the viewport.
+  - Updated `.auth-image::after` to a subtle bottom-weighted gradient and refined `.auth-image-copy` (`inset: 36px 8% 48px 8%`), `h1` (`clamp(44px, 4.6vw, 76px)`), and `p`.
+  - Updated `.auth-panel` (`display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 36px 32px;`) and tightened `.auth-box h2` / `> p` spacing.
+  - Updated the mobile media query for `.auth-image` (`position: relative; top: auto; min-height: 230px; height: 230px;`) and `.auth-panel` (`min-height: auto; padding: 32px 20px;`).
+- `CHANGEREPORT.md`: Prepended Prompt Entry for the Auth alignment fix.
+
+**Verification Results:**
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Vite production build succeeded in 2.04s.
+- Browser verification (`http://127.0.0.1:5173/#home` at `1280x720`): Confirmed zero bottom clipping (`One account for every side of beauty.` ends at `645.60px` inside `720px` viewport) and centered right-hand sign-in form; screenshot saved to `auth_aligned.png`.
+
+---
+
 ## Prompt Entry — `2026-11-23`: Production OTP Security Hardening (Removed On-Screen Code Display & Auto-Typing)
 
 **Objective:** Secure the OTP login system for production by removing all dev-helper on-screen code displays, auto-typing, prefilled input values, and "Auto-fill" buttons, ensuring OTP codes are delivered exclusively to the user's physical inbox.

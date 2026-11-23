@@ -1449,10 +1449,10 @@ const matchesAudience = item => {
   const audience = item?.audience || 'unspecified';
   return audience === state.audience || audience === 'unisex';
 };
-const audienceBadge = item => (!item?.audience || item.audience === 'unspecified') ? '<span class="audience-badge">Audience not specified</span>' : item.audience === 'unisex' ? '<span class="audience-badge">Unisex</span>' : '';
+const audienceBadge = item => item?.audience === 'unisex' ? '<span class="audience-badge">Unisex</span>' : '';
 const isUnclassified = item => !item?.audience || item.audience === 'unspecified';
 const isVisibleInAudience = item => matchesAudience(item) || (!isMenExperience() && isUnclassified(item));
-const generalCatalogueNote = () => '<div class="audience-catalogue-note">' + (isMenExperience() ? 'Showing Men and unisex listings.' : 'Showing Women, unisex and other partner listings. Some listings have not specified an audience.') + '</div>';
+const generalCatalogueNote = () => '<div class="audience-catalogue-note">' + (isMenExperience() ? 'Showing Men and unisex listings.' : 'Showing Women and unisex listings.') + '</div>';
 
 
 function homePage(){
@@ -1634,6 +1634,7 @@ function productCard(p){
   const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
   const discountPct = getDiscountPct(p);
   const sellerName = p.seller_name || state.productOffers?.[p.id]?.offers?.[0]?.seller_name || '';
+  const ariaBtnText = isSoldOut ? 'Sold out' : isLoading ? 'Adding' : isAdded ? 'Added' : 'Add to Bag';
   const btnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added '+icon('check',15) : 'Add to Bag';
   const sizeHint = variants.length ? (variants.length > 1 ? activeVariant + ' · ' + variants.length + ' options' : activeVariant) : '';
   const overlayRaw = getVariantHeading(p, variants).replace(/^SELECT\s+/i, '');
@@ -1667,7 +1668,7 @@ function productCard(p){
       (sizeHint || stockInfo.low || isSoldOut ? '<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(isSoldOut?'<span class="product-low-stock">Sold out</span>':stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>' : '') +
       '<div class="product-bottom">' +
         '<div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div>' +
-        '<button type="button" class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+esc(p.id)+'"'+(activeVariant?' data-variant="'+esc(activeVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button>' +
+        '<button type="button" class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+esc(p.id)+'"'+(activeVariant?' data-variant="'+esc(activeVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(ariaBtnText)+' '+esc(p.name)+'">'+btnLabel+'</button>' +
       '</div>' +
     '</div>' +
   '</article>';
@@ -2637,7 +2638,7 @@ function adminPage(){
     mainContent = '<div class="dash-intro"><div><p class="dash-kicker">YOUR MARKETPLACE</p><h3>Good to see you'+(state.user?.name ? ', '+esc(state.user.name.split(' ')[0]) : '')+'.</h3><p>Review the activity that keeps GlamGo moving.</p></div></div>'+
       '<div class="admin-kpi-grid">'+metric('PENDING APPLICATIONS', state.adminDataLoaded && !state.adminDataError ? pending.length : null, 'Awaiting review')+metric('TOTAL BOOKINGS', stats?.total_bookings, 'At-home and salon appointments')+metric('TOTAL ORDERS', stats?.total_orders, 'Product orders')+metric('CUSTOMERS', stats?.customers_count, 'Registered customer accounts')+'</div>'+
       '<div class="dash-overview-grid"><section class="admin-panel"><div class="dash-panel-heading"><div><span class="dash-kicker">NEEDS ATTENTION</span><h2>Partner applications</h2></div><button class="dash-link" data-action="admin-tab" data-id="moderation">View all →</button></div>'+
-      (pending.length ? pending.slice(0,4).map(d=>'<div class="dash-row"><div><strong>'+esc(d.name)+'</strong><small>'+esc(d.role)+' · '+esc(d.applicant_name || 'Applicant')+'</small></div><button class="dash-link" data-action="admin-tab" data-id="moderation">Review →</button></div>').join('') : '<div class="dash-empty"><strong>'+(state.adminDataLoaded && !state.adminDataError ? 'All caught up' : 'Applications unavailable')+'</strong><p>'+(state.adminDataLoaded && !state.adminDataError ? 'There are no pending applications.' : 'Refresh to see the latest applications.')+'</p></div>')+'</section>'+
+      (pending.length ? pending.slice(0,4).map(d=>'<div class="dash-row"><div><strong>'+esc(d.name)+'</strong><small>'+esc(d.role)+' · '+esc(d.applicant_name || 'Applicant')+'</small></div><button class="dash-link" data-action="admin-tab" data-id="moderation">Review →</button></div>').join('') : '<div class="dash-empty"><strong>'+(state.adminDataLoaded && !state.adminDataError ? 'All caught up' : state.adminDataError ? 'Applications unavailable' : 'Loading applications...')+'</strong><p>'+(state.adminDataLoaded && !state.adminDataError ? 'There are no pending applications.' : state.adminDataError ? 'Refresh to see the latest applications.' : 'Fetching latest partner applications.')+'</p></div>')+'</section>'+
       '<section class="admin-panel"><div class="dash-panel-heading"><div><span class="dash-kicker">PLATFORM ACTIVITY</span><h2>Recent activity</h2></div><button class="dash-link" data-action="admin-tab" data-id="audit-logs">View log →</button></div>'+
       (logs.length ? logs.map(l=>'<div class="dash-row"><div><strong>'+esc(l.action)+'</strong><small>'+esc(l.target_type)+' · '+new Date(l.created_at).toLocaleString()+'</small></div></div>').join('') : '<div class="dash-empty"><strong>No activity to show</strong><p>Administrative actions will appear here when available.</p></div>')+'</section></div>';
   } else if(tab === 'moderation'){
@@ -2669,7 +2670,7 @@ function adminPage(){
     mainContent = '<div class="admin-panel">' +
       '<div class="admin-panel-head">' +
         '<div>' +
-          '<h2>Users & accounts & Role Management</h2>' +
+          '<h2>Users & Role Management</h2>' +
           '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Search accounts, manage role permissions, and toggle access states.</p>' +
         '</div>' +
         '<div class="admin-actions">' +
@@ -4312,6 +4313,9 @@ function applyPostAuthNavigation(role) {
     }
     if (resume.view === 'checkout') ensureCheckoutReservation();
     return null;
+  }
+  if (role !== 'admin' && window.location.hash === '#admin') {
+    history.replaceState(null, '', '#home');
   }
   state.view = state.experience ? 'landing' : 'public';
   return null;
