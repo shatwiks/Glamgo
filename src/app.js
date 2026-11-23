@@ -110,7 +110,8 @@ const icons = {
   check: '<path d="m4 12 5 5L20 6"/>',
   plus: '<path d="M12 4v16M4 12h16"/>',
   minus: '<path d="M4 12h16"/>',
-  filter: '<path d="M4 7h16M7 12h10M10 17h4"/>',
+  filter: '<line x1="4" y1="8" x2="20" y2="8"/><circle cx="15" cy="8" r="2.2" fill="currentColor"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="16" r="2.2" fill="currentColor"/>',
+  eye: '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M7 3v4M17 3v4M3 10h18"/>',
   shield: '<path d="M12 2 4 5v6c0 6 4 9 8 11 4-2 8-5 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
   spark: '<path d="M12 2.7 6.3 8.4a8 8 0 1 0 11.4 0L12 2.7Z"/>',
@@ -328,15 +329,29 @@ const state = {
   searchOpen: false,
   query: '',
   homeCategory: 'All',
+  homeSort: 'featured',
+  homeMinPrice: '',
+  homeMaxPrice: '',
   salonCategory: 'All',
+  salonSort: 'featured',
+  salonMinPrice: '',
+  salonMaxPrice: '',
   salonDate: null,
   shopCategory: 'All',
   shopCollection: 'All',
   shopBrand: 'All',
-  sort: 'featured',
+  shopAvailability: 'all',
+  shopSort: 'featured',
+  shopMinPrice: '',
+  shopMaxPrice: '',
+  filterOpen: { home: false, salon: false, shop: false },
+  filterDrawerOpen: false,
+  filterDrawerDraft: null,
   activeNav: null,
   addedCartIds: {},
   addingCartId: null,
+  quickViewProductId: null,
+  quickSelectedVariants: {},
   selectedSalon: null,
   selectedProduct: null,
   productVariant: null,
@@ -465,19 +480,122 @@ const matchesShopCollection = (p, col) => {
   if (col === 'TRENDING') return norm.includes('TREND');
   return norm === col.toUpperCase();
 };
-const getFilteredShopProducts = (items = products) => {
-  const filtered = (items || []).filter(p => {
-    if (state.shopCategory !== 'All' && p.category !== state.shopCategory) return false;
-    if (state.shopBrand !== 'All' && p.brand !== state.shopBrand) return false;
-    if (!matchesShopCollection(p, state.shopCollection)) return false;
+const SORT_OPTIONS = [
+  ['featured', 'Featured'],
+  ['alpha-asc', 'Alphabetically, A-Z'],
+  ['alpha-desc', 'Alphabetically, Z-A'],
+  ['price-asc', 'Price, low to high'],
+  ['price-desc', 'Price, high to low']
+];
+const SORT_LABELS = Object.fromEntries(SORT_OPTIONS);
+const isProductInStock = p => {
+  if (!p || p.in_stock === false || p.soldOut === true) return false;
+  const vs = Array.isArray(p.variants) && p.variants.length ? p.variants : null;
+  if (vs) return vs.some(v => !getStockInfo(p, v).soldOut);
+  return !getStockInfo(p, '').soldOut;
+};
+const matchesPriceRange = (rawPrice, minVal, maxVal) => {
+  const hasMin = minVal !== '' && minVal != null && !Number.isNaN(Number(minVal));
+  const hasMax = maxVal !== '' && maxVal != null && !Number.isNaN(Number(maxVal));
+  if (!hasMin && !hasMax) return true;
+  if (rawPrice == null || rawPrice === '' || Number.isNaN(Number(rawPrice))) return false;
+  const priceNum = Number(rawPrice);
+  if (hasMin && priceNum < Number(minVal)) return false;
+  if (hasMax && priceNum > Number(maxVal)) return false;
+  return true;
+};
+const sortFilteredItems = (list, sortKey, priceGetter, fallbackCompare = null) => {
+  const out = [...list];
+  if (sortKey === 'alpha-asc') out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  else if (sortKey === 'alpha-desc') out.sort((a, b) => String(b.name || '').localeCompare(String(a.name || '')));
+  else if (sortKey === 'price' || sortKey === 'price-asc') out.sort((a, b) => (priceGetter(a) ?? Infinity) - (priceGetter(b) ?? Infinity));
+  else if (sortKey === 'price-desc') out.sort((a, b) => (priceGetter(b) ?? -1) - (priceGetter(a) ?? -1));
+  else if (fallbackCompare) out.sort(fallbackCompare);
+  return out;
+};
+const getFiltersForExp = exp => {
+  if (exp === 'home') return { exp: 'home', category: state.homeCategory, sort: state.homeSort, minPrice: state.homeMinPrice, maxPrice: state.homeMaxPrice };
+  if (exp === 'salon') return { exp: 'salon', category: state.salonCategory, distance: state.salonDistanceFilter || 'all', sort: state.salonSort, minPrice: state.salonMinPrice, maxPrice: state.salonMaxPrice };
+  return { exp: 'shop', category: state.shopCategory, collection: state.shopCollection, brand: state.shopBrand, availability: state.shopAvailability || 'all', sort: state.shopSort, minPrice: state.shopMinPrice, maxPrice: state.shopMaxPrice };
+};
+const applyFiltersToExp = (exp, f) => {
+  if (exp === 'home') {
+    state.homeCategory = f.category || 'All';
+    state.homeSort = f.sort || 'featured';
+    state.homeMinPrice = f.minPrice ?? '';
+    state.homeMaxPrice = f.maxPrice ?? '';
+  } else if (exp === 'salon') {
+    state.salonCategory = f.category || 'All';
+    state.salonDistanceFilter = f.distance || 'all';
+    state.salonSort = f.sort || 'featured';
+    state.salonMinPrice = f.minPrice ?? '';
+    state.salonMaxPrice = f.maxPrice ?? '';
+  } else {
+    state.shopCategory = f.category || 'All';
+    state.shopCollection = f.collection || 'All';
+    state.shopBrand = f.brand || 'All';
+    state.shopAvailability = f.availability || 'all';
+    state.shopSort = f.sort || 'featured';
+    state.shopMinPrice = f.minPrice ?? '';
+    state.shopMaxPrice = f.maxPrice ?? '';
+  }
+};
+const defaultFiltersForExp = exp => {
+  if (exp === 'home') return { exp: 'home', category: 'All', sort: 'featured', minPrice: '', maxPrice: '' };
+  if (exp === 'salon') return { exp: 'salon', category: 'All', distance: 'all', sort: 'featured', minPrice: '', maxPrice: '' };
+  return { exp: 'shop', category: 'All', collection: 'All', brand: 'All', availability: 'all', sort: 'featured', minPrice: '', maxPrice: '' };
+};
+const getHomeServicePrice = s => (s?.starting_price != null && Number(s.starting_price) > 0) ? Number(s.starting_price) : (s?.price != null ? Number(s.price) : null);
+const getFilteredHomeServices = (items = [], filters = null) => {
+  const f = filters || getFiltersForExp('home');
+  const filtered = (items || []).filter(s => {
+    if (f.category && f.category !== 'All' && s.category !== f.category) return false;
+    if (!matchesPriceRange(getHomeServicePrice(s), f.minPrice, f.maxPrice)) return false;
     return true;
   });
-  const sorted = [...filtered];
-  if (state.sort === 'price' || state.sort === 'price-asc') sorted.sort((a, b) => Number(a.price) - Number(b.price));
-  else if (state.sort === 'price-desc') sorted.sort((a, b) => Number(b.price) - Number(a.price));
-  else if (state.sort === 'rating') sorted.sort((a, b) => Number(b.rating || 0) - Number(a.rating || 0));
-  else if (state.sort === 'reviews') sorted.sort((a, b) => Number(b.reviews || 0) - Number(a.reviews || 0));
-  return sorted;
+  return sortFilteredItems(filtered, f.sort, getHomeServicePrice);
+};
+const getFilteredSalons = (items = [], filters = null) => {
+  const f = filters || getFiltersForExp('salon');
+  const maxKm = !Array.isArray(state.userCoords) || !f.distance || f.distance === 'all'
+    ? Infinity
+    : f.distance === 'nearest'
+      ? NEAR_SALON_RADIUS_KM
+      : Number(f.distance || Infinity);
+  const filtered = (items || []).filter(s => {
+    if (f.category && f.category !== 'All' && !(Array.isArray(s.services) && s.services.includes(f.category))) return false;
+    if (maxKm !== Infinity && !(s.distanceKm != null && s.distanceKm <= maxKm)) return false;
+    if (!matchesPriceRange(s.price != null && Number(s.price) > 0 ? Number(s.price) : null, f.minPrice, f.maxPrice)) return false;
+    return true;
+  });
+  return sortFilteredItems(filtered, f.sort, s => (s.price != null && Number(s.price) > 0 ? Number(s.price) : null), (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+};
+const getFilteredShopProducts = (items = products, filters = null) => {
+  const f = filters || getFiltersForExp('shop');
+  const filtered = (items || []).filter(p => {
+    if (f.category && f.category !== 'All' && p.category !== f.category) return false;
+    if (f.brand && f.brand !== 'All' && p.brand !== f.brand) return false;
+    if (!matchesShopCollection(p, f.collection)) return false;
+    if (f.availability === 'in_stock' && !isProductInStock(p)) return false;
+    if (f.availability === 'out_of_stock' && isProductInStock(p)) return false;
+    if (!matchesPriceRange(p.price, f.minPrice, f.maxPrice)) return false;
+    return true;
+  });
+  return sortFilteredItems(filtered, f.sort, p => (p.price != null ? Number(p.price) : null));
+};
+const trapFocusIn = (container, e) => {
+  if (!container || e.key !== 'Tab') return;
+  const focusables = Array.from(container.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el => el.offsetParent !== null);
+  if (!focusables.length) return;
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !container.contains(document.activeElement))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (document.activeElement === last || !container.contains(document.activeElement))) {
+    e.preventDefault();
+    first.focus();
+  }
 };
 const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => item.id !== p.id && item.category === p.category).slice(0, limit) : [];
 const parseIngredientsList = raw => String(raw || '').split(/[,;•\n]+/).map(s => s.trim()).filter(Boolean);
@@ -520,16 +638,12 @@ const listingReviewSection = (type, id) => {
   const reviews = state.listingReviews[`${type}:${id}`];
   const body = !reviews || reviews.loading ? '<p>Loading customer reviews…</p>'
     : reviews.error ? '<p>Reviews could not be loaded right now.</p>'
-    : !reviews.items.length ? '<p>No customer reviews to show yet.</p>'
+    : !reviews.items.length ? '<p>No customer reviews yet.</p>'
     : '<div class="pdp-review-list">'+reviews.items.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name || 'GlamGo customer')+'</strong><span class="rating">'+icon('star',14)+' '+esc(r.rating)+'/5</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>';
   return '<section class="detail-block"><h2>Customer reviews</h2>'+body+'</section>';
 };
 const getActiveSubnavKey = () => {
   if (state.view === 'landing') {
-    if (state.experience === 'shop') {
-      if (state.shopCollection === 'BESTSELLER') return 'bestsellers';
-      if (state.shopCollection === 'NEW') return 'new-arrivals';
-    }
     return state.activeNav || 'landing';
   }
   if (state.view === 'account' && state.experience === 'salon' && state.accountTab === 'My bookings') return 'account-bookings';
@@ -595,8 +709,8 @@ function requireAuth(resume = null, message = 'Please sign in to continue.') {
   if (message) toast(message);
   return false;
 }
-const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
-const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; render(); window.scrollTo({top:0,behavior:'instant'}); };
+const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.filterDrawerOpen = false; state.filterDrawerDraft = null; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
+const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.filterDrawerOpen = false; state.filterDrawerDraft = null; render(); window.scrollTo({top:0,behavior:'instant'}); };
 const image = (src, alt, cls='') => '<img class="'+esc(cls)+'" src="'+esc(src)+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
 const sectionHead = (eyebrow,title,sub='',action='') => '<div class="section-head"><div><p class="eyebrow">'+eyebrow+'</p><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
@@ -607,7 +721,7 @@ const catalogUnavailableState = (title, message = 'Live inventory could not be l
 const canSafelyBackgroundRender = () => {
   // Public content is static and does not need replacing as catalog feeds arrive.
   if (state.view === 'public') return false;
-  if (state.modal) return false;
+  if (state.modal || state.mobileMenu || state.filterDrawerOpen) return false;
   const active = document.activeElement;
   if (active && app.contains(active) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return false;
   return true;
@@ -855,53 +969,308 @@ function auth(){
 }
 
 function header(){
-  const current = experiences.find(x => x.id === state.experience) || experiences[0];
-  const userInitials = state.user?.name ? state.user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'AM';
+  const activeExp = state.experience || 'home';
+  const expTabs = [
+    { id: 'home', label: 'Home', full: 'At-home services' },
+    { id: 'salon', label: 'Salons', full: 'Salons & parlours' },
+    { id: 'shop', label: 'Shop', full: 'Beauty shopping' }
+  ];
+  const expSwitcherHtml = '<nav class="exp-switcher" aria-label="Switch experience">' +
+    expTabs.map(t => '<button type="button" class="exp-pill'+(activeExp===t.id?' active':'')+'" data-action="experience" data-id="'+t.id+'"'+(activeExp===t.id?' aria-current="page"':'')+'>'+t.label+'</button>').join('') +
+    '</nav>';
+  const mobileExpBarHtml = '<nav class="mobile-exp-bar" aria-label="Switch experience">' +
+    expTabs.map(t => '<button type="button" class="exp-pill'+(activeExp===t.id?' active':'')+'" data-action="experience" data-id="'+t.id+'"'+(activeExp===t.id?' aria-current="page"':'')+'>'+t.label+'</button>').join('') +
+    '</nav>';
+  const userInitials = state.user?.name ? state.user.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() : 'GG';
   const accountBtn = state.signedIn
-    ? '<button class="avatar-button" aria-label="My account" data-action="account">'+userInitials+'</button>'
-    : '<button class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',15)+'</button>';
+    ? '<button type="button" class="avatar-button" aria-label="My account" data-action="account">'+esc(userInitials)+'</button>'
+    : '<button type="button" class="avatar-button" aria-label="Sign in" title="Sign in" data-action="account">'+icon('user',16)+'</button>';
   const activeKey = getActiveSubnavKey();
-  const navBtn = (act, label, key, extraAttrs='') => '<button data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
-  return '<div class="site-shell"><div class="announcement">A more beautiful way to care for yourself <span>·</span> Discover GlamGo</div><header class="header"><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><div class="header-location"><button data-action="location">'+icon('pin',18)+'<span><small>YOUR LOCATION</small>'+esc(state.location)+'</span>'+icon('chevron',15)+'</button></div><button class="header-search" data-action="search-open">'+icon('search',19)+'<span>Search services, salons & products</span><kbd>⌘ K</kbd></button><div class="header-actions"><div class="switch-wrap"><button class="switch-button" data-action="switch-toggle" aria-expanded="'+state.menu+'"><span class="switch-icon">'+icon(current.icon,18)+'</span><span>Switch experience<small>'+current.eyebrow.split('/ ')[1]+'</small></span>'+icon('chevron',14)+'</button>'+(state.menu?'<div class="switch-menu"><p>EXPLORE GLAMGO</p>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'" class="'+(x.id===state.experience?'active':'')+'">'+icon(x.icon,19)+'<span>'+x.eyebrow.split('/ ')[1]+'<small>'+x.title+'</small></span>'+(x.id===state.experience?icon('check',16):'')+'</button>').join('')+'</div>':'')+'</div><button class="icon-button" aria-label="Wishlist" data-action="wishlist">'+icon('heart',21)+(state.wishlist.length?'<i></i>':'')+'</button><button class="icon-button" aria-label="Cart" data-action="cart">'+icon('bag',21)+(countCart()?'<b>'+countCart()+'</b>':'')+'</button><button class="icon-button notify-button" aria-label="Notifications" data-action="notifications">'+icon('bell',21)+(state.notifications.length?'<i></i>':'')+'</button>'+(state.user?.role==='admin'?'<button class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'')+'<button class="btn btn-outline btn-sm portal-btn" data-action="partners">Salon & Partner Portal</button>'+accountBtn+'</div><button class="mobile-menu-button" data-action="mobile-toggle" aria-label="'+(state.mobileMenu?'Close menu':'Open menu')+'" aria-expanded="'+state.mobileMenu+'">'+icon('menu',23)+'</button></header><nav class="subnav" aria-label="Section navigation"><div class="subnav-links">'+(state.experience==='home'?navBtn('landing','Home','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Popular services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"'):state.experience==='salon'?navBtn('landing','Discover','landing')+navBtn('scroll','Salons near you','salons','data-target="salons"')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('account-bookings','My appointments','account-bookings'):navBtn('shop-all','Shop all','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"'))+'</div><span class="subnav-tag">YOUR BEAUTY. YOUR WAY.</span></nav>'+(state.mobileMenu?'<div class="mobile-menu"><div class="mobile-menu-head"><span>EXPLORE GLAMGO</span><button data-action="mobile-toggle" aria-label="Close menu">'+icon('close',20)+'</button></div>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+icon(x.icon,20)+x.eyebrow.split('/ ')[1]+icon('arrow',16)+'</button>').join('')+'<button data-action="account">'+icon('user',20)+(state.signedIn?'My account':'Sign in')+icon('arrow',16)+'</button><button data-action="location">'+icon('pin',20)+esc(state.location)+icon('arrow',16)+'</button>'+(state.user?.role==='admin'?'<button data-action="admin">Admin Command Centre'+icon('arrow',16)+'</button>':'')+'</div>':'')+'</div>';
+  const navBtn = (act, label, key, extraAttrs='') => '<button type="button" data-action="'+act+'" data-nav-key="'+key+'" class="'+(activeKey===key?'active':'')+'"'+(activeKey===key?' aria-current="page"':'')+(extraAttrs?' '+extraAttrs:'')+'>'+label+'</button>';
+  const subnavHtml = state.view === 'landing'
+    ? '<nav class="subnav" aria-label="Section navigation"><div class="subnav-links">' +
+        (activeExp==='home'
+          ? navBtn('landing','Overview','landing')+navBtn('scroll','Categories','categories','data-target="categories"')+navBtn('scroll','Services','popular','data-target="popular"')+navBtn('scroll','Professionals','professionals','data-target="professionals"')+navBtn('scroll','How it works','how','data-target="how"')
+          : activeExp==='salon'
+            ? navBtn('landing','Discover','landing')+navBtn('scroll','Categories','salon-categories','data-target="salon-categories"')+navBtn('scroll','Salons','salons','data-target="salons"')+navBtn('account-bookings','My bookings','account-bookings')
+            : navBtn('shop-all','All products','landing')+navBtn('scroll','Categories','shop-categories','data-target="shop-categories"')+navBtn('scroll','Shelf','bestsellers','data-target="bestsellers"')) +
+      '</div></nav>'
+    : '';
+  const cartCount = countCart();
+  const wishCount = state.wishlist.length;
+  const mobileDrawerHtml = state.mobileMenu
+    ? '<div class="mobile-menu-backdrop" data-action="mobile-close"></div>' +
+      '<div id="mobile-menu-drawer" class="mobile-menu" role="dialog" aria-modal="true" aria-label="Navigation menu">' +
+        '<div class="mobile-menu-head"><span>MENU</span><button type="button" class="mobile-menu-close" data-action="mobile-close" aria-label="Close menu">'+icon('close',20)+'</button></div>' +
+        '<div class="mobile-menu-group"><span class="mobile-menu-label">EXPERIENCES</span>' +
+          expTabs.map(t => '<button type="button" class="mobile-menu-item'+(activeExp===t.id?' active':'')+'" data-action="experience" data-id="'+t.id+'">'+icon(t.id==='home'?'home':t.id==='salon'?'salon':'bag',18)+'<span>'+t.full+'</span>'+(activeExp===t.id?icon('check',16):icon('arrow',16))+'</button>').join('') +
+        '</div>' +
+        '<div class="mobile-menu-group"><span class="mobile-menu-label">YOUR GLAMGO</span>' +
+          '<button type="button" class="mobile-menu-item" data-action="location">'+icon('pin',18)+'<span>'+esc(state.location)+'</span>'+icon('arrow',16)+'</button>' +
+          '<button type="button" class="mobile-menu-item" data-action="account">'+icon('user',18)+'<span>'+(state.signedIn?'My account':'Sign in / Create account')+'</span>'+icon('arrow',16)+'</button>' +
+          '<button type="button" class="mobile-menu-item" data-action="wishlist">'+icon('heart',18)+'<span>Wishlist'+(wishCount?' ('+wishCount+')':'')+'</span>'+icon('arrow',16)+'</button>' +
+          '<button type="button" class="mobile-menu-item" data-action="notifications">'+icon('bell',18)+'<span>Notifications'+(state.notifications.length?' ('+state.notifications.length+')':'')+'</span>'+icon('arrow',16)+'</button>' +
+          '<button type="button" class="mobile-menu-item" data-action="account-bookings">'+icon('calendar',18)+'<span>My bookings</span>'+icon('arrow',16)+'</button>' +
+          '<button type="button" class="mobile-menu-item" data-action="orders">'+icon('bag',18)+'<span>My orders</span>'+icon('arrow',16)+'</button>' +
+        '</div>' +
+        '<div class="mobile-menu-group"><span class="mobile-menu-label">PARTNERS</span>' +
+          '<button type="button" class="mobile-menu-item" data-action="partners">'+icon('spark',18)+'<span>Salon &amp; Partner Portal</span>'+icon('arrow',16)+'</button>' +
+          (state.user?.role==='admin'?'<button type="button" class="mobile-menu-item" data-action="admin">'+icon('shield',18)+'<span>Command Centre</span>'+icon('arrow',16)+'</button>':'') +
+        '</div>' +
+      '</div>'
+    : '';
+  return '<div class="site-shell"><header class="header">' +
+    '<a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a>' +
+    expSwitcherHtml +
+    '<div class="header-location"><button type="button" class="header-location-btn" data-action="location" aria-label="Change location: '+esc(state.location)+'">'+icon('pin',16)+'<span class="header-location-text">'+esc(state.location)+'</span>'+icon('chevron',14)+'</button></div>' +
+    '<button type="button" class="header-search" data-action="search-open" aria-label="Search services, salons and products">'+icon('search',17)+'<span>Search GlamGo</span><kbd>⌘K</kbd></button>' +
+    '<div class="header-actions">' +
+      '<button type="button" class="icon-button mobile-search-icon" aria-label="Search" data-action="search-open">'+icon('search',20)+'</button>' +
+      '<button type="button" class="icon-button wishlist-btn" aria-label="Wishlist'+(wishCount?' ('+wishCount+' saved)':'')+'" data-action="wishlist">'+icon('heart',20)+(wishCount?'<i></i>':'')+'</button>' +
+      '<button type="button" class="icon-button notify-button" aria-label="Notifications'+(state.notifications.length?' ('+state.notifications.length+')':'')+'" data-action="notifications">'+icon('bell',20)+(state.notifications.length?'<i></i>':'')+'</button>' +
+      '<button type="button" class="icon-button cart-btn" aria-label="Shopping bag'+(cartCount?' ('+cartCount+' items)':'')+'" data-action="cart">'+icon('bag',20)+(cartCount?'<b>'+cartCount+'</b>':'')+'</button>' +
+      (state.user?.role==='admin'?'<button type="button" class="btn btn-outline btn-sm portal-btn admin-portal-btn" data-action="admin">Command Centre</button>':'') +
+      '<button type="button" class="portal-link" data-action="partners">Partner portal</button>' +
+      accountBtn +
+    '</div>' +
+    '<button type="button" id="mobile-menu-trigger" class="mobile-menu-button" data-action="mobile-toggle" aria-label="'+(state.mobileMenu?'Close menu':'Open menu')+'" aria-expanded="'+state.mobileMenu+'" aria-controls="mobile-menu-drawer">'+icon(state.mobileMenu?'close':'menu',22)+'</button>' +
+  '</header>' +
+  mobileExpBarHtml +
+  subnavHtml +
+  mobileDrawerHtml +
+  '</div>';
 }
 
 function footer(){
-  return '<footer class="footer"><div class="footer-grid"><div><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><p>Beauty made personal, wherever you are.</p><span>YOUR BEAUTY. YOUR WAY.</span></div><div><h4>Explore</h4>'+experiences.map(x=>'<button data-action="experience" data-id="'+x.id+'">'+x.eyebrow.split('/ ')[1]+'</button>').join('')+'</div><div><h4>Your account</h4><button data-action="account">My profile</button><button data-action="account-bookings">My bookings</button><button data-action="orders">My orders</button><button data-action="wishlist">Wishlist</button></div><div><h4>GlamGo</h4><button data-action="partners">Partner with us</button>'+(state.user?.role==='admin'?'<button data-action="admin">Command Centre</button>':'')+'<button data-action="support">Customer support</button><button data-action="notifications">Notifications</button></div></div><div class="footer-bottom"><span>© '+new Date().getFullYear()+' GlamGo. Made for every side of beauty.</span><span>Thoughtfully curated care.</span></div></footer>';
+  return '<footer class="footer"><div class="footer-grid"><div><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><p>Beauty made personal, wherever you are.</p></div><div><h4>Explore</h4>'+experiences.map(x=>'<button type="button" data-action="experience" data-id="'+x.id+'">'+x.eyebrow.split('/ ')[1]+'</button>').join('')+'</div><div><h4>Your account</h4><button type="button" data-action="account">My profile</button><button type="button" data-action="account-bookings">My bookings</button><button type="button" data-action="orders">My orders</button><button type="button" data-action="wishlist">Wishlist</button></div><div><h4>GlamGo</h4><button type="button" data-action="partners">Partner with us</button>'+(state.user?.role==='admin'?'<button type="button" data-action="admin">Command Centre</button>':'')+'<button type="button" data-action="support">Customer support</button><button type="button" data-action="notifications">Notifications</button></div></div><div class="footer-bottom"><span>© '+new Date().getFullYear()+' GlamGo.</span></div></footer>';
 }
 
 function mobileNav(){
-  return '<nav class="mobile-bottom" aria-label="Mobile navigation"><button data-action="landing" class="'+(state.view==='landing'?'active':'')+'">'+icon('home',21)+'<span>Explore</span></button><button data-action="search-open">'+icon('search',21)+'<span>Search</span></button><button data-action="switch-toggle" aria-expanded="'+state.mobileMenu+'">'+icon('grid',21)+'<span>Switch</span></button><button data-action="cart">'+icon('bag',21)+'<span>Cart</span></button><button data-action="account" class="'+(state.view==='account'?'active':'')+'">'+icon('user',21)+'<span>Account</span></button></nav>';
+  const cartCount = countCart();
+  const wishCount = state.wishlist.length;
+  return '<nav class="mobile-bottom" aria-label="Mobile navigation">' +
+    '<button type="button" data-action="landing" class="'+(state.view==='landing'?'active':'')+'">'+icon('home',20)+'<span>Explore</span></button>' +
+    '<button type="button" data-action="search-open" class="'+(state.modal==='search'?'active':'')+'">'+icon('search',20)+'<span>Search</span></button>' +
+    '<button type="button" data-action="wishlist" class="'+(state.view==='account'&&state.accountTab==='Wishlist'?'active':'')+'">'+icon('heart',20)+(wishCount?'<i></i>':'')+'<span>Wishlist</span></button>' +
+    '<button type="button" data-action="cart" class="'+(state.view==='cart'||state.view==='checkout'?'active':'')+'">'+icon('bag',20)+(cartCount?'<b>'+cartCount+'</b>':'')+'<span>Bag</span></button>' +
+    '<button type="button" data-action="account" class="'+(state.view==='account'&&state.accountTab!=='Wishlist'?'active':'')+'">'+icon('user',20)+'<span>Account</span></button>' +
+  '</nav>';
 }
 
 function homeCard(s){
-  return '<article class="service-card"><button class="listing-image-button" data-action="service-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name,'card-img')+'</button><button class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'" aria-label="Save '+esc(s.name)+'">'+icon('heart',18)+'</button><div class="card-body"><span class="card-kicker">'+esc(s.category)+'</span><h3>'+esc(s.name)+'</h3><div class="card-meta">'+icon('clock',15)+esc(s.duration)+'</div><div class="card-bottom"><strong>'+money(s.price)+'</strong><button data-action="service-detail" data-id="'+esc(s.id)+'">View service '+icon('arrow',16)+'</button></div></div></article>';
+  const proName = s.professional || s.pro_name || '';
+  const priceLabel = s.starting_price != null && Number(s.starting_price) > 0
+    ? 'From ' + money(s.starting_price)
+    : money(s.price);
+  return '<article class="service-card">' +
+    '<button type="button" class="listing-image-button" data-action="service-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name,'card-img')+'</button>' +
+    '<button type="button" class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'" aria-label="Save '+esc(s.name)+'">'+icon('heart',18)+'</button>' +
+    '<div class="card-body">' +
+      '<span class="card-kicker">'+esc(s.category)+'</span>' +
+      '<h3>'+esc(s.name)+'</h3>' +
+      '<div class="card-meta">'+icon('clock',14)+'<span>'+esc(s.duration)+'</span></div>' +
+      (proName ? '<div class="card-pro">With '+esc(proName)+'</div>' : '') +
+      '<div class="card-bottom"><strong>'+priceLabel+'</strong><button type="button" data-action="service-detail" data-id="'+esc(s.id)+'">View service '+icon('arrow',16)+'</button></div>' +
+    '</div></article>';
 }
 function serviceDetail(){
   const s = services.find(x => String(x.id) === String(state.selectedService));
   if (!s) return '<main class="detail-page">'+backButton('landing','Back to services')+(state.catalogFeedsLoading.services?catalogLoadingState('service details'):state.catalogErrors.services?catalogUnavailableState('Service details'):empty('spark','Service unavailable','This service is no longer listed.'))+'</main>';
-  return '<main class="detail-page">'+backButton('landing','Back to services')+'<div class="service-detail"><div class="service-detail-image">'+image(s.img,s.name)+'</div><div class="service-detail-copy"><p class="eyebrow">AT-HOME BEAUTY · '+esc(s.category)+'</p><h1>'+esc(s.name)+'</h1><p class="service-detail-intro">'+esc(s.desc || 'Explore this service and choose a professional during booking.')+'</p><div class="service-detail-facts"><div><span>Service price</span><strong>'+money(s.price)+'</strong></div><div><span>Duration</span><strong>'+esc(s.duration)+'</strong></div><div><span>Experience</span><strong>At your home</strong></div></div><p class="service-detail-note">Choose a professional, date and time in the next steps. Availability is confirmed during booking.</p><div class="service-detail-actions">'+button('Book this service '+icon('arrow',17),'book-home','btn-primary','data-id="'+esc(s.id)+'"')+'<button class="btn btn-outline" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'">'+icon('heart',17)+' '+(state.wishlist.includes(s.id)?'Saved':'Save service')+'</button></div></div></div><section class="detail-block service-detail-about"><p class="eyebrow">YOUR BEAUTY, YOUR WAY</p><h2>Care that comes to you.</h2><p>Discover the service, choose an independent professional, and plan your appointment in one place.</p></section>'+listingReviewSection('service',s.id)+'</main>';
+  const proName = s.professional || s.pro_name || '';
+  return '<main class="detail-page">'+backButton('landing','Back to services') +
+    '<div class="service-detail">' +
+      '<div class="service-detail-image">'+image(s.img,s.name)+'</div>' +
+      '<div class="service-detail-copy">' +
+        '<p class="eyebrow">AT-HOME BEAUTY · '+esc(s.category)+'</p>' +
+        '<h1>'+esc(s.name)+'</h1>' +
+        (s.desc ? '<p class="service-detail-intro">'+esc(s.desc)+'</p>' : '') +
+        '<div class="service-detail-facts">' +
+          '<div><span>Price</span><strong>'+money(s.price)+'</strong></div>' +
+          '<div><span>Duration</span><strong>'+esc(s.duration)+'</strong></div>' +
+          (proName ? '<div><span>Specialist</span><strong>'+esc(proName)+'</strong></div>' : '<div><span>Location</span><strong>At your home</strong></div>') +
+        '</div>' +
+        '<p class="service-detail-note">Choose a specialist, date, and preferred time in booking. Preferred times are subject to availability.</p>' +
+        '<div class="service-detail-actions">' +
+          button('Book this service '+icon('arrow',17),'book-home','btn-primary','data-id="'+esc(s.id)+'"') +
+          '<button type="button" class="btn btn-outline" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'">'+icon('heart',17)+' '+(state.wishlist.includes(s.id)?'Saved':'Save service')+'</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    listingReviewSection('service',s.id) +
+  '</main>';
 }
 
 function professionalCard(p){
-  return '<article class="pro-card"><div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+esc(p.name)+'</h3><span>'+esc(p.specialty)+'</span></div></div><p>'+esc(p.experience)+'</p><div class="pro-bottom">'+''+'<span>From '+money(p.price)+'</span></div><button class="pro-book" data-action="book-pro" data-id="'+p.id+'">View availability '+icon('arrow',16)+'</button></article>';
+  const hasPrice = p.price != null && Number(p.price) > 0;
+  return '<article class="pro-card">' +
+    '<div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+esc(p.name)+'</h3><span>'+esc(p.specialty)+'</span></div></div>' +
+    (p.experience ? '<p>'+esc(p.experience)+'</p>' : '') +
+    (hasPrice ? '<div class="pro-bottom"><span>From '+money(p.price)+'</span></div>' : '') +
+    '<button type="button" class="pro-book" data-action="book-pro" data-id="'+p.id+'">Book with specialist '+icon('arrow',16)+'</button>' +
+  '</article>';
 }
+
+const buildActiveFiltersForExp = (exp, f, visibleCollections = []) => {
+  const list = [];
+  if (exp === 'shop' && f.collection && f.collection !== 'All') {
+    const colObj = visibleCollections.find(c => c.id === f.collection);
+    list.push({ key: 'collection', label: (colObj ? colObj.label : f.collection), extra: 'data-exp="shop" data-key="collection"' });
+  }
+  if (f.category && f.category !== 'All') {
+    const label = exp === 'shop' ? shopCategoryLabel(f.category) : f.category;
+    list.push({ key: 'category', label, extra: 'data-exp="' + exp + '" data-key="category"' });
+  }
+  if (exp === 'shop' && f.brand && f.brand !== 'All') {
+    list.push({ key: 'brand', label: f.brand, extra: 'data-exp="shop" data-key="brand"' });
+  }
+  if (exp === 'shop' && f.availability && f.availability !== 'all') {
+    list.push({ key: 'availability', label: f.availability === 'in_stock' ? 'In stock' : 'Out of stock', extra: 'data-exp="shop" data-key="availability"' });
+  }
+  if (exp === 'salon' && f.distance && f.distance !== 'all') {
+    const distMap = { nearest: 'Near you (≤8 km)', '5': 'Within 5 km', '10': 'Within 10 km' };
+    list.push({ key: 'distance', label: distMap[f.distance] || (f.distance + ' km'), extra: 'data-exp="salon" data-key="distance"' });
+  }
+  if ((f.minPrice !== '' && f.minPrice != null) || (f.maxPrice !== '' && f.maxPrice != null)) {
+    const minStr = f.minPrice !== '' && f.minPrice != null ? '₹' + esc(f.minPrice) : '₹0';
+    const maxStr = f.maxPrice !== '' && f.maxPrice != null ? '₹' + esc(f.maxPrice) : 'Any';
+    list.push({ key: 'price', label: minStr + ' – ' + maxStr, extra: 'data-exp="' + exp + '" data-key="price"' });
+  }
+  if (f.sort && f.sort !== 'featured') {
+    list.push({ key: 'sort', label: SORT_LABELS[f.sort] || 'Sorted', extra: 'data-exp="' + exp + '" data-key="sort"' });
+  }
+  return list;
+};
+
+const renderFilterFieldsHtml = (exp, f, opts = {}, isDraft = false) => {
+  const mode = isDraft ? 'draft' : 'live';
+  const categories = opts.categories || [];
+  const prefix = isDraft ? 'drawer-' + exp : 'panel-' + exp;
+  const sortHtml = '<details class="filter-group" open><summary>Sort by ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    SORT_OPTIONS.map(([val, lbl]) => {
+      const checked = f.sort === val || (val === 'price-asc' && f.sort === 'price');
+      return '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-sort" value="' + val + '" data-filter-exp="' + exp + '" data-filter-mode="' + mode + '" data-filter-field="sort"' + (checked ? ' checked' : '') + '><span>' + lbl + '</span></label>';
+    }).join('') +
+  '</div></details>';
+
+  const categoryHtml = categories.length ? '<details class="filter-group" open><summary>Category ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    categories.map(c => {
+      const lbl = exp === 'shop' ? shopCategoryLabel(c) : c;
+      const checked = f.category === c;
+      return '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-category" value="' + esc(c) + '" data-filter-exp="' + exp + '" data-filter-mode="' + mode + '" data-filter-field="category"' + (checked ? ' checked' : '') + '><span>' + esc(lbl) + '</span></label>';
+    }).join('') +
+  '</div></details>' : '';
+
+  const availabilityHtml = exp === 'shop' ? '<details class="filter-group" open><summary>Availability ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    [['in_stock', 'In stock'], ['out_of_stock', 'Out of stock']].map(([val, lbl]) => {
+      const checked = f.availability === val;
+      return '<label class="filter-check-row"><input type="checkbox" value="' + val + '" data-filter-exp="shop" data-filter-mode="' + mode + '" data-filter-field="availability"' + (checked ? ' checked' : '') + '><span>' + lbl + '</span></label>';
+    }).join('') +
+  '</div></details>' : '';
+
+  const visibleCols = opts.collections || [];
+  const collectionHtml = exp === 'shop' && visibleCols.length > 1 ? '<details class="filter-group" open><summary>Collection ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    visibleCols.map(col => '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-collection" value="' + esc(col.id) + '" data-filter-exp="shop" data-filter-mode="' + mode + '" data-filter-field="collection"' + (f.collection === col.id ? ' checked' : '') + '><span>' + esc(col.label) + '</span></label>').join('') +
+  '</div></details>' : '';
+
+  const brands = opts.brands || [];
+  const brandHtml = exp === 'shop' && brands.length > 2 ? '<details class="filter-group" open><summary>Brand ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    brands.map(b => '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-brand" value="' + esc(b) + '" data-filter-exp="shop" data-filter-mode="' + mode + '" data-filter-field="brand"' + (f.brand === b ? ' checked' : '') + '><span>' + esc(b === 'All' ? 'All brands' : b) + '</span></label>').join('') +
+  '</div></details>' : '';
+
+  const distanceHtml = exp === 'salon' && opts.hasDistances ? '<details class="filter-group" open><summary>Distance ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
+    [['all', 'All distances'], ['nearest', 'Near you (≤8 km)'], ['5', 'Within 5 km'], ['10', 'Within 10 km']].map(([val, lbl]) =>
+      '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-distance" value="' + val + '" data-filter-exp="salon" data-filter-mode="' + mode + '" data-filter-field="distance"' + ((f.distance || 'all') === val ? ' checked' : '') + '><span>' + lbl + '</span></label>'
+    ).join('') +
+  '</div></details>' : '';
+
+  const priceHtml = '<details class="filter-group" open><summary>Price ' + icon('chevron', 14) + '</summary>' +
+    '<div class="price-range-inputs">' +
+      '<label class="price-input-box"><span>From</span><div class="price-field"><i>₹</i><input id="' + prefix + '-min-price" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="0" value="' + esc(f.minPrice ?? '') + '" data-filter-exp="' + exp + '" data-filter-mode="' + mode + '" data-filter-field="minPrice" aria-label="Minimum price"></div></label>' +
+      '<label class="price-input-box"><span>To</span><div class="price-field"><i>₹</i><input id="' + prefix + '-max-price" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Max" value="' + esc(f.maxPrice ?? '') + '" data-filter-exp="' + exp + '" data-filter-mode="' + mode + '" data-filter-field="maxPrice" aria-label="Maximum price"></div></label>' +
+    '</div>' +
+  '</details>';
+
+  return sortHtml + availabilityHtml + priceHtml + categoryHtml + collectionHtml + brandHtml + distanceHtml;
+};
+
+const renderFilterShelfSection = (exp, liveFilters, activeFilters, opts, countText, resultsHtml) => {
+  const desktopOpen = Boolean(state.filterOpen?.[exp]);
+  const drawerOpen = Boolean(state.filterDrawerOpen && state.filterDrawerDraft?.exp === exp);
+  const triggerExpanded = desktopOpen || drawerOpen;
+  const triggerLabel = desktopOpen ? 'Hide filters' : 'Show filters';
+  const controlsHtml = '<div class="collection-controls-bar">' +
+    '<div class="collection-controls-left">' +
+      '<button type="button" id="exp-filter-trigger" class="filter-toggle-pill" data-action="exp-filter-toggle" data-exp="' + exp + '" aria-expanded="' + triggerExpanded + '" aria-controls="exp-filter-panel-' + exp + '">' +
+        icon('filter', 16) +
+        '<span>' + triggerLabel + '</span>' +
+        (activeFilters.length ? '<span class="filter-badge">' + activeFilters.length + '</span>' : '') +
+      '</button>' +
+      (exp === 'shop' ? '<button type="button" class="shop-mobile-search-btn" data-action="search-open" aria-label="Search beauty store">' + icon('search', 16) + '<span>Search products</span></button>' : '') +
+    '</div>' +
+    (countText ? '<span class="shelf-count">' + countText + '</span>' : '') +
+  '</div>';
+
+  const activeChipsHtml = activeFilters.length
+    ? '<div class="shop-shelf-meta"><div class="active-filters">' +
+        activeFilters.map(item => '<button type="button" class="active-filter-chip" data-action="exp-clear-filter" ' + item.extra + ' aria-label="Remove ' + esc(item.label) + ' filter">' + esc(item.label) + ' ' + icon('close', 13) + '</button>').join('') +
+        '<button type="button" class="reset-filters-link" data-action="exp-reset-all" data-exp="' + exp + '">Clear all</button>' +
+      '</div></div>'
+    : '';
+
+  const sidebarHtml = desktopOpen
+    ? '<aside id="exp-filter-panel-' + exp + '" class="filter-sidebar" aria-label="Filter and sort options">' +
+        renderFilterFieldsHtml(exp, liveFilters, opts, false) +
+        (activeFilters.length ? '<button type="button" class="btn btn-outline btn-sm full filter-sidebar-clear" data-action="exp-reset-all" data-exp="' + exp + '">Clear all filters</button>' : '') +
+      '</aside>'
+    : '';
+
+  let drawerHtml = '';
+  if (drawerOpen) {
+    const draft = state.filterDrawerDraft || liveFilters;
+    const draftMatches = opts.countDraftMatches ? opts.countDraftMatches(draft) : null;
+    drawerHtml = '<div class="filter-drawer-backdrop" data-action="exp-filter-drawer-close"></div>' +
+      '<div id="exp-filter-drawer" class="filter-drawer" role="dialog" aria-modal="true" aria-labelledby="filter-drawer-title">' +
+        '<div class="filter-drawer-head">' +
+          '<h3 id="filter-drawer-title">Filter &amp; sort</h3>' +
+          '<button type="button" class="filter-drawer-close" data-action="exp-filter-drawer-close" aria-label="Close filters">' + icon('close', 20) + '</button>' +
+        '</div>' +
+        '<div class="filter-drawer-body">' + renderFilterFieldsHtml(exp, draft, opts, true) + '</div>' +
+        '<div class="filter-drawer-footer">' +
+          '<button type="button" class="btn btn-outline" data-action="exp-filter-drawer-reset" data-exp="' + exp + '">Reset</button>' +
+          '<button type="button" class="btn btn-primary" data-action="exp-filter-drawer-apply" data-exp="' + exp + '">Apply' + (draftMatches !== null ? ' (' + draftMatches + ')' : '') + '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  return controlsHtml + activeChipsHtml +
+    '<div class="collection-layout' + (desktopOpen ? ' with-filters' : '') + '">' +
+      sidebarHtml +
+      '<div class="collection-results">' + resultsHtml + '</div>' +
+    '</div>' +
+    drawerHtml;
+};
 
 function homePage(){
   const userCity = normalizeCity(state.location);
   const cityServices = services.filter(s => isServiceAvailableInCity(s, userCity));
-  let filtered = cityServices.filter(s => state.homeCategory === 'All' || s.category === state.homeCategory);
-  if(state.sort === 'rating') filtered = [...filtered].sort((a,b) => Number(b.rating) - Number(a.rating));
-  if(state.sort === 'price') filtered = [...filtered].sort((a,b) => a.price - b.price);
-  const citySwitchBtns = '<div class="filter-row" style="justify-content:center;margin-top:14px">' +
+  const homeFilters = getFiltersForExp('home');
+  const filtered = getFilteredHomeServices(cityServices, homeFilters);
+  const activeFilters = buildActiveFiltersForExp('home', homeFilters);
+  const citySwitchBtns = '<div class="filter-row empty-city-switch">' +
     ['Bandra West, Mumbai','Indiranagar, Bengaluru','Hauz Khas, South Delhi'].map(loc => '<button type="button" class="filter-chip" data-action="location-set" data-id="'+loc+'">Switch to '+normalizeCity(loc)+'</button>').join('') +
     '</div>';
-  const servicesSection = !services.length && state.catalogFeedsLoading.services
+  const servicesResultsHtml = !services.length && state.catalogFeedsLoading.services
     ? catalogLoadingState('home treatments')
     : !services.length && state.catalogErrors.services
       ? catalogUnavailableState('Home treatments catalog')
       : filtered.length
         ? '<div class="card-grid">'+filtered.map(homeCard).join('')+'</div>'
-        : empty('spark','No home services in '+esc(userCity)+' yet','Switch to another metro city or try All categories.', citySwitchBtns);
+        : empty('spark','No home services match in '+esc(userCity),'Switch cities or clear your active filters to see more treatments.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="home"') : citySwitchBtns);
+  const countText = cityServices.length ? 'Showing <strong>'+filtered.length+'</strong> of '+cityServices.length+(cityServices.length===1?' service':' services') : '';
+  const servicesSection = renderFilterShelfSection('home', homeFilters, activeFilters, {
+    categories: homeCategories,
+    countDraftMatches: draft => getFilteredHomeServices(cityServices, draft).length
+  }, countText, servicesResultsHtml);
   const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
   const prosSection = !professionals.length && state.catalogFeedsLoading.professionals
     ? catalogLoadingState('specialists')
@@ -920,12 +1289,52 @@ function homePage(){
     Spa: photo('photo-1540555700478-4be289fbecef', 640),
     Packages: photo('photo-1515377905703-c4788e51af15', 640)
   };
-  return '<main><section class="home-hero"><div class="hero-copy"><p class="eyebrow line-eyebrow">BEAUTY, BROUGHT TO YOU</p><h1>Professional beauty care. <em>Right at your doorstep.</em></h1><p>Expert hands, thoughtful rituals and time for yourself—beautifully brought to the comfort of home.</p><div class="hero-buttons">'+button('Book a service '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+button('How it works','scroll','btn-outline','data-target="how"')+'</div><div class="hero-proof"><span>'+icon('spark',17)+' Independent professionals</span><span>'+icon('spark',17)+' Care chosen for you</span></div></div><div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'<div class="visual-note"><span>THE GLAMGO EDIT</span><strong>Your moment of care,<br>in your own space.</strong></div></div></section><section class="search-strip"><div><span class="eyebrow">WHAT FEELS GOOD TODAY?</span><h2>Find your next moment of care.</h2></div><button data-action="search-open">'+icon('search',19)+' Search for a service <span>Explore '+icon('arrow',16)+'</span></button></section><section class="section" id="categories">'+sectionHead('EXPLORE BY CATEGORY','The care you\'re looking for.','From a little refresh to a complete ritual.')+'<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button data-action="home-category" data-id="'+c+'" class="category-tile"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span>'+icon('arrow',17)+'</button>').join('')+'</div></section><section class="section soft-section" id="popular">'+sectionHead('BOOK WHAT YOU LOVE','Home services in '+esc(userCity)+'.','Expert care for the moments that matter.')+'<div class="listing-tools"><div class="filter-row">'+homeCategories.map(c=>'<button class="filter-chip '+(state.homeCategory===c?'active':'')+'" data-action="home-category" data-id="'+c+'" aria-pressed="'+(state.homeCategory===c)+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="home-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+servicesSection+'</section><section class="section" id="professionals">'+sectionHead('IN GOOD HANDS','Meet your beauty experts.','Explore professionals available in '+esc(userCity)+'.','<span class="section-aside">Personal service, every time.</span>')+' '+prosSection+'</section><section class="how-section" id="how"><div class="how-heading"><p class="eyebrow">SIMPLE BY DESIGN</p><h2>A beautiful experience, <em>from start to finish.</em></h2></div><div class="steps">'+[['01','Choose your service','Find the treatment or package that feels right.'],['02','Meet your professional','Select an expert whose style suits you.'],['03','Pick your moment','Book a date and time that fits your day.'],['04','Enjoy your service','Make room for beauty, right at home.']].map(x=>'<div class="step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('')+'</div></section><section class="section package-section"><div class="package-image">'+image(images.spa,'Relaxing beauty ritual')+'</div><div class="package-copy"><p class="eyebrow">THE GLAMGO EDIT</p><h2>Make time for <em>all of you.</em></h2><p>Explore spa services from independent beauty professionals and find a moment that feels right for you.</p>'+button('Explore spa services '+icon('arrow',17),'home-category','btn-primary','data-id="Spa"')+'</div></section><section class="section review-section">'+sectionHead('YOUR EXPERIENCE MATTERS','Care worth coming back to.','After every booking, your feedback helps shape a better GlamGo.')+'<div class="review-panel">'+icon('star',30)+'<div><h3>Your voice belongs here.</h3><p>Book a service and share a review from your account after your appointment.</p></div>'+button('Explore services '+icon('arrow',17),'scroll','btn-outline','data-target="popular"')+'</div></section></main>';
+  return '<main>' +
+    '<section class="home-hero">' +
+      '<div class="hero-copy">' +
+        '<p class="eyebrow line-eyebrow">AT-HOME BEAUTY</p>' +
+        '<h1>Professional beauty care, <em>at your doorstep.</em></h1>' +
+        '<p>Book independent beauty professionals for skin, hair, nails, and spa care in '+esc(userCity)+'.</p>' +
+        '<div class="hero-buttons">'+button('Explore services '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+'</div>' +
+      '</div>' +
+      '<div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'</div>' +
+    '</section>' +
+    '<section class="discovery-bar" aria-label="Location and search">' +
+      '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
+      '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search services, categories or specialists</strong></div>'+icon('arrow',16)+'</button>' +
+    '</section>' +
+    '<section class="section" id="categories">' +
+      sectionHead('CATEGORIES','Browse by treatment.') +
+      '<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button type="button" data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span></button>').join('')+'</div>' +
+    '</section>' +
+    '<section class="section soft-section" id="popular">' +
+      sectionHead('HOME SERVICES','Services in '+esc(userCity)+'.') +
+      servicesSection +
+    '</section>' +
+    '<section class="section" id="professionals">' +
+      sectionHead('SPECIALISTS','Professionals in '+esc(userCity)+'.') +
+      prosSection +
+    '</section>' +
+    '<section class="how-section" id="how">' +
+      '<div class="how-heading"><p class="eyebrow">HOW IT WORKS</p><h2>Simple from booking to care.</h2></div>' +
+      '<div class="steps">'+[['01','spark','Choose a service','Pick the treatment and review clear pricing and duration.'],['02','user','Pick a specialist','Select a listed professional or any available expert.'],['03','calendar','Request your time','Choose a date and preferred slot subject to availability.'],['04','check','Confirm &amp; welcome','Complete payment to confirm your appointment.']].map((x,idx)=>'<div class="step" style="--step-i:'+idx+'"><div class="step-head"><span class="step-icon">'+icon(x[1],20)+'</span><span class="step-num">'+x[0]+'</span></div><h3>'+x[2]+'</h3><p>'+x[3]+'</p></div>').join('')+'</div>' +
+    '</section>' +
+  '</main>';
 }
 
 function salonCard(s){
   const distText = s.distanceLabel || '';
-  return '<article class="salon-card"><div class="salon-image">'+image(s.img,s.name+' salon','card-img')+'</div><div class="salon-body"><div class="salon-title"><h3>'+s.name+'</h3>'+''+'</div><p>'+icon('pin',15)+esc(s.area)+(distText?' <i>·</i> '+esc(distText):'')+'</p><div class="salon-services">'+s.services.map(x=>'<span>'+x+'</span>').join('')+'</div><div class="card-bottom"><strong>Services from '+money(s.price)+'</strong><button data-action="salon-detail" data-id="'+s.id+'">View salon '+icon('arrow',16)+'</button></div></div></article>';
+  const hasPrice = s.price != null && Number(s.price) > 0;
+  const serviceTags = Array.isArray(s.services) ? s.services.slice(0, 4) : [];
+  const extraCount = Array.isArray(s.services) && s.services.length > 4 ? s.services.length - 4 : 0;
+  return '<article class="salon-card">' +
+    '<button type="button" class="listing-image-button salon-image" data-action="salon-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name+' salon','card-img')+'</button>' +
+    '<div class="salon-body">' +
+      '<div class="salon-title"><h3>'+esc(s.name)+'</h3></div>' +
+      '<p class="salon-location">'+icon('pin',15)+'<span>'+esc(s.area)+(distText?' · '+esc(distText):'')+'</span></p>' +
+      (serviceTags.length ? '<div class="salon-services">'+serviceTags.map(x=>'<span>'+esc(x)+'</span>').join('')+(extraCount?'<span>+'+extraCount+'</span>':'')+'</div>' : '') +
+      '<div class="card-bottom">'+(hasPrice?'<strong>From '+money(s.price)+'</strong>':'<span></span>')+'<button type="button" data-action="salon-detail" data-id="'+esc(s.id)+'">View salon '+icon('arrow',16)+'</button></div>' +
+    '</div></article>';
 }
 
 function salonPage(){
@@ -933,91 +1342,174 @@ function salonPage(){
   const citySalons = salons
     .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase())
     .map(enrichSalonWithDistance);
-  const maxKm = !Array.isArray(state.userCoords) || state.salonDistanceFilter === 'all'
-    ? Infinity
-    : state.salonDistanceFilter === 'nearest'
-      ? NEAR_SALON_RADIUS_KM
-      : Number(state.salonDistanceFilter || Infinity);
-  let list = citySalons.filter(s => (state.salonCategory === 'All' || s.services.includes(state.salonCategory)) && (maxKm === Infinity || (s.distanceKm != null && s.distanceKm <= maxKm)));
-  if(state.sort === 'rating') list = [...list].sort((a,b) => Number(b.rating) - Number(a.rating));
-  else if(state.sort === 'price') list = [...list].sort((a,b) => a.price - b.price);
-  else list = [...list].sort((a,b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+  const salonFilters = getFiltersForExp('salon');
+  const list = getFilteredSalons(citySalons, salonFilters);
   const nearbyCount = citySalons.filter(s => s.isFar === false).length;
   const hasDistances = citySalons.some(s => s.distanceKm != null);
-  const distanceOptions = [
-    { id: 'all', label: 'All distances' },
-    { id: 'nearest', label: 'Near you (≤8 km)' },
-    { id: '5', label: 'Within 5 km' },
-    { id: '10', label: 'Within 10 km' }
-  ];
-  const distanceRow = !hasDistances ? '' : '<div class="filter-row" style="margin:-14px 0 26px">' +
-    distanceOptions.map(opt => '<button type="button" class="filter-chip '+((state.salonDistanceFilter||'all')===opt.id?'active':'')+'" data-action="salon-distance" data-id="'+opt.id+'">'+esc(opt.label)+'</button>').join('') +
-    '</div>';
-  const salonsSection = !salons.length && state.catalogFeedsLoading.salons
+  const activeFilters = buildActiveFiltersForExp('salon', salonFilters);
+  const salonsResultsHtml = !salons.length && state.catalogFeedsLoading.salons
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try another category or distance.':'Try another city or check back later.', (hasDistances && state.salonDistanceFilter!=='all'?'<button type="button" class="btn btn-outline" data-action="salon-distance" data-id="all">Show all distances</button>':'')));
-  return '<main><section class="salon-hero"><div class="salon-hero-image">'+image(SALON_IMG,'Luxury contemporary salon interior')+'</div><div class="salon-hero-copy"><p class="eyebrow line-eyebrow">THE SALON EDIT</p><h1>Discover salons that make you <em>feel your best.</em></h1><p>Explore independent salons and parlours in '+esc(userCity)+'.</p>'+button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</div></section><section class="salon-search-box"><div><label>WHERE</label><button data-action="location">'+icon('pin',18)+esc(state.location)+'</button></div><div><label>WHAT</label><button data-action="search-open">'+icon('search',18)+' Service or salon name</button></div>'+button('Find salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"')+'</section><section class="section" id="salon-categories">'+sectionHead('FIND YOUR FIT','An appointment for every mood.','Discover a salon by the care you have in mind.')+'<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button data-action="salon-category" data-id="'+c+'" class="salon-category-card">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div></section><section class="section soft-section" id="salons">'+sectionHead('DISCOVER SALONS','Salons in '+esc(userCity)+'.',(citySalons.length?(citySalons.length+(citySalons.length===1?' salon in ':' salons in ')+esc(userCity)+(hasDistances?' · '+nearbyCount+' within 8 km':'')):('Discover independent salons in '+esc(userCity)+'.')))+'<div class="listing-tools"><div class="filter-row">'+salonCategories.map(c=>'<button class="filter-chip '+(state.salonCategory===c?'active':'')+'" data-action="salon-category" data-id="'+c+'" aria-pressed="'+(state.salonCategory===c)+'">'+c+'</button>').join('')+'</div><label class="sort-label">'+icon('filter',17)+' Sort by <select id="salon-sort"><option value="featured" '+((state.sort==='featured'||state.sort==='nearest')?'selected':'')+'>Featured</option><option value="price" '+(state.sort==='price'?'selected':'')+'>Price: low to high</option></select></label></div>'+distanceRow+salonsSection+'</section><section class="section salon-note"><div><p class="eyebrow">A LITTLE MORE PERSONAL</p><h2>Find your place. <em>Feel at home.</em></h2><p>Explore a salon’s services before you plan your visit.</p></div>'+button('View appointments '+icon('arrow',17),'account-bookings','btn-outline')+'</section></main>';
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try clearing a filter to see more salons.':'Try another city or check back later.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="salon"') : ''));
+  const countText = citySalons.length
+    ? 'Showing <strong>'+list.length+'</strong> of '+citySalons.length+(citySalons.length===1?' salon':' salons')+' in '+esc(userCity)+(hasDistances?' · '+nearbyCount+' within 8 km':'')
+    : '';
+  const salonsSection = renderFilterShelfSection('salon', salonFilters, activeFilters, {
+    categories: salonCategories,
+    hasDistances,
+    countDraftMatches: draft => getFilteredSalons(citySalons, draft).length
+  }, countText, salonsResultsHtml);
+  return '<main>' +
+    '<section class="salon-hero">' +
+      '<div class="salon-hero-image">'+image(SALON_IMG,'Contemporary salon interior')+'</div>' +
+      '<div class="salon-hero-copy">' +
+        '<p class="eyebrow line-eyebrow">SALONS &amp; PARLOURS</p>' +
+        '<h1>Discover salons in <em>'+esc(userCity)+'.</em></h1>' +
+        '<p>Browse independent salons by category and location, then request an appointment.</p>' +
+        button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"') +
+      '</div>' +
+    '</section>' +
+    '<section class="discovery-bar discovery-bar-salons" aria-label="Salon location and search">' +
+      '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
+      '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search salon name or service</strong></div>'+icon('arrow',16)+'</button>' +
+    '</section>' +
+    '<section class="section" id="salon-categories">' +
+      sectionHead('CATEGORIES','Browse by service.') +
+      '<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button type="button" data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div>' +
+    '</section>' +
+    '<section class="section soft-section" id="salons">' +
+      sectionHead('DISCOVER SALONS','Salons in '+esc(userCity)+'.') +
+      salonsSection +
+    '</section>' +
+  '</main>';
 }
 
-const backButton = (act, label = 'Go back') => '<button class="back-link" data-action="'+act+'" aria-label="'+esc(label)+'" title="'+esc(label)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
+const backButton = (act, label = 'Go back') => '<button type="button" class="back-link" data-action="'+act+'" aria-label="'+esc(label)+'" title="'+esc(label)+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg></button>';
 function salonDetail(){
   const rawSalon = salons.find(x => String(x.id) === String(state.selectedSalon));
   if (!rawSalon) return '<main class="detail-page">'+backButton('landing','Back to salons')+(state.catalogFeedsLoading.salons?catalogLoadingState('salon details'):state.catalogErrors.salons?catalogUnavailableState('Salon details'):empty('salon','Salon unavailable','This salon is no longer listed.'))+'</main>';
   const s = enrichSalonWithDistance(rawSalon);
   const staff = Array.isArray(s.staff) ? s.staff : [];
   const categories = Array.isArray(s.services) ? s.services : [];
-  return '<main class="detail-page">'+backButton('landing','Back to salons')+'<div class="salon-profile-image">'+image(s.img,s.name+' salon')+'</div><div class="detail-header"><div><p class="eyebrow">SALON & PARLOUR</p><h1>'+esc(s.name)+'</h1><p>'+icon('pin',17)+esc(s.area)+(s.distanceLabel?' · '+esc(s.distanceLabel):'')+'</p></div></div><div class="detail-columns"><div><section class="detail-block"><h2>About the salon</h2><p>'+esc(s.about||'Discover the services offered by this independent salon.')+'</p></section><section class="detail-block"><h2>Explore services</h2><p>Explore the categories offered by this salon, then choose a service in the booking flow.</p>'+(categories.length?categories.map(c=>'<div class="service-line"><div><strong>'+esc(c)+'</strong></div></div>').join(''):'<p>Service categories are not available yet.</p>')+'</section><section class="detail-block"><h2>Meet the team</h2>'+(staff.length?'<div class="staff-row">'+staff.map(p=>'<div>'+(p.img?image(p.img,p.name):'')+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Beauty professional')+'</span></div>').join('')+'</div>':'<p>Team information has not been added yet.</p>')+'</section>'+listingReviewSection('salon',s.id)+'</div><aside class="detail-aside"><p class="eyebrow">YOUR VISIT</p><h3>Plan your appointment</h3><p>'+icon('pin',17)+esc(s.area)+'</p>'+(s.hours?'<p>'+icon('clock',17)+esc(s.hours)+'</p>':'')+(s.price!=null?'<p>Services from <strong>'+money(s.price)+'</strong></p>':'')+'<p>Choose a service and appointment time in the booking flow.</p>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+esc(s.id)+'"')+'</aside></div></main>';
+  const hasPrice = s.price != null && Number(s.price) > 0;
+  const hasHours = Boolean(s.hours && String(s.hours).trim());
+  const bookable = categories.length > 0;
+  return '<main class="detail-page">'+backButton('landing','Back to salons') +
+    '<div class="salon-profile-image">'+image(s.img,s.name+' salon')+'</div>' +
+    '<div class="detail-header"><div><p class="eyebrow">SALON &amp; PARLOUR</p><h1>'+esc(s.name)+'</h1><p>'+icon('pin',17)+esc(s.area)+(s.distanceLabel?' · '+esc(s.distanceLabel):'')+'</p></div></div>' +
+    '<div class="detail-columns"><div>' +
+      (s.about ? '<section class="detail-block"><h2>About</h2><p>'+esc(s.about)+'</p></section>' : '') +
+      '<section class="detail-block"><h2>Service categories</h2>'+(categories.length?'<div class="salon-detail-tags">'+categories.map(c=>'<div class="service-line"><div><strong>'+esc(c)+'</strong></div></div>').join('')+'</div>':'<p>No service categories listed yet.</p>')+'</section>' +
+      (staff.length ? '<section class="detail-block"><h2>Team</h2><div class="staff-row">'+staff.map(p=>'<div>'+(p.img?image(p.img,p.name):'')+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section>' : '') +
+      listingReviewSection('salon',s.id) +
+    '</div>' +
+    '<aside class="detail-aside">' +
+      '<p class="eyebrow">VISIT DETAILS</p>' +
+      '<h3>'+esc(s.name)+'</h3>' +
+      '<p>'+icon('pin',17)+esc(s.area)+(s.distanceLabel?' · '+esc(s.distanceLabel):'')+'</p>' +
+      (hasHours ? '<p>'+icon('clock',17)+esc(s.hours)+'</p>' : '') +
+      (hasPrice ? '<p>Services from <strong>'+money(s.price)+'</strong></p>' : '') +
+      (bookable ? '<p class="detail-aside-note">Select a service, specialist, and preferred time in booking. Preferred times are subject to availability.</p>'+button('Book an appointment '+icon('arrow',18),'book-salon','btn-primary full','data-id="'+esc(s.id)+'"') : '<p class="detail-aside-note">Online booking is not available for this salon yet.</p>') +
+    '</aside></div></main>';
 }
 
 function productCard(p){
-  const defaultVariant = (Array.isArray(p.variants) && p.variants.length) ? p.variants[0] : '';
-  const stockInfo = getStockInfo(p, defaultVariant);
+  const variants = Array.isArray(p.variants) && p.variants.length ? p.variants : [];
+  const rememberedVar = state.quickSelectedVariants?.[p.id];
+  const activeVariant = (rememberedVar && variants.includes(rememberedVar)) ? rememberedVar : (variants[0] || '');
+  const stockInfo = getStockInfo(p, activeVariant);
   const isSoldOut = stockInfo.soldOut || p.in_stock === false || p.soldOut === true;
   const isLoading = state.addingCartId === p.id;
   const isAdded = Boolean(state.addedCartIds?.[p.id]);
   const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
   const discountPct = getDiscountPct(p);
-  const tagClass = p.tag ? 'tag-' + String(p.tag).toLowerCase().replace(/[^a-z0-9]+/g,'-') : '';
+  const sellerName = p.seller_name || state.productOffers?.[p.id]?.offers?.[0]?.seller_name || '';
   const btnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added '+icon('check',15) : 'Add to Bag';
-  const sizeHint = p.variants && p.variants.length ? (p.variants.length > 1 ? defaultVariant + ' · ' + p.variants.length + ' options' : defaultVariant) : '';
-  return '<article class="product-card"><div class="product-image" data-action="product-detail" data-id="'+p.id+'">'+image(p.img,p.name)+''+'<button class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button></div><div class="product-body"><span class="product-brand">'+esc(p.brand)+'</span><button class="product-name" data-action="product-detail" data-id="'+p.id+'">'+esc(p.name)+'</button>'+(sizeHint||stockInfo.low?'<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>':'')+'<div class="product-bottom"><div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div><button class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+p.id+'"'+(defaultVariant?' data-variant="'+esc(defaultVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button></div></div></article>';
+  const sizeHint = variants.length ? (variants.length > 1 ? activeVariant + ' · ' + variants.length + ' options' : activeVariant) : '';
+  const overlayRaw = getVariantHeading(p, variants).replace(/^SELECT\s+/i, '');
+  const overlayLabel = overlayRaw.charAt(0).toUpperCase() + overlayRaw.slice(1).toLowerCase() + ':';
+  const quickOverlayHtml = '<div class="product-quick-overlay">' +
+    (variants.length
+      ? '<span class="quick-overlay-label">' + esc(overlayLabel) + '</span>' +
+        '<div class="quick-overlay-options">' +
+          variants.map(v => {
+            const vOut = getStockInfo(p, v).soldOut || p.in_stock === false || p.soldOut === true;
+            const vSel = v === activeVariant;
+            return '<button type="button" class="quick-var-btn' + (vSel ? ' active' : '') + (vOut ? ' sold-out-var' : '') + '" data-action="quick-add-variant" data-id="' + esc(p.id) + '" data-variant="' + esc(v) + '"' + (vOut ? ' disabled aria-disabled="true"' : '') + '>' + esc(v) + '</button>';
+          }).join('') +
+        '</div>'
+      : '<button type="button" class="btn btn-primary btn-sm full" data-action="add-cart" data-id="' + esc(p.id) + '"' + (isSoldOut || isLoading ? ' disabled aria-disabled="true"' : '') + '>' + btnLabel + '</button>') +
+  '</div>';
+
+  return '<article class="product-card">' +
+    '<div class="product-image">' +
+      '<button type="button" class="product-image-link" data-action="product-detail" data-id="'+esc(p.id)+'" aria-label="View details for '+esc(p.name)+'">'+image(p.img,p.name)+'</button>' +
+      '<div class="product-card-media-actions">' +
+        '<button type="button" class="product-quick-view-btn" data-action="quick-view" data-id="'+esc(p.id)+'" aria-label="Quick view '+esc(p.name)+'" title="Quick view">'+icon('eye',17)+'</button>' +
+        '<button type="button" class="wishlist-on-card '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+esc(p.id)+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Save '+esc(p.name)+'">'+icon('heart',16)+'</button>' +
+      '</div>' +
+      quickOverlayHtml +
+    '</div>' +
+    '<div class="product-body">' +
+      '<span class="product-brand">'+esc(p.brand)+'</span>' +
+      '<button type="button" class="product-name" data-action="product-detail" data-id="'+esc(p.id)+'">'+esc(p.name)+'</button>' +
+      (sellerName ? '<span class="product-seller">Sold by '+esc(sellerName)+'</span>' : '') +
+      (sizeHint || stockInfo.low || isSoldOut ? '<div class="product-meta-line">'+(sizeHint?'<span>'+esc(sizeHint)+'</span>':'')+(isSoldOut?'<span class="product-low-stock">Sold out</span>':stockInfo.low?'<span class="product-low-stock">'+esc(stockInfo.label)+'</span>':'')+'</div>' : '') +
+      '<div class="product-bottom">' +
+        '<div class="product-pricing"><strong class="product-price">'+money(p.price)+'</strong>'+(hasMrp?'<del class="product-old">'+money(p.old)+'</del>'+(discountPct>0?'<span class="product-save">'+discountPct+'% off</span>':''):'')+'</div>' +
+        '<button type="button" class="add-bag-btn'+(isSoldOut?' sold-out':isAdded?' added':'')+(isLoading?' is-loading':'')+'" data-action="add-cart" data-id="'+esc(p.id)+'"'+(activeVariant?' data-variant="'+esc(activeVariant)+'"':'')+(isSoldOut||isLoading?' disabled aria-disabled="true"':'')+' aria-label="'+esc(btnLabel)+' '+esc(p.name)+'">'+btnLabel+'</button>' +
+      '</div>' +
+    '</div>' +
+  '</article>';
 }
 
 function shopPage(){
   if (!['All','OFFERS'].includes(state.shopCollection)) state.shopCollection = 'All';
-  const list = getFilteredShopProducts(products);
+  const shopFilters = getFiltersForExp('shop');
+  const list = getFilteredShopProducts(products, shopFilters);
   const catalogDown = !products.length && state.catalogErrors.products;
   const catalogBusy = !products.length && state.catalogFeedsLoading.products;
   const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
   const visibleCollections = shopCollections.filter(col => col.id === 'All' || (col.id === 'OFFERS' && products.some(p => getDiscountPct(p) > 0)));
-  const activeFilters = [];
-  if (state.shopCollection !== 'All') {
-    const colObj = shopCollections.find(c => c.id === state.shopCollection);
-    activeFilters.push({ key: 'collection', label: (colObj ? colObj.label : state.shopCollection), action: 'shop-collection', id: 'All' });
-  }
-  if (state.shopCategory !== 'All') {
-    activeFilters.push({ key: 'category', label: shopCategoryLabel(state.shopCategory), action: 'shop-category', id: 'All' });
-  }
-  if (state.shopBrand !== 'All') {
-    activeFilters.push({ key: 'brand', label: state.shopBrand, action: 'shop-brand', id: 'All' });
-  }
-  if (state.sort !== 'featured') {
-    activeFilters.push({ key: 'sort', label: ({ price: 'Price: low to high', 'price-asc': 'Price: low to high', 'price-desc': 'Price: high to low', rating: 'Top rated', reviews: 'Most reviewed' }[state.sort] || 'Sorted'), action: 'shop-sort-reset', id: 'featured' });
-  }
-  const hasFilters = activeFilters.length > 0;
-  const shelfContent = catalogBusy
+  const activeFilters = buildActiveFiltersForExp('shop', shopFilters, visibleCollections);
+
+  const shelfResultsHtml = catalogBusy
     ? catalogLoadingState('beauty store')
     : catalogDown
       ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
-      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length?'No products match these filters':'No products are listed yet',products.length?'Try clearing one of your active filters or explore the full edit.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Reset all filters '+icon('arrow',16),'shop-reset','btn-outline')+'</div></div>');
-  const brandButtons = shopBrands.slice(1).map(b => '<button class="brand-pill'+(state.shopBrand===b?' active':'')+'" data-action="shop-brand" data-id="'+esc(b)+'">'+esc(b)+'</button>').join('');
+      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length?'No products match these filters':'No products are listed yet',products.length?'Try clearing one of your active filters to see more products.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Clear all filters '+icon('arrow',16),'exp-reset-all','btn-outline','data-exp="shop"')+'</div></div>');
 
-  return '<main><section class="shop-hero"><div class="shop-hero-copy"><p class="eyebrow line-eyebrow">THE BEAUTY STORE</p><h1>Your beauty essentials, <em>thoughtfully curated.</em></h1><p>Meet the daily rituals, considered formulas and little luxuries you will love living with.</p>'+button('Shop the edit '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"')+'</div><div class="shop-hero-image">'+image(SHOP_IMG,'Premium skincare and beauty products')+'</div></section><div class="shop-benefits"><span>'+icon('spark',18)+' Curated with care</span><span>'+icon('truck',19)+' Explore beauty sellers</span><span>'+icon('spark',18)+' Beauty for your routine</span></div><div class="shop-mobile-search"><button class="mobile-search-trigger" data-action="search-open" aria-label="Search beauty store products, ingredients or brands">'+icon('search',18)+'<span>Search products, brands or ingredients</span></button></div><section class="section" id="shop-categories">'+sectionHead('EXPLORE THE STORE','What are you looking for?','A considered collection for every part of your routine.')+'<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
-    const count = products.filter(p => p.category === c).length;
-    return '<button class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
-  }).join('')+'</div></section><section class="section soft-section" id="bestsellers">'+sectionHead('THE GLAMGO EDIT','The beauty shelf.','Thoughtfully chosen formulas filtered by category, edit, brand and price.')+'<div class="collection-pills" role="group" aria-label="Filter by collection">'+visibleCollections.map(col => '<button class="collection-pill'+(state.shopCollection===col.id?' active':'')+'" data-action="shop-collection" data-collection="'+col.id+'" aria-pressed="'+(state.shopCollection===col.id)+'">'+col.label+'</button>').join('')+'</div><div class="listing-tools"><div class="filter-row" role="group" aria-label="Filter by category">'+shopCategories.map(c=>'<button class="filter-chip '+(state.shopCategory===c?'active':'')+'" data-action="shop-category" data-id="'+c+'" aria-pressed="'+(state.shopCategory===c)+'">'+shopCategoryLabel(c)+'</button>').join('')+'</div><div class="shop-controls-right">'+(shopBrands.length>2?'<label class="sort-label">Brand <select id="shop-brand-select" aria-label="Filter by brand">'+shopBrands.map(b=>'<option value="'+esc(b)+'" '+(state.shopBrand===b?'selected':'')+'>'+esc(b==='All'?'All brands':b)+'</option>').join('')+'</select></label>':'')+'<label class="sort-label">Sort by <select id="shop-sort"><option value="featured" '+(state.sort==='featured'?'selected':'')+'>Featured</option><option value="price-asc" '+(state.sort==='price-asc'||state.sort==='price'?'selected':'')+'>Price: low to high</option><option value="price-desc" '+(state.sort==='price-desc'?'selected':'')+'>Price: high to low</option></select></label></div></div>'+(products.length?'<div class="shop-shelf-meta"><span class="shelf-count">Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products')+'</span>'+(hasFilters?'<div class="active-filters">'+activeFilters.map(f=>'<button class="active-filter-chip" data-action="'+f.action+'" data-id="'+esc(f.id)+'" data-collection="All" aria-label="Remove '+esc(f.label)+' filter">'+esc(f.label)+' '+icon('close',13)+'</button>').join('')+'<button class="reset-filters-link" data-action="shop-reset">Reset all</button></div>':'')+'</div>':'')+shelfContent+'</section><section class="shop-editorial"><div>'+image(SHOP_IMG,'Curated beauty products')+'</div><div><p class="eyebrow">BEAUTY, CONSIDERED</p><h2>A routine that <em>feels like you.</em></h2><p>Beautiful essentials, selected for the way you live. Explore products offered by beauty sellers on GlamGo.</p>'+button('Discover skincare '+icon('arrow',17),'shop-category','btn-outline','data-id="Skincare"')+'</div></section>'+(brandButtons?'<section class="brand-section"><p class="eyebrow">DISCOVER BRANDS</p><div>'+brandButtons+'</div></section>':'')+'</main>';
+  const countText = products.length ? 'Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products') : '';
+  const shopShelfSection = renderFilterShelfSection('shop', shopFilters, activeFilters, {
+    categories: shopCategories,
+    collections: visibleCollections,
+    brands: shopBrands,
+    countDraftMatches: draft => getFilteredShopProducts(products, draft).length
+  }, countText, shelfResultsHtml);
+
+  return '<main>' +
+    '<section class="shop-hero">' +
+      '<div class="shop-hero-copy">' +
+        '<p class="eyebrow line-eyebrow">BEAUTY SHOPPING</p>' +
+        '<h1>Thoughtfully curated <em>beauty essentials.</em></h1>' +
+        '<p>Explore skincare, makeup, haircare, and personal care from independent sellers and brands.</p>' +
+        button('Shop all products '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"') +
+      '</div>' +
+      '<div class="shop-hero-image">'+image(SHOP_IMG,'Skincare and beauty products')+'</div>' +
+    '</section>' +
+    '<section class="section" id="shop-categories">' +
+      sectionHead('CATEGORIES','Shop by category.') +
+      '<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
+        const count = products.filter(p => p.category === c).length;
+        return '<button type="button" class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
+      }).join('')+'</div>' +
+    '</section>' +
+    '<section class="section soft-section" id="bestsellers">' +
+      sectionHead('THE BEAUTY SHELF','Products.') +
+      shopShelfSection +
+    '</section>' +
+  '</main>';
 }
 
 function productDetail(){
@@ -1033,15 +1525,18 @@ function productDetail(){
   const isAdded = Boolean(state.addedCartIds?.[p.id]);
   const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
   const discountPct = getDiscountPct(p);
-  const couponSave = Math.min(300, Math.round(Number(p.price) * 0.1));
-  const couponPrice = Math.max(1, Number(p.price) - couponSave);
-  const couponApplied = state.coupon === 'GLAM10';
   const detailBtnLabel = isSoldOut ? 'Sold out' : isLoading ? 'Adding...' : isAdded ? 'Added to Bag '+icon('check',17) : 'Add to Bag '+icon('bag',18);
   const offersData = state.productOffers ? state.productOffers[p.id] : null;
   const offers = (offersData && offersData.offers) || [];
-  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">MARKETPLACE MERCHANTS ('+offers.length+')</p><p class="offers-sub">Explore available offers from marketplace sellers.</p>'+offers.map(off=>{
+  const primarySeller = offers.length === 1
+    ? (offers[0].seller_name || '')
+    : offers.length > 1
+      ? `${offers.length} marketplace sellers`
+      : (p.seller_name || '');
+  const offersHtml = offers.length ? '<div class="product-offers"><p class="eyebrow">SELLER OFFERS ('+offers.length+')</p><p class="offers-sub">Choose an offer from available sellers.</p>'+offers.map(off=>{
     const offerVariant = off.variant_name || variant || '';
-    return '<div class="offer-row"><div><strong>'+esc(off.seller_name||'Marketplace seller')+'</strong><small>'+(offerVariant?esc(offerVariant)+' · ':'')+'SKU: '+esc(off.sku)+' · '+off.stock+' in stock</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+p.id+'" data-listing="'+off.id+'"'+(offerVariant?' data-variant="'+esc(offerVariant)+'"':'')+(off.stock<=0?' disabled':'')+'>Select Offer</button></div></div>';
+    const offOut = Number(off.stock) <= 0;
+    return '<div class="offer-row"><div><strong>'+esc(off.seller_name||'Marketplace seller')+'</strong><small>'+(offerVariant?esc(offerVariant)+' · ':'')+(off.sku?'SKU: '+esc(off.sku)+' · ':'')+(offOut?'Out of stock':off.stock+' in stock')+'</small></div><div class="offer-row-right"><strong>'+money(off.price)+'</strong><button type="button" class="btn btn-outline btn-sm" data-action="add-cart" data-id="'+esc(p.id)+'" data-listing="'+off.id+'"'+(offerVariant?' data-variant="'+esc(offerVariant)+'"':'')+(offOut?' disabled':'')+'>'+(offOut?'Sold out':'Select offer')+'</button></div></div>';
   }).join('')+'</div>' : '';
 
   const ingredientItems = parseIngredientsList(p.ingredients);
@@ -1051,33 +1546,52 @@ function productDetail(){
 
   let tabPanelHtml = '';
   if (activeTab === 'details') {
-    tabPanelHtml = '<p class="pdp-tab-copy">'+esc(p.description)+'</p><dl class="pdp-specs"><div><dt>Brand</dt><dd>'+esc(p.brand)+'</dd></div><div><dt>Category</dt><dd>'+esc(shopCategoryLabel(p.category))+'</dd></div>'+(variants.length?'<div><dt>Available options</dt><dd>'+esc(variants.join(', '))+'</dd></div>':'')+'<div><dt>Availability</dt><dd>'+esc(stockInfo.label)+'</dd></div>'+''+'</dl>';
+    tabPanelHtml = '<p class="pdp-tab-copy">'+esc(p.description)+'</p><dl class="pdp-specs"><div><dt>Brand</dt><dd>'+esc(p.brand)+'</dd></div><div><dt>Category</dt><dd>'+esc(shopCategoryLabel(p.category))+'</dd></div>'+(variants.length?'<div><dt>Options</dt><dd>'+esc(variants.join(', '))+'</dd></div>':'')+'<div><dt>Availability</dt><dd>'+esc(stockInfo.label)+'</dd></div>'+(primarySeller?'<div><dt>Seller</dt><dd>'+esc(primarySeller)+'</dd></div>':'')+'</dl>';
   } else if (activeTab === 'ingredients') {
     tabPanelHtml = ingredientItems.length
-      ? '<p class="pdp-tab-sub">Key botanicals and formulation ingredients listed for this product:</p><div class="ingredient-chips">'+ingredientItems.map(ing=>'<span class="ingredient-chip">'+esc(ing)+'</span>').join('')+'</div><p class="pdp-tab-note">Full ingredient breakdown: '+esc(p.ingredients)+'</p>'
-      : '<p class="pdp-tab-copy">See outer product packaging for complete batch ingredients.</p>';
+      ? '<div class="ingredient-chips">'+ingredientItems.map(ing=>'<span class="ingredient-chip">'+esc(ing)+'</span>').join('')+'</div><p class="pdp-tab-note">Full ingredient list: '+esc(p.ingredients)+'</p>'
+      : '<p class="pdp-tab-copy">Ingredient details are listed on the product packaging.</p>';
   } else if (activeTab === 'delivery') {
-    tabPanelHtml = '<div class="pdp-policy-list"><div><strong>Delivery</strong><p>Available delivery options and charges are shown during checkout.</p></div><div><strong>Returns &amp; support</strong><p>For help with an order, visit My orders or contact customer support.</p></div></div>';
+    tabPanelHtml = '<div class="pdp-policy-list"><div><strong>Delivery</strong><p>Available delivery options and shipping charges are shown at checkout.</p></div><div><strong>Returns</strong><p>Return requests for delivered items can be submitted from My orders.</p></div></div>';
   } else {
     const reviewsBody = reviewState?.loading
       ? '<p class="pdp-tab-sub">Loading customer reviews…</p>'
       : reviewState?.error
-        ? '<p class="pdp-tab-sub">Reviews could not be loaded. Please try again later.</p>'
+        ? '<p class="pdp-tab-sub">Reviews could not be loaded right now.</p>'
         : liveReviews.length
-          ? '<div class="pdp-review-list">'+liveReviews.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name||'GlamGo customer')+'</strong><span class="rating">'+icon('star',14)+' '+Number(r.rating||0)+'</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>'
-          : '<p class="pdp-tab-sub">No customer reviews to show yet.</p>';
+          ? '<div class="pdp-review-list">'+liveReviews.map(r=>'<article class="pdp-review-item"><div class="pdp-review-head"><strong>'+esc(r.user_name||'GlamGo customer')+'</strong><span class="rating">'+icon('star',14)+' '+Number(r.rating||0)+'/5</span></div>'+(r.comment?'<p>'+esc(r.comment)+'</p>':'')+'</article>').join('')+'</div>'
+          : '<p class="pdp-tab-sub">No customer reviews yet.</p>';
     tabPanelHtml = reviewsBody;
   }
 
   const related = getRelatedProducts(p, 3);
   const relatedHtml = related.length
-    ? '<section class="pdp-related" aria-label="More in this category"><div class="pdp-related-head"><div><p class="eyebrow">MORE TO DISCOVER</p><h2>More from the beauty shelf</h2></div>'+button('Browse full edit '+icon('arrow',16),'shop-all','btn-outline')+'</div><div class="product-grid pdp-related-grid">'+related.map(productCard).join('')+'</div></section>'
+    ? '<section class="pdp-related" aria-label="More in this category"><div class="pdp-related-head"><div><p class="eyebrow">SIMILAR PRODUCTS</p><h2>More in '+esc(shopCategoryLabel(p.category))+'</h2></div>'+button('Browse store '+icon('arrow',16),'shop-all','btn-outline')+'</div><div class="product-grid pdp-related-grid">'+related.map(productCard).join('')+'</div></section>'
     : '';
 
-  return '<main class="detail-page"><nav class="pdp-breadcrumb" aria-label="Breadcrumb"><button data-action="shop-all">Beauty Store</button><span>/</span><button data-action="shop-category" data-id="'+esc(p.category)+'">'+esc(shopCategoryLabel(p.category))+'</button><span>/</span><span aria-current="page">'+esc(p.name)+'</span></nav><div class="product-detail"><div class="product-detail-image">'+image(p.img,p.name)+''+(discountPct>0?'<span class="pdp-discount-badge">'+discountPct+'% OFF</span>':'')+'</div><div class="product-detail-info"><div class="pdp-brand-row"><button class="eyebrow pdp-brand-link" data-action="shop-brand" data-id="'+esc(p.brand)+'">'+esc(p.brand)+'</button>'+''+'</div><h1>'+esc(p.name)+'</h1><div class="pdp-rating-row"><button class="pdp-rating-jump" data-action="pdp-reviews-jump">Customer reviews</button><span class="stock-pill '+(stockInfo.soldOut?'out':stockInfo.low?'low':'in')+'">'+esc(stockInfo.label)+'</span></div><div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+' ('+discountPct+'% off)</span>':'')+'</div>'+'<p class="product-desc">'+esc(p.description)+'</p>'+(variants.length?'<div class="variant-select"><span>'+getVariantHeading(p,variants)+'</span><div>'+variants.map(v=>{
-    const vStock = getStockInfo(p, v);
-    return '<button class="'+(v===variant?'active':'')+(vStock.soldOut?' sold-out-var':'')+'" data-action="variant" data-id="'+esc(v)+'">'+esc(v)+'</button>';
-  }).join('')+'</div></div>':'')+'<div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+p.id+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+p.id+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>'+offersHtml+'<div class="product-facts"><div>'+icon('bag',20)+' Offered by marketplace sellers</div><div>'+icon('truck',20)+' Delivery options at checkout</div></div><div class="pdp-tabs" role="tablist" aria-label="Product information">'+[['details','Details'],['ingredients','Ingredients'],['delivery','Delivery & Returns'],['reviews','Reviews']].map(([tid,tlabel])=>'<button role="tab" aria-selected="'+(activeTab===tid?'true':'false')+'" class="pdp-tab '+(activeTab===tid?'active':'')+'" data-action="pdp-tab" data-id="'+tid+'">'+tlabel+'</button>').join('')+'</div><div class="pdp-tab-panel" id="pdp-tab-panel" role="tabpanel">'+tabPanelHtml+'</div></div></div>'+relatedHtml+'</main>';
+  return '<main class="detail-page">' +
+    '<nav class="pdp-breadcrumb" aria-label="Breadcrumb"><button type="button" data-action="shop-all">Beauty Store</button><span>/</span><button type="button" data-action="shop-category" data-id="'+esc(p.category)+'">'+esc(shopCategoryLabel(p.category))+'</button><span>/</span><span aria-current="page">'+esc(p.name)+'</span></nav>' +
+    '<div class="product-detail">' +
+      '<div class="product-detail-image">'+image(p.img,p.name)+(discountPct>0?'<span class="pdp-discount-badge">'+discountPct+'% OFF</span>':'')+'</div>' +
+      '<div class="product-detail-info">' +
+        '<div class="pdp-brand-row"><button type="button" class="eyebrow pdp-brand-link" data-action="shop-brand" data-id="'+esc(p.brand)+'">'+esc(p.brand)+'</button></div>' +
+        '<h1>'+esc(p.name)+'</h1>' +
+        (primarySeller ? '<p class="pdp-seller-line">Sold by <strong>'+esc(primarySeller)+'</strong></p>' : '') +
+        '<div class="pdp-rating-row"><button type="button" class="pdp-rating-jump" data-action="pdp-reviews-jump">Reviews'+(liveReviews.length?' ('+liveReviews.length+')':'')+'</button><span class="stock-pill '+(stockInfo.soldOut?'out':stockInfo.low?'low':'in')+'">'+esc(stockInfo.label)+'</span></div>' +
+        '<div class="product-detail-price">'+money(p.price)+(hasMrp?'<del>'+money(p.old)+'</del><span>Save '+money(p.old-p.price)+' ('+discountPct+'% off)</span>':'')+'</div>' +
+        '<p class="product-desc">'+esc(p.description)+'</p>' +
+        (variants.length?'<div class="variant-select"><span>'+getVariantHeading(p,variants)+'</span><div>'+variants.map(v=>{
+          const vStock = getStockInfo(p, v);
+          return '<button type="button" class="'+(v===variant?'active':'')+(vStock.soldOut?' sold-out-var':'')+'" data-action="variant" data-id="'+esc(v)+'" aria-pressed="'+(v===variant)+'">'+esc(v)+(vStock.soldOut?' (Out of stock)':'')+'</button>';
+        }).join('')+'</div></div>':'') +
+        '<div class="detail-actions">'+button(detailBtnLabel,'add-cart','btn-primary'+(isAdded?' added':''),'data-id="'+esc(p.id)+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut||isLoading?' disabled':''))+button('Buy now '+icon('arrow',17),'buy-now','btn-outline','data-id="'+esc(p.id)+'"'+(variant?' data-variant="'+esc(variant)+'"':'')+(isSoldOut?' disabled':''))+'<button type="button" class="detail-wish '+(state.wishlist.includes(p.id)?'saved':'')+'" data-action="wish" data-id="'+esc(p.id)+'" aria-pressed="'+(state.wishlist.includes(p.id)?'true':'false')+'" aria-label="Add to wishlist">'+icon('heart',20)+'</button></div>' +
+        offersHtml +
+        '<div class="pdp-tabs" role="tablist" aria-label="Product information">'+[['details','Details'],['ingredients','Ingredients'],['delivery','Delivery & Returns'],['reviews','Reviews']].map(([tid,tlabel])=>'<button type="button" role="tab" id="pdp-tab-'+tid+'" aria-controls="pdp-tab-panel" aria-selected="'+(activeTab===tid?'true':'false')+'" class="pdp-tab '+(activeTab===tid?'active':'')+'" data-action="pdp-tab" data-id="'+tid+'">'+tlabel+'</button>').join('')+'</div>' +
+        '<div class="pdp-tab-panel" id="pdp-tab-panel" role="tabpanel" aria-labelledby="pdp-tab-'+activeTab+'">'+tabPanelHtml+'</div>' +
+      '</div>' +
+    '</div>' +
+    relatedHtml +
+  '</main>';
 }
 
 function account(){
@@ -1087,18 +1601,24 @@ function account(){
   else if(state.accountTab==='Personal information') content='<div class="account-block"><h2>Personal information</h2><p>Keep your contact details current for bookings and orders.</p><form id="profile-form" class="form-grid"><label>Full name<input name="name" required value="'+esc(state.user.name)+'"></label><label>Email address<input name="email" type="email" required value="'+esc(state.user.email)+'"></label><label>Phone number<input name="phone" required value="'+esc(state.user.phone)+'"></label><button class="btn btn-primary" type="submit">Save changes</button></form></div>';
   else if(state.accountTab==='Saved addresses') content='<div class="account-block"><div class="account-heading"><h2>Saved addresses</h2>'+button('Add address '+icon('plus',17),'address-add','btn-outline')+'</div>'+state.addresses.map((a,i)=>'<div class="address-card"><div>'+icon('pin',20)+'<span><strong>'+esc(a.label)+'</strong><small>'+esc(a.text)+'</small></span></div><button data-action="address-delete" data-id="'+i+'">Remove</button></div>').join('')+'</div>';
   else if(state.accountTab==='My bookings') content='<div class="account-block"><h2>My bookings</h2><p>Home services and salon appointments, together.</p>'+(state.bookings.length?state.bookings.map(b=>{
-    const isPending = (b.status && b.status.toLowerCase() === 'pending') || (b.status && b.status.toLowerCase() === 'confirmed' && b.payment_status === 'pending');
-    const isConfirmed = !isPending && (!b.status || b.status.toLowerCase() === 'confirmed');
-    const isCompleted = b.status && b.status.toLowerCase() === 'completed';
-    const isCancelled = b.status && b.status.toLowerCase() === 'cancelled';
-    const rescheduleBtn = isConfirmed ? '<button class="text-action" style="margin-top:6px;margin-right:14px;font-size:12px;font-weight:600" data-action="booking-reschedule-open" data-id="'+esc(b.id)+'">1-tap Reschedule</button>' : '';
-    const cancelBtn = (isConfirmed || isPending) ? '<button class="text-action" style="color:var(--burgundy,#b33939);margin-top:6px;font-size:12px;font-weight:600" data-action="booking-cancel" data-id="'+b.id+'">Cancel appointment</button>' : '';
-    const reviewBtn = isCompleted ? '<button class="text-action" style="color:var(--champagne,#c5a77d);margin-top:6px;font-size:12px;font-weight:600" data-action="review-add">Write a review</button>' : '';
-    const otpLine = (isConfirmed && b.payment_status === 'completed' && b.arrival_otp) ? '<small style="display:block;margin-top:3px;color:var(--ink)">Arrival PIN: <strong>'+esc(b.arrival_otp)+'</strong> (share with your specialist at doorstep)</small>' : '';
-    const addonsLine = (Array.isArray(b.addons) && b.addons.length) ? '<small style="display:block;margin-top:3px;color:var(--muted)">Add-ons: '+esc(b.addons.map(x => x.name || x).join(', '))+'</small>' : '';
-    const payStatus = b.payment_status ? '<small style="display:block;margin-top:3px;color:var(--muted)">Payment: '+esc(b.payment_status)+'</small>' : '';
-    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.location)+'</p>'+addonsLine+otpLine+payStatus+'<div>'+rescheduleBtn+cancelBtn+reviewBtn+'</div></div><span class="status '+(isCancelled?'status-cancelled':isCompleted?'status-completed':'')+'">'+esc(b.payment_status==='expired'?'Expired':isPending?'Awaiting payment':b.status||'Confirmed')+'</span></div>';
-  }).join(''):empty('calendar','Your next moment awaits','Choose a home service or salon appointment to see it here.',button('Explore beauty '+icon('arrow',16),'experience','btn-primary','data-id="home"')))+'</div>';
+    const rawStatus = String(b.status || '').toLowerCase();
+    const rawPay = String(b.payment_status || '').toLowerCase();
+    const isExpired = rawStatus === 'expired' || rawPay === 'expired';
+    const isCancelled = !isExpired && rawStatus === 'cancelled';
+    const isCompleted = !isExpired && !isCancelled && rawStatus === 'completed';
+    const isPending = !isExpired && !isCancelled && !isCompleted && (rawStatus === 'pending' || rawPay === 'pending' || rawPay === 'failed');
+    const isConfirmed = !isExpired && !isCancelled && !isCompleted && !isPending && rawStatus === 'confirmed';
+    const statusLabel = isExpired ? 'Expired' : isCancelled ? 'Cancelled' : isCompleted ? 'Completed' : isPending ? 'Pending payment' : 'Confirmed';
+    const statusCls = isExpired ? 'status-expired' : isCancelled ? 'status-cancelled' : isCompleted ? 'status-completed' : isPending ? 'status-pending' : 'status-confirmed';
+    const rescheduleBtn = isConfirmed ? '<button type="button" class="text-action" data-action="booking-reschedule-open" data-id="'+esc(b.id)+'">Reschedule</button>' : '';
+    const cancelBtn = (isConfirmed || isPending) ? '<button type="button" class="text-action text-action-danger" data-action="booking-cancel" data-id="'+esc(b.id)+'">Cancel appointment</button>' : '';
+    const reviewBtn = isCompleted ? '<button type="button" class="text-action" data-action="review-add">Write a review</button>' : '';
+    const otpLine = (isConfirmed && rawPay === 'completed' && b.arrival_otp) ? '<small class="booking-meta-note">Arrival PIN: <strong>'+esc(b.arrival_otp)+'</strong> (share with your specialist)</small>' : '';
+    const pendingNote = isPending ? '<small class="booking-meta-note">Awaiting payment confirmation — not confirmed yet.</small>' : '';
+    const addonsLine = (Array.isArray(b.addons) && b.addons.length) ? '<small class="booking-meta-note">Add-ons: '+esc(b.addons.map(x => x.name || x).join(', '))+'</small>' : '';
+    const payStatus = b.payment_status ? '<small class="booking-meta-note">Payment: '+esc(b.payment_status)+'</small>' : '';
+    return '<div class="history-card"><div class="history-icon">'+icon(b.type==='home'?'home':'salon',22)+'</div><div><span class="eyebrow">'+(b.type==='home'?'AT-HOME SERVICE':'SALON APPOINTMENT')+'</span><h3>'+esc(b.title)+'</h3><p>'+formatDate(b.date)+' · '+esc(b.time)+' · '+esc(b.location)+'</p>'+addonsLine+otpLine+pendingNote+payStatus+'<div class="booking-card-actions">'+rescheduleBtn+cancelBtn+reviewBtn+'</div></div><span class="status '+statusCls+'">'+esc(statusLabel)+'</span></div>';
+  }).join(''):empty('calendar','No bookings yet','Choose a home service or salon appointment to see it here.',button('Explore services '+icon('arrow',16),'experience','btn-primary','data-id="home"')))+'</div>';
   else if(state.accountTab==='My orders') content='<div class="account-block"><h2>My orders</h2><p>Your beauty store purchases and delivery updates.</p>'+(state.orders.length?state.orders.map(o=>'<div class="history-card"><div class="history-icon">'+icon('bag',22)+'</div><div><span class="eyebrow">ORDER '+esc(o.id)+' · '+esc(String(o.status||'placed').replace('_',' ').toUpperCase())+'</span><h3>'+(o.items||[]).map(i=>esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+' × '+i.qty).join(', ')+'</h3><p>'+formatDate(o.date)+' · '+money(o.total)+' · Payment: '+esc(o.payment_status||'pending')+'</p></div><button class="text-action" data-action="tracking" data-id="'+esc(o.id)+'">Track order '+icon('arrow',15)+'</button></div>').join(''):empty('bag','Your beauty bag is waiting','Discover your first favourite in the GlamGo beauty store.',button('Explore the store '+icon('arrow',16),'experience','btn-primary','data-id="shop"')))+'</div>';
   else if(state.accountTab==='Wishlist'){const liked=[...services,...products].filter(x=>state.wishlist.includes(x.id));content='<div class="account-block"><h2>Your wishlist</h2><p>A space for everything that catches your eye.</p>'+(liked.length?'<div class="wishlist-grid">'+liked.map(x=>x.brand?productCard(x):homeCard(x)).join('')+'</div>':empty('heart','Nothing saved yet','Tap the heart on a service or product to keep it close.'))+'</div>';}
   else if(state.accountTab==='Payment methods') content='<div class="account-block"><h2>Payment methods</h2>'+empty('bag','Pay the way you prefer','Choose UPI, card or cash when you confirm a booking or order.')+'</div>';
@@ -1119,16 +1639,22 @@ function cartPage(){
   const popularPicks = products.slice(0,3);
   const unavailableKeys = Object.keys(state.cart || {}).filter(key => Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId));
   const catalogReady = !state.catalogFeedsLoading.products && !state.catalogErrors.products;
-  const unavailableHtml = catalogReady && unavailableKeys.length ? '<div class="unavailable-cart-items" role="status"><h3>Unavailable items</h3><p>These items are no longer in the catalogue. Remove them before checkout.</p>'+unavailableKeys.map(key=>'<div><span>Item '+esc(parseCartKey(key).productId)+' · quantity '+Number(state.cart[key])+'</span><button class="text-action" data-action="cart-remove" data-id="'+esc(key)+'">Remove unavailable item</button></div>').join('')+'</div>' : '';
+  const unavailableHtml = catalogReady && unavailableKeys.length
+    ? '<div class="unavailable-cart-items" role="status"><div><h3>Unavailable items</h3>'+(unavailableKeys.length>1?'<button type="button" class="text-action" data-action="cart-remove-unavailable">Remove all unavailable</button>':'')+'</div><p>These items are no longer available in the catalogue. Remove them before checkout.</p>'+unavailableKeys.map(key=>'<div><span>Item '+esc(parseCartKey(key).productId)+' · qty '+Number(state.cart[key])+'</span><button type="button" class="text-action" data-action="cart-remove" data-id="'+esc(key)+'">Remove</button></div>').join('')+'</div>'
+    : '';
   if (unavailableHtml && !entries.length) return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1></div>'+unavailableHtml+button('Explore the store '+icon('arrow',17),'shop-all','btn-outline')+'</main>';
   if (savedCount > 0 && !entries.length) {
     const noticeBody = state.catalogFeedsLoading.products
       ? catalogLoadingState('your saved beauty bag (' + savedCount + ' item' + (savedCount > 1 ? 's' : '') + ')')
-      : catalogUnavailableState('Saved beauty bag pricing', 'Your bag still keeps ' + savedCount + ' saved item' + (savedCount > 1 ? 's' : '') + ', but live catalog pricing could not be verified right now.');
+      : catalogUnavailableState('Saved beauty bag pricing', 'Your bag keeps ' + savedCount + ' saved item' + (savedCount > 1 ? 's' : '') + ', but live catalog pricing could not be verified right now.');
     return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Saved items remain preserved until the catalog is ready.</p></div>'+noticeBody+'</main>';
   }
   const subtotal = entries.reduce((sum, e) => sum + e.lineTotal, 0);
-  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1><p>Beautiful things, ready when you are.</p></div>'+(entries.length?'<div class="cart-layout"><div class="cart-items">'+entries.map(e=>'<div class="cart-item">'+image(e.product.img,e.product.name)+'<div><span class="product-brand">'+esc(e.product.brand)+'</span><h3>'+esc(e.product.name)+'</h3><p>'+esc(e.variant || '')+(e.sellerName?' · Sold by '+esc(e.sellerName):'')+'</p><button class="remove-link" data-action="cart-remove" data-id="'+esc(e.key)+'">Remove</button></div><div class="cart-item-end"><strong>'+money(e.lineTotal)+'</strong><div class="qty"><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="-1" aria-label="Decrease quantity">'+icon('minus',15)+'</button><span>'+e.qty+'</span><button data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="1" aria-label="Increase quantity">'+icon('plus',15)+'</button></div></div></div>').join('')+unavailableHtml+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div><div><span>Delivery</span><strong>'+'Calculated at checkout'+'</strong></div><div class="summary-total"><span>Estimated subtotal</span><strong>'+money(subtotal)+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full',unavailableKeys.length?'disabled aria-disabled="true"':'')+'<p>Delivery and payment options are shown at checkout.</p></aside></div>':'<div class="empty-cart-wrap">'+empty('bag','Your bag is waiting to be filled','Explore thoughtfully curated beauty and find something to love.',button('Explore the store '+icon('arrow',17),'shop-all','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">EXPLORE THE STORE</p><h2 id="empty-recs-title">More to discover</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Popular recommendations','We could not load live product picks right now.'):''))+'</div>')+'</main>';
+  return '<main class="cart-page"><div class="page-heading"><p class="eyebrow">THE BEAUTY STORE</p><h1>Your beauty bag.</h1></div>' +
+    (entries.length
+      ? '<div class="cart-layout"><div class="cart-items">'+unavailableHtml+entries.map(e=>'<div class="cart-item">'+image(e.product.img,e.product.name)+'<div><span class="product-brand">'+esc(e.product.brand)+'</span><h3>'+esc(e.product.name)+'</h3>'+(e.variant?'<p>Option: '+esc(e.variant)+'</p>':'')+(e.sellerName?'<p class="cart-seller">Sold by '+esc(e.sellerName)+'</p>':'')+'<p>'+money(e.unitPrice)+' each</p><button type="button" class="remove-link" data-action="cart-remove" data-id="'+esc(e.key)+'">Remove</button></div><div class="cart-item-end"><strong>'+money(e.lineTotal)+'</strong><div class="qty"><button type="button" data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="-1" aria-label="Decrease quantity of '+esc(e.product.name)+'">'+icon('minus',15)+'</button><span>'+e.qty+'</span><button type="button" data-action="cart-qty" data-id="'+esc(e.key)+'" data-delta="1" aria-label="Increase quantity of '+esc(e.product.name)+'">'+icon('plus',15)+'</button></div></div></div>').join('')+'</div><aside class="order-summary"><h3>Order summary</h3><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div><div><span>Delivery</span><strong>Calculated at checkout</strong></div><div class="summary-total"><span>Estimated subtotal</span><strong>'+money(subtotal)+'</strong></div>'+button('Continue to checkout '+icon('arrow',17),'checkout','btn-primary full',unavailableKeys.length?'disabled aria-disabled="true"':'')+'<p>Shipping and payment options are confirmed at checkout.</p></aside></div>'
+      : '<div class="empty-cart-wrap">'+empty('bag','Your bag is empty','Explore the beauty store to add products to your bag.',button('Explore the store '+icon('arrow',17),'shop-all','btn-primary'))+(popularPicks.length?'<section class="empty-cart-recs" aria-labelledby="empty-recs-title"><div class="empty-recs-head"><p class="eyebrow">BEAUTY STORE</p><h2 id="empty-recs-title">Browse products</h2></div><div class="product-grid empty-recs-grid">'+popularPicks.map(productCard).join('')+'</div></section>':(state.catalogErrors.products?catalogUnavailableState('Product recommendations','We could not load live product picks right now.'):''))+'</div>') +
+  '</main>';
 }
 
 function checkoutPage(){
@@ -1140,6 +1666,7 @@ function checkoutPage(){
   const resState = state.pendingReservation;
   const resData = (resState && resState.fingerprint === fp && resState.data) ? resState.data : null;
   const resError = (resState && resState.fingerprint === fp && resState.error) ? resState.error : null;
+  const resLoading = Boolean(resState && resState.fingerprint === fp && resState.loading);
 
   const subtotal = resData ? Number(resData.total_subtotal) : entries.reduce((s, e) => s + e.lineTotal, 0);
   const shipping = resData ? Number(resData.total_shipping) : (subtotal >= 1500 ? 0 : 100);
@@ -1153,14 +1680,17 @@ function checkoutPage(){
   const addrIdx = Math.min(Number(state.selectedCheckoutAddressIdx || 0), Math.max(0, state.addresses.length - 1));
 
   const sellerPackagesHtml = resData && Array.isArray(resData.sellers) && resData.sellers.length
-    ? '<div class="checkout-seller-packages" style="margin:8px 0 12px;border-top:1px solid #eee;padding-top:10px;">' +
-        resData.sellers.map(s => '<div style="margin-bottom:8px;font-size:12px;">' +
-          '<div style="display:flex;justify-content:space-between;color:#666;"><span><strong>'+esc(s.seller_name)+'</strong> package</span><span>Shipping: '+(Number(s.estimated_shipping_fee)===0?'Complimentary':money(s.estimated_shipping_fee))+'</span></div>' +
-          (s.items||[]).map(it => '<div style="display:flex;justify-content:space-between;margin-top:3px;"><span>'+esc(it.product_name)+(it.variant_name?' ('+esc(it.variant_name)+')':'')+' × '+it.qty+'</span><strong>'+money(it.line_total)+'</strong></div>').join('') +
+    ? '<div class="checkout-seller-packages">' +
+        resData.sellers.map(s => '<div class="checkout-seller-card">' +
+          '<div class="checkout-seller-head"><span><strong>'+esc(s.seller_name)+'</strong></span><span>Shipping: '+(Number(s.estimated_shipping_fee)===0?'Complimentary':money(s.estimated_shipping_fee))+'</span></div>' +
+          (s.items||[]).map(it => '<div class="checkout-item-row"><span>'+esc(it.product_name)+(it.variant_name?' ('+esc(it.variant_name)+')':'')+' × '+it.qty+'</span><strong>'+money(it.line_total)+'</strong></div>').join('') +
         '</div>').join('') +
       '</div>'
-    : entries.map(e => '<div><span>'+esc(e.product.name)+(e.variant?' ('+esc(e.variant)+')':'')+' × '+e.qty+'</span><strong>'+money(e.lineTotal)+'</strong></div>').join('');
+    : '<div class="checkout-seller-packages">'+entries.map(e => '<div class="checkout-item-row"><span>'+esc(e.product.name)+(e.variant?' ('+esc(e.variant)+')':'')+(e.sellerName?' · '+esc(e.sellerName):'')+' × '+e.qty+'</span><strong>'+money(e.lineTotal)+'</strong></div>').join('')+'</div>';
 
+  const resLoadingHtml = resLoading
+    ? '<div class="payment-notice payment-notice-loading" role="status">Checking live seller availability &amp; shipping…</div>'
+    : '';
   const resNoticeHtml = resError
     ? '<div class="payment-notice payment-notice-error" role="alert"><strong>Inventory check issue</strong><p>'+esc(resError)+'</p></div>'
     : '';
@@ -1171,10 +1701,21 @@ function checkoutPage(){
     ? 'Processing...'
     : (state.paymentNotice && state.checkoutPayment !== 'Cash on delivery' ? 'Retry payment '+icon('arrow',17) : 'Place order '+icon('arrow',17));
 
+  const addressBlockHtml = state.addresses.length
+    ? '<label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button type="button" class="text-action" data-action="address-add">+ Add another address</button>'
+    : '<div class="checkout-address-empty"><p>No delivery address saved yet.</p>'+button('+ Add delivery address','address-add','btn-outline')+'</div>';
+
   const walletBtn = availWallet > 0
-    ? '<div style="margin-top:14px"><button type="button" class="filter-chip '+(state.applyWalletCredit?'active':'')+'" data-action="checkout-toggle-credit" aria-pressed="'+(state.applyWalletCredit?'true':'false')+'">'+icon(state.applyWalletCredit?'check':'spark',14)+' Apply GlamGo Wallet Credit (Balance: '+money(availWallet)+')'+(state.applyWalletCredit?' · −'+money(creditApplied):'')+'</button></div>'
+    ? '<div class="checkout-wallet-row"><button type="button" class="filter-chip '+(state.applyWalletCredit?'active':'')+'" data-action="checkout-toggle-credit" aria-pressed="'+(state.applyWalletCredit?'true':'false')+'">'+icon(state.applyWalletCredit?'check':'spark',14)+' Apply GlamGo Wallet Credit (Balance: '+money(availWallet)+')'+(state.applyWalletCredit?' · −'+money(creditApplied):'')+'</button></div>'
     : '';
-  return '<main class="checkout-page">'+backButton('cart','Back to bag')+'<div class="page-heading"><p class="eyebrow">ALMOST THERE</p><h1>Checkout.</h1></div><div class="checkout-layout"><div><section class="checkout-block"><h2>01 &nbsp; Delivery address</h2><label>Deliver to<select id="checkout-address">'+state.addresses.map((a,i)=>'<option value="'+i+'"'+(i===addrIdx?' selected':'')+'>'+esc(a.label)+' — '+esc(a.text)+'</option>').join('')+'</select></label><button class="text-action" data-action="address-add">+ Add another address</button></section><section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section><section class="checkout-block"><h2>03 &nbsp; Coupon</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' '+esc(state.coupon)+' applied — you save '+money(discount)+'</p>':'')+walletBtn+'</section></div><aside class="order-summary"><h3>Your order</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div>'+(creditApplied>0?'<div><span>Wallet credit applied</span><strong>−'+money(creditApplied)+'</strong></div>':'')+'<div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',state.checkoutBusy?'disabled aria-disabled="true"':'')+'<p>Pricing and availability are checked with the seller before your order is placed.</p></aside></div></main>';
+  return '<main class="checkout-page">'+backButton('cart','Back to bag') +
+    '<div class="page-heading"><p class="eyebrow">CHECKOUT</p><h1>Complete your order.</h1></div>' +
+    '<div class="checkout-layout"><div>' +
+      '<section class="checkout-block"><h2>01 &nbsp; Delivery address</h2>'+addressBlockHtml+'</section>' +
+      '<section class="checkout-block"><h2>02 &nbsp; Payment method</h2><div class="payment-options">'+['UPI','Credit / debit card','Cash on delivery'].map(p=>'<button type="button" data-action="payment" data-id="'+p+'" class="'+(state.checkoutPayment===p?'active':'')+'"'+(state.checkoutBusy?' disabled':'')+'><span class="radio"></span>'+p+'</button>').join('')+'</div></section>' +
+      '<section class="checkout-block"><h2>03 &nbsp; Coupon &amp; credits</h2><form id="coupon-form" class="coupon-form"><input name="coupon" placeholder="Enter coupon code" value="'+esc(state.coupon)+'"><button type="submit">Apply</button></form>'+(state.coupon && discount > 0?'<p class="success-note">'+icon('check',16)+' <span>'+esc(state.coupon)+' applied — save '+money(discount)+'</span> <button type="button" class="text-action" data-action="coupon-remove">Remove</button></p>':'')+walletBtn+'</section>' +
+    '</div>' +
+    '<aside class="order-summary"><h3>Order summary</h3>'+sellerPackagesHtml+'<hr><div><span>Subtotal</span><strong>'+money(subtotal)+'</strong></div>'+(discount?'<div><span>Discount</span><strong>−'+money(discount)+'</strong></div>':'')+'<div><span>Delivery &amp; shipping</span><strong>'+(shipping===0?'Complimentary':money(shipping))+'</strong></div>'+(creditApplied>0?'<div><span>Wallet credit</span><strong>−'+money(creditApplied)+'</strong></div>':'')+'<div class="summary-total"><span>Total payable</span><strong>'+money(payableTotal)+'</strong></div>'+resLoadingHtml+resNoticeHtml+noticeHtml+button(payLabel,'place-order','btn-primary full',(state.checkoutBusy || resLoading)?'disabled aria-disabled="true"':'')+'<p>Inventory and shipping are verified with sellers before payment.</p></aside></div></main>';
 }
 
 function orderSuccess(){
@@ -2029,6 +2570,43 @@ function modal(){
     const suggestionsHtml = '<div class="search-chips-wrap"><span class="search-chips-label">'+(q?'TRY SEARCHING':'POPULAR SEARCHES')+'</span><div class="search-chips">'+popularTerms.map(t=>'<button class="search-chip" data-action="search-quick" data-id="'+t+'">'+t+'</button>').join('')+'</div></div>';
     inner='<div class="modal-head"><p class="eyebrow">EXPLORE GLAMGO</p><h2>What are you looking for?</h2></div><div class="search-input">'+icon('search',21)+'<input id="global-search" value="'+esc(state.query)+'" placeholder="Search products, brands, ingredients or services" autocomplete="off" autofocus>'+(state.query?'<button class="search-clear-btn" data-action="search-clear" aria-label="Clear search">'+icon('close',16)+'</button>':'')+'</div>'+(!q?suggestionsHtml:'')+'<div class="search-results">'+(results.length?results.map(x=>'<button data-action="search-result" data-id="'+x.id+'" data-type="'+x.type+'"><span>'+icon(x.type==='Service'?'spark':x.type==='Salon'?'salon':'bag',20)+'</span><div><strong>'+esc(x.name)+(!x.inCity?' <small style="font-weight:500;color:var(--muted)">(Outside '+esc(userCity)+')</small>':'')+'</strong><small>'+x.type+(x.brand?' · '+esc(x.brand):'')+(x.category?' · '+esc(shopCategoryLabel(x.category)):'')+(x.area?' · '+esc(x.area):'')+(x.type==='Product'&&x.price?' · '+money(x.price):'')+'</small></div>'+icon('arrow',17)+'</button>').join(''):'<div class="search-empty-box">'+empty('search','No matches for "'+esc(state.query)+'"','Check spelling or explore popular beauty picks below.')+suggestionsHtml+'<div class="search-noresult-actions"><button class="btn btn-outline btn-sm" data-action="search-clear">Clear search</button><button class="btn btn-primary btn-sm" data-action="shop-all">Browse Beauty Store</button></div></div>')+'</div>';
   }
+  else if(state.modal==='quick-view'){
+    const p = products.find(x => String(x.id) === String(state.quickViewProductId));
+    if(!p){
+      inner = empty('bag','Product unavailable','This product is no longer listed.');
+    } else {
+      const variants = Array.isArray(p.variants) && p.variants.length ? p.variants : [];
+      const remembered = state.quickSelectedVariants?.[p.id];
+      const variant = (remembered && variants.includes(remembered)) ? remembered : (variants[0] || '');
+      const stockInfo = getStockInfo(p, variant);
+      const isSoldOut = stockInfo.soldOut || p.in_stock === false || p.soldOut === true;
+      const hasMrp = Boolean(p.old && Number(p.old) > Number(p.price));
+      const discountPct = getDiscountPct(p);
+      const offersData = state.productOffers ? state.productOffers[p.id] : null;
+      const offers = (offersData && offersData.offers) || [];
+      const sellerName = offers.length === 1 ? (offers[0].seller_name || '') : (p.seller_name || '');
+      const btnLabel = isSoldOut ? 'Sold out' : 'Add to Bag ' + icon('bag', 17);
+      inner = '<div class="quick-view-grid">' +
+        '<div class="quick-view-image">' + image(p.img, p.name) + (discountPct > 0 ? '<span class="pdp-discount-badge">' + discountPct + '% OFF</span>' : '') + '</div>' +
+        '<div class="quick-view-info">' +
+          '<p class="eyebrow">' + esc(p.brand) + '</p>' +
+          '<h2>' + esc(p.name) + '</h2>' +
+          (sellerName ? '<p class="pdp-seller-line">Sold by <strong>' + esc(sellerName) + '</strong></p>' : '') +
+          '<div class="pdp-rating-row"><span class="stock-pill ' + (stockInfo.soldOut ? 'out' : stockInfo.low ? 'low' : 'in') + '">' + esc(stockInfo.label) + '</span></div>' +
+          '<div class="product-detail-price">' + money(p.price) + (hasMrp ? '<del>' + money(p.old) + '</del><span>' + discountPct + '% off</span>' : '') + '</div>' +
+          (p.description ? '<p class="quick-view-desc">' + esc(p.description) + '</p>' : '') +
+          (variants.length ? '<div class="variant-select"><span>' + getVariantHeading(p, variants) + '</span><div>' + variants.map(v => {
+            const vOut = getStockInfo(p, v).soldOut;
+            return '<button type="button" class="' + (v === variant ? 'active' : '') + (vOut ? ' sold-out-var' : '') + '" data-action="quick-view-variant" data-id="' + esc(v) + '" aria-pressed="' + (v === variant) + '">' + esc(v) + (vOut ? ' (Out of stock)' : '') + '</button>';
+          }).join('') + '</div></div>' : '') +
+          '<div class="quick-view-actions">' +
+            '<button type="button" class="btn btn-primary full" data-action="add-cart" data-id="' + esc(p.id) + '"' + (variant ? ' data-variant="' + esc(variant) + '"' : '') + (isSoldOut ? ' disabled aria-disabled="true"' : '') + '>' + btnLabel + '</button>' +
+            '<button type="button" class="btn btn-outline full" data-action="product-detail" data-id="' + esc(p.id) + '">View full details ' + icon('arrow', 16) + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }
+  }
   else if(state.modal==='booking') inner=bookingModal();
   else if(state.modal==='booking-reschedule'){
     const rb = state.rescheduleBooking || {};
@@ -2053,7 +2631,7 @@ function modal(){
     ];
     inner='<div class="modal-head"><p class="eyebrow">VERIFIED REVIEW</p><h2>Share your experience.</h2><p>Help other customers choose the best beauty experiences.</p></div><form id="review-form"><label>Select Experience or Product<select name="item_select" required>'+(options.length ? options.map((opt, i) => `<option value="${opt.id}:::${opt.type}">${esc(opt.name)} (${opt.type})</option>`).join('') : '<option value="s1:::service">Signature Glow Facial (service)</option><option value="b1:::product">The Daily Renewal Serum (product)</option>')+'</select></label><label>Rating (1-5 stars)<select name="rating"><option value="5">★★★★★ (5/5 Excellent)</option><option value="4">★★★★☆ (4/5 Great)</option><option value="3">★★★☆☆ (3/5 Average)</option><option value="2">★★☆☆☆ (2/5 Poor)</option><option value="1">★☆☆☆☆ (1/5 Needs improvement)</option></select></label><label>Your review<textarea name="comment" required placeholder="Tell us about the texture, specialist punctuality, or results..."></textarea></label><button class="btn btn-primary full" type="submit">Submit review '+icon('arrow',17)+'</button></form>';
   }
-  return '<div class="modal-backdrop"><div class="modal '+(state.modal==='booking'?'booking-modal':'')+'" role="dialog" aria-modal="true" aria-label="GlamGo dialog"><button class="modal-close" data-action="modal-close" aria-label="Close">'+icon('close',21)+'</button>'+inner+'</div></div>';
+  return '<div class="modal-backdrop"><div class="modal '+(state.modal==='booking'?'booking-modal':state.modal==='quick-view'?'quick-view-modal':'')+'" role="dialog" aria-modal="true" aria-label="GlamGo dialog"><button class="modal-close" data-action="modal-close" aria-label="Close">'+icon('close',21)+'</button>'+inner+'</div></div>';
 }
 
 function bookingModal(){
@@ -2064,36 +2642,49 @@ function bookingModal(){
   const basePrice = Number(service?.price || 0);
   const totalPrice = basePrice + addonsSum;
   const userCity = normalizeCity(state.location);
-  const addonsHtml = ''; // No partner-backed add-on catalogue is available yet.
-  const steps = b.type==='home'?['Service','Professional','Date & time','Confirm']:['Service','Staff','Date & time','Confirm'];
+  const steps = b.type==='home'?['Service','Specialist','Date & time','Review']:['Service','Staff','Date & time','Review'];
+  const summaryParts = [];
+  if (service) summaryParts.push(esc(service.name) + ' (' + money(basePrice) + ')');
+  if (b.professional && b.step > 1) summaryParts.push(esc(b.professional));
+  if (b.date && b.time && b.step > 2) summaryParts.push(formatDate(b.date) + ' · ' + esc(b.time));
+  const stepSummaryHtml = summaryParts.length && b.step < 3
+    ? '<div class="booking-step-summary" aria-label="Current selections"><span>Selected:</span> ' + summaryParts.join(' <i>·</i> ') + '</div>'
+    : '';
   let body = '';
   if(b.step===0){
     const cityHomeServices = services.filter(s => isServiceAvailableInCity(s, userCity));
     const list0 = b.type==='home' ? cityHomeServices : services.filter(s=>salon&&salon.services.includes(s.category));
-    body='<h3>Choose your service</h3>'+(salon?'<p class="booking-hint">Choose a catalogue service in one of this salon’s listed categories. Prices shown are catalogue prices.</p>':'')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+s.id+'"><span><strong>'+s.name+'</strong><small>'+s.duration+' · '+s.category+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>'+addonsHtml;
+    body='<h3>Choose a service</h3>'+(salon?'<p class="booking-hint">Select a service in one of '+esc(salon.name)+'’s categories.</p>':'<p class="booking-hint">Select the treatment you would like to book.</p>')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button type="button" class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>'+esc(s.duration)+' · '+esc(s.category)+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>';
   }
   if(b.step===1){
     const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
     const list1 = b.type==='home' ? cityPros : (Array.isArray(salon?.staff) ? salon.staff : []);
-    body='<h3>'+(b.type==='home'?'Choose your professional':'Select a staff member')+'</h3><p class="booking-hint">Choose a specialist, or let us find the best available expert for you.</p><div class="booking-options"><button class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>We will match you with a trusted professional.</small></span></button>'+list1.map(p=>'<button class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+p.name+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
+    body='<h3>'+(b.type==='home'?'Choose a specialist':'Choose a staff member')+'</h3><p class="booking-hint">Select a listed specialist or choose any available expert.</p><div class="booking-options"><button type="button" class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>Match with an available specialist.</small></span></button>'+list1.map(p=>'<button type="button" class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+esc(p.name)+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
   }
-  if(b.step===2) body='<h3>Pick your moment</h3><p class="booking-hint">Choose a preferred time for '+esc(salon?salon.name:'at-home beauty care')+'. Availability is checked when you book.</p><div class="date-grid">'+dateOptions().map(d=>'<button class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">PREFERRED TIMES</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>'+addonsHtml;
+  if(b.step===2){
+    body='<h3>Pick a preferred date &amp; time</h3><p class="booking-hint">Preferred times for '+esc(salon?salon.name:'your at-home appointment')+' are subject to availability.</p><div class="date-grid">'+dateOptions().map(d=>'<button type="button" class="'+(b.date===d.value?'selected':'')+'" data-action="booking-date" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div><p class="slot-label">PREFERRED TIMES (SUBJECT TO AVAILABILITY)</p><div class="time-grid">'+['9:00 AM','10:30 AM','12:00 PM','2:00 PM','3:30 PM','5:00 PM'].map(t=>'<button type="button" class="'+(b.time===t?'selected':'')+'" data-action="booking-time" data-id="'+t+'">'+t+'</button>').join('')+'</div>';
+  }
   if(b.step===3){
     const noticeHtml = state.bookingNotice
       ? '<div class="payment-notice payment-notice-'+esc(state.bookingNotice.type||'error')+'" role="alert"><strong>'+esc(state.bookingNotice.title)+'</strong><p>'+esc(state.bookingNotice.message)+'</p></div>'
       : '';
     const addonReviewRows = addonObjects.map(a => '<div><span>Add-on: '+esc(a.name)+' ('+esc(a.duration)+')</span><strong>+'+money(a.price)+'</strong></div>').join('');
-    body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+(service?.name||'Service')+' ('+money(basePrice)+')</strong></div>'+addonReviewRows+'<div><span>Professional</span><strong>'+esc(b.professional)+'</strong></div><div><span>Date & time</span><strong>'+formatDate(b.date)+' · '+b.time+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Price</span><strong>'+money(totalPrice)+'</strong></div></div>'+noticeHtml+'<p class="booking-hint">Complete payment to confirm your appointment and receive your 4-digit Arrival PIN in My bookings.</p>';
+    body='<h3>Review your booking</h3><div class="booking-review"><div><span>Service</span><strong>'+esc(service?.name||'Service')+' ('+money(basePrice)+')</strong></div>'+addonReviewRows+'<div><span>Specialist</span><strong>'+esc(b.professional)+'</strong></div><div><span>Preferred date &amp; time</span><strong>'+formatDate(b.date)+' · '+esc(b.time)+'</strong></div><div><span>Location</span><strong>'+esc(salon?salon.name+', '+salon.area:state.addresses[0]?.text||state.location)+'</strong></div><div><span>Total payable</span><strong>'+money(totalPrice)+'</strong></div></div>'+noticeHtml+'<p class="booking-hint">'+(totalPrice>0?'Your appointment is only confirmed once payment succeeds. Unpaid bookings remain pending until payment is completed.':'Confirm your booking to save this appointment.')+'</p>';
   }
   const confirmLabel = b.step===3
-    ? (state.bookingBusy ? 'Processing...' : (state.bookingNotice ? 'Retry payment '+icon('arrow',16) : 'Confirm booking '+icon('check',17)))
+    ? (state.bookingBusy ? 'Processing...' : (state.bookingNotice ? 'Retry payment '+icon('arrow',16) : (totalPrice > 0 ? 'Pay & confirm '+icon('check',17) : 'Confirm booking '+icon('check',17))))
     : 'Continue '+icon('arrow',17);
-  return '<div class="modal-head"><p class="eyebrow">'+(salon?'SALON APPOINTMENT':'AT-HOME BEAUTY')+'</p><h2>Book a beautiful moment.</h2><p>'+(salon?salon.name:'Expert care in the comfort of home.')+'</p></div><div class="booking-progress">'+steps.map((s,i)=>'<span class="'+(i<=b.step?'active':'')+'"><b>'+(i<b.step?'✓':i+1)+'</b>'+s+'</span>').join('')+'</div><div class="booking-step">'+body+'</div><div class="booking-footer">'+(b.step>0?button('Back','booking-back','btn-outline'):'<span></span>')+button(confirmLabel,b.step===3?'booking-confirm':'booking-next','btn-primary',(b.step===3 && state.bookingBusy)?'disabled aria-disabled="true"':'')+'</div>';
+  return '<div class="modal-head"><p class="eyebrow">'+(salon?'SALON APPOINTMENT':'AT-HOME SERVICE')+' · STEP '+(b.step+1)+' OF 4</p><h2>'+(salon?esc(salon.name):'Book at-home care')+'</h2></div><div class="booking-progress">'+steps.map((s,i)=>'<span class="'+(i<=b.step?'active':'')+'"><b>'+(i<b.step?'✓':i+1)+'</b>'+s+'</span>').join('')+'</div>'+stepSummaryHtml+'<div class="booking-step">'+body+'</div><div class="booking-footer">'+(b.step>0?button('Back','booking-back','btn-outline'):'<span></span>')+button(confirmLabel,b.step===3?'booking-confirm':'booking-next','btn-primary',(b.step===3 && state.bookingBusy)?'disabled aria-disabled="true"':'')+'</div>';
 }
 
 function bookingSuccess(){
-  const b = state.bookings[0] || { title: 'Service', date: '2026-11-20', time: '10:00 AM', professional: 'Nisha Kapoor', type: 'home' };
-  return '<main class="success-page"><div class="success-mark">'+icon('check',34)+'</div><p class="eyebrow">BOOKING CONFIRMED</p><h1>Your moment is <em>all set.</em></h1><p>'+esc(b.title)+' is booked for '+formatDate(b.date)+' at '+b.time+'. We have added the details to your account.</p><div class="success-details"><span>EXPERIENCE <strong>'+(b.type==='home'?'At-home beauty':'Salon & parlour')+'</strong></span><span>PROFESSIONAL <strong>'+esc(b.professional)+'</strong></span>'+(b.arrival_otp?'<span>ARRIVAL PIN <strong>'+esc(b.arrival_otp)+'</strong></span>':'')+'</div><div class="success-actions">'+button('View my bookings '+icon('arrow',17),'account-bookings','btn-primary')+button('Keep exploring','landing','btn-outline')+'</div></main>';
+  const b = state.bookings[0] || { title: 'Service', date: '2026-11-20', time: '10:00 AM', professional: 'Specialist', type: 'home', status: 'confirmed', payment_status: 'completed' };
+  const rawStatus = String(b.status || '').toLowerCase();
+  const rawPay = String(b.payment_status || '').toLowerCase();
+  const isConfirmed = rawStatus === 'confirmed' && rawPay !== 'pending' && rawPay !== 'expired' && rawPay !== 'failed';
+  const badgeText = isConfirmed ? 'BOOKING CONFIRMED' : rawPay === 'expired' ? 'BOOKING EXPIRED' : 'BOOKING PENDING PAYMENT';
+  const headingHtml = isConfirmed ? 'Your appointment is <em>confirmed.</em>' : 'Your booking is <em>pending payment.</em>';
+  return '<main class="success-page"><div class="success-mark">'+icon(isConfirmed?'check':'clock',34)+'</div><p class="eyebrow">'+badgeText+'</p><h1>'+headingHtml+'</h1><p>'+esc(b.title)+' for '+formatDate(b.date)+' at '+esc(b.time)+'.'+(isConfirmed?' Details are saved in My bookings.':' Complete payment before expiry to confirm.')+'</p><div class="success-details"><span>EXPERIENCE <strong>'+(b.type==='home'?'At-home service':'Salon &amp; parlour')+'</strong></span><span>SPECIALIST <strong>'+esc(b.professional)+'</strong></span>'+(isConfirmed && b.arrival_otp?'<span>ARRIVAL PIN <strong>'+esc(b.arrival_otp)+'</strong></span>':'')+'</div><div class="success-actions">'+button('View my bookings '+icon('arrow',17),'account-bookings','btn-primary')+button('Keep exploring','landing','btn-outline')+'</div></main>';
 }
 
 function render(){
@@ -2102,8 +2693,8 @@ function render(){
     document.body.classList.remove('modal-open');
     return;
   }
-  if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); return; }
-  if(state.view === 'onboarding'){ app.innerHTML = onboarding(); return; }
+  if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); document.body.classList.remove('modal-open'); return; }
+  if(state.view === 'onboarding'){ app.innerHTML = onboarding(); document.body.classList.remove('modal-open'); return; }
   if(state.view === 'partner'){
     app.innerHTML = partnerPage() + modal();
     document.body.classList.toggle('modal-open', !!state.modal);
@@ -2119,9 +2710,10 @@ function render(){
       return;
     }
   }
-  let page = state.view==='landing' ? (state.experience==='home'?homePage():state.experience==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
+  const activeExp = state.experience || 'home';
+  let page = state.view==='landing' ? (activeExp==='home'?homePage():activeExp==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
   app.innerHTML = header() + page + footer() + mobileNav() + modal();
-  document.body.classList.toggle('modal-open', !!state.modal);
+  document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen));
 }
 
 function openBooking(type, itemId, serviceId = null, pro = null){
@@ -2191,11 +2783,120 @@ async function action(el){
     setTimeout(()=>document.getElementById(target)?.scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'}),80);
   }
   else if(a==='switch-toggle'){
-    if(window.innerWidth<=700){ state.mobileMenu=!state.mobileMenu; state.menu=false; }
-    else { state.menu=!state.menu; state.mobileMenu=false; }
+    state.mobileMenu=!state.mobileMenu; state.menu=false;
+    render();
+    if(state.mobileMenu) document.querySelector('#mobile-menu-drawer .mobile-menu-close')?.focus();
+    else document.getElementById('mobile-menu-trigger')?.focus();
+  }
+  else if(a==='mobile-toggle'){
+    state.mobileMenu=!state.mobileMenu;
+    state.filterDrawerOpen=false;
+    render();
+    if(state.mobileMenu) document.querySelector('#mobile-menu-drawer .mobile-menu-close')?.focus();
+    else document.getElementById('mobile-menu-trigger')?.focus();
+  }
+  else if(a==='mobile-close'){
+    state.mobileMenu=false;
+    render();
+    document.getElementById('mobile-menu-trigger')?.focus();
+  }
+  else if(a==='exp-filter-toggle'){
+    const exp = el.dataset.exp || state.experience || 'shop';
+    state.mobileMenu = false;
+    if(window.innerWidth <= 950){
+      state.filterDrawerDraft = { ...getFiltersForExp(exp) };
+      state.filterDrawerOpen = true;
+      render();
+      document.querySelector('#exp-filter-drawer .filter-drawer-close')?.focus();
+    } else {
+      if(!state.filterOpen) state.filterOpen = { home: false, salon: false, shop: false };
+      state.filterOpen[exp] = !state.filterOpen[exp];
+      render();
+      document.getElementById('exp-filter-trigger')?.focus();
+    }
+  }
+  else if(a==='exp-filter-drawer-close'){
+    state.filterDrawerOpen = false;
+    state.filterDrawerDraft = null;
+    render();
+    document.getElementById('exp-filter-trigger')?.focus();
+  }
+  else if(a==='exp-filter-drawer-reset'){
+    const exp = el.dataset.exp || state.filterDrawerDraft?.exp || state.experience || 'shop';
+    state.filterDrawerDraft = defaultFiltersForExp(exp);
+    render();
+    document.querySelector('#exp-filter-drawer [data-action="exp-filter-drawer-reset"]')?.focus();
+  }
+  else if(a==='exp-filter-drawer-apply'){
+    const exp = el.dataset.exp || state.filterDrawerDraft?.exp || state.experience || 'shop';
+    if(state.filterDrawerDraft){
+      applyFiltersToExp(exp, state.filterDrawerDraft);
+    }
+    state.filterDrawerOpen = false;
+    state.filterDrawerDraft = null;
+    persist();
+    render();
+    document.getElementById('exp-filter-trigger')?.focus();
+  }
+  else if(a==='exp-clear-filter'){
+    const exp = el.dataset.exp || state.experience || 'shop';
+    const key = el.dataset.key;
+    const cur = getFiltersForExp(exp);
+    if(key === 'price'){ cur.minPrice = ''; cur.maxPrice = ''; }
+    else if(key === 'sort') cur.sort = 'featured';
+    else if(key === 'availability') cur.availability = 'all';
+    else if(key === 'distance') cur.distance = 'all';
+    else if(key === 'category') cur.category = 'All';
+    else if(key === 'collection') cur.collection = 'All';
+    else if(key === 'brand') cur.brand = 'All';
+    applyFiltersToExp(exp, cur);
+    persist();
     render();
   }
-  else if(a==='mobile-toggle'){ state.mobileMenu=!state.mobileMenu; render(); }
+  else if(a==='exp-reset-all'){
+    const exp = el.dataset.exp || state.experience || 'shop';
+    applyFiltersToExp(exp, defaultFiltersForExp(exp));
+    persist();
+    render();
+  }
+  else if(a==='quick-view'){
+    state.quickViewProductId = id;
+    ensureProductExtras(id);
+    state.modal = 'quick-view';
+    render();
+  }
+  else if(a==='quick-view-variant'){
+    if(!state.quickSelectedVariants) state.quickSelectedVariants = {};
+    if(state.quickViewProductId) state.quickSelectedVariants[state.quickViewProductId] = id;
+    render();
+  }
+  else if(a==='quick-add-variant'){
+    const prod = products.find(p => String(p.id) === String(id));
+    if(!prod) return;
+    const variant = el.dataset.variant || '';
+    const chosenListingId = (variant && prod.variant_listings?.[variant]) || prod.default_listing_id || null;
+    if(getStockInfo(prod, variant).soldOut || prod.in_stock === false || prod.soldOut === true) return;
+    if(!state.quickSelectedVariants) state.quickSelectedVariants = {};
+    state.quickSelectedVariants[id] = variant;
+    const cartKey = makeCartKey(id, variant, chosenListingId);
+    state.cart[cartKey] = (state.cart[cartKey] || 0) + 1;
+    invalidateCheckoutState(true);
+    if(variant){
+      if(!state.cartVariants) state.cartVariants = {};
+      state.cartVariants[id] = variant;
+    }
+    state.addedCartIds = { ...(state.addedCartIds || {}), [id]: true };
+    clearTimeout(addedCartTimers[id]);
+    addedCartTimers[id] = setTimeout(() => {
+      if(state.addedCartIds?.[id]){
+        delete state.addedCartIds[id];
+        if(canSafelyBackgroundRender()) render();
+      }
+    }, 1500);
+    persist();
+    render();
+    toast((variant ? variant + ' added' : 'Added') + ' to your beauty bag');
+  }
   else if(a==='location'){ state.mobileMenu=false; state.menu=false; state.modal='location'; render(); }
   else if(a==='location-set'){
     state.location=id;
@@ -2268,10 +2969,7 @@ async function action(el){
   else if(a==='shop-all'){
     state.modal=null;
     state.experience='shop';
-    state.shopCategory='All';
-    state.shopCollection='All';
-    state.shopBrand='All';
-    state.sort='featured';
+    applyFiltersToExp('shop', defaultFiltersForExp('shop'));
     state.activeNav='landing';
     scrollLockUntil = Date.now() + 700;
     persist();
@@ -2280,24 +2978,33 @@ async function action(el){
   }
   else if(a==='explore-bestsellers'){
     state.experience='shop';
-    state.shopCategory='All';
-    state.shopCollection='BESTSELLER';
+    applyFiltersToExp('shop', { ...defaultFiltersForExp('shop'), collection: 'BESTSELLER' });
     state.activeNav='bestsellers';
     scrollLockUntil = Date.now() + 800;
     persist();
     navigate('landing');
     setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
   }
-  else if(a==='home-category'){ state.homeCategory=id; state.activeNav='popular'; state.view='landing'; render(); document.getElementById('popular')?.scrollIntoView({behavior:'smooth'}); }
-  else if(a==='salon-category'){ state.salonCategory=id; state.activeNav='salons'; state.view='landing'; render(); document.getElementById('salons')?.scrollIntoView({behavior:'smooth'}); }
+  else if(a==='home-category'){
+    const fromShelf = Boolean(el.closest('#popular'));
+    state.homeCategory=id; state.activeNav='popular'; state.view='landing'; render();
+    if(!fromShelf) document.getElementById('popular')?.scrollIntoView({behavior:'smooth'});
+  }
+  else if(a==='salon-category'){
+    const fromShelf = Boolean(el.closest('#salons'));
+    state.salonCategory=id; state.activeNav='salons'; state.view='landing'; render();
+    if(!fromShelf) document.getElementById('salons')?.scrollIntoView({behavior:'smooth'});
+  }
   else if(a==='shop-category'){
+    const fromShelf = Boolean(el.closest('#bestsellers'));
+    const wasLanding = state.view === 'landing';
     state.experience='shop';
     state.shopCategory=id || 'All';
     state.activeNav = el.closest('#shop-categories') ? 'categories' : 'bestsellers';
     scrollLockUntil = Date.now() + 700;
     persist();
-    if(state.view!=='landing') navigate('landing'); else render();
-    setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
+    if(!wasLanding) navigate('landing'); else render();
+    if(!fromShelf || !wasLanding) setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
   }
   else if(a==='shop-collection'){
     const col = el.dataset.collection || id || 'All';
@@ -2321,14 +3028,11 @@ async function action(el){
     setTimeout(()=>document.getElementById('bestsellers')?.scrollIntoView({behavior:'smooth'}),80);
   }
   else if(a==='shop-sort-reset'){
-    state.sort='featured';
+    state.shopSort='featured';
     render();
   }
   else if(a==='shop-reset'){
-    state.shopCategory='All';
-    state.shopCollection='All';
-    state.shopBrand='All';
-    state.sort='featured';
+    applyFiltersToExp('shop', defaultFiltersForExp('shop'));
     state.activeNav='bestsellers';
     scrollLockUntil = Date.now() + 700;
     persist();
@@ -2428,6 +3132,25 @@ async function action(el){
     invalidateCheckoutState(true);
     persist();
     render();
+  }
+  else if(a==='cart-remove-unavailable'){
+    Object.keys(state.cart || {}).forEach(key => {
+      if (Number(state.cart[key]) > 0 && !products.some(p => String(p.id) === parseCartKey(key).productId)) {
+        delete state.cart[key];
+      }
+    });
+    invalidateCheckoutState(true);
+    persist();
+    render();
+    toast('Unavailable items removed');
+  }
+  else if(a==='coupon-remove'){
+    state.coupon = '';
+    state.couponDiscount = 0;
+    invalidateCheckoutState(false);
+    persist();
+    render();
+    toast('Coupon removed');
   }
   else if(a==='cart-qty'){
     state.cart[id] = Math.max(0,(state.cart[id]||0)+Number(el.dataset.delta));
@@ -3764,9 +4487,59 @@ document.addEventListener('input', e => {
     input?.focus();
     input?.setSelectionRange(focus, focus);
   }
+  if(e.target.dataset.filterExp && (e.target.dataset.filterField === 'minPrice' || e.target.dataset.filterField === 'maxPrice')){
+    const exp = e.target.dataset.filterExp;
+    const mode = e.target.dataset.filterMode;
+    const field = e.target.dataset.filterField;
+    const raw = String(e.target.value || '').replace(/[^0-9]/g, '');
+    const pos = Math.min(raw.length, e.target.selectionStart ?? raw.length);
+    const fid = e.target.id;
+    if(mode === 'draft'){
+      if(!state.filterDrawerDraft) state.filterDrawerDraft = { ...getFiltersForExp(exp) };
+      state.filterDrawerDraft[field] = raw;
+    } else {
+      const cur = getFiltersForExp(exp);
+      cur[field] = raw;
+      applyFiltersToExp(exp, cur);
+    }
+    render();
+    const restored = fid ? document.getElementById(fid) : null;
+    if(restored){
+      restored.focus();
+      try { restored.setSelectionRange(pos, pos); } catch {}
+    }
+  }
 });
 
 document.addEventListener('change', async e => {
+  if(e.target.dataset.filterExp && e.target.dataset.filterField && e.target.dataset.filterField !== 'minPrice' && e.target.dataset.filterField !== 'maxPrice'){
+    const exp = e.target.dataset.filterExp;
+    const mode = e.target.dataset.filterMode;
+    const field = e.target.dataset.filterField;
+    const fid = e.target.id;
+    let val = e.target.value;
+    if(field === 'availability'){
+      const scope = e.target.closest('.filter-sidebar, .filter-drawer') || document;
+      const checked = Array.from(scope.querySelectorAll('input[data-filter-field="availability"]:checked')).map(x => x.value);
+      val = checked.length === 1 ? checked[0] : 'all';
+    }
+    if(mode === 'draft'){
+      if(!state.filterDrawerDraft) state.filterDrawerDraft = { ...getFiltersForExp(exp) };
+      state.filterDrawerDraft[field] = val;
+    } else {
+      const cur = getFiltersForExp(exp);
+      cur[field] = val;
+      applyFiltersToExp(exp, cur);
+      persist();
+    }
+    render();
+    if(fid) document.getElementById(fid)?.focus();
+    else {
+      const match = document.querySelector((mode === 'draft' ? '#exp-filter-drawer' : '#exp-filter-panel-' + exp) + ' input[data-filter-field="' + field + '"][value="' + CSS.escape(e.target.value) + '"]');
+      match?.focus();
+    }
+    return;
+  }
   if(e.target.id === 'partner-mobile-nav'){
     state.partnerTab = e.target.value;
     render();
@@ -3779,14 +4552,6 @@ document.addEventListener('change', async e => {
     render();
     window.scrollTo({top:0,behavior:'instant'});
     return;
-  }
-  if(e.target.id === 'salon-sort' || e.target.id === 'shop-sort' || e.target.id === 'home-sort'){
-    state.sort = e.target.value;
-    render();
-  }
-  if(e.target.id === 'shop-brand-select'){
-    state.shopBrand = e.target.value || 'All';
-    render();
   }
   if(e.target.id === 'checkout-address'){
     state.selectedCheckoutAddressIdx = Number(e.target.value || 0);
@@ -3857,14 +4622,34 @@ window.addEventListener('hashchange', () => {
 });
 
 document.addEventListener('keydown', e => {
+  if(e.key === 'Tab'){
+    const filterDrawer = state.filterDrawerOpen ? document.getElementById('exp-filter-drawer') : null;
+    const mobileDrawer = state.mobileMenu ? document.getElementById('mobile-menu-drawer') : null;
+    const activeModal = state.modal ? document.querySelector('.modal') : null;
+    if(filterDrawer) trapFocusIn(filterDrawer, e);
+    else if(mobileDrawer) trapFocusIn(mobileDrawer, e);
+    else if(activeModal) trapFocusIn(activeModal, e);
+  }
   if(e.key === 'Escape' && state.view === 'public' && state.publicMenu){
     state.publicMenu = false;
     render();
     document.querySelector('.public-menu-toggle')?.focus();
   }
-  if(e.key === 'Escape' && (state.modal || state.mobileMenu || state.menu)){
-    state.modal = null;
+  if(e.key === 'Escape' && state.filterDrawerOpen){
+    state.filterDrawerOpen = false;
+    state.filterDrawerDraft = null;
+    render();
+    document.getElementById('exp-filter-trigger')?.focus();
+    return;
+  }
+  if(e.key === 'Escape' && state.mobileMenu){
     state.mobileMenu = false;
+    render();
+    document.getElementById('mobile-menu-trigger')?.focus();
+    return;
+  }
+  if(e.key === 'Escape' && (state.modal || state.menu)){
+    state.modal = null;
     state.menu = false;
     render();
   }

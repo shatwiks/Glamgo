@@ -1,42 +1,203 @@
-// Public introduction rendered with the existing marketplace actions.
+// Public partner-first introduction rendered with the existing marketplace actions.
 export function publicLanding({ signedIn, experience, menu, icon }) {
   const arrow = icon('arrow', 17);
-  const experienceNames = { home: 'Home Services', salon: 'Salons', shop: 'Beauty Shopping' };
-  const choices = [
-    { id:'home', number:'01', label:'AT-HOME BEAUTY', title:'Beauty, at your doorstep.', text:'Find independent beauty professionals who bring their services to you.', cta:'Explore Home Services', image:'./assets/home-editorial.webp', alt:'A beauty professional giving a facial treatment at home' },
-    { id:'salon', number:'02', label:'SALON & PARLOUR', title:'Find a salon you’ll love.', text:'Discover salons and parlours, explore their services, and book a visit.', cta:'Explore Salons', image:'./assets/salon-editorial.webp', alt:'A contemporary salon interior with mirrors and styling chairs' },
-    { id:'shop', number:'03', label:'BEAUTY SHOPPING', title:'Beauty worth discovering.', text:'Shop beauty and personal care products from sellers and brands on GlamGo.', cta:'Explore Beauty Shopping', image:'./assets/shop-editorial.webp', alt:'A thoughtfully arranged collection of beauty products' }
-  ];
-  const links = '<button data-action="public-scroll" data-target="public-partners">Who Can Join</button><button data-action="public-scroll" data-target="public-how">How It Works</button><button data-action="public-scroll" data-target="public-value">For Your Business</button><button data-action="public-scroll" data-target="public-experiences">Explore as a Customer</button>';
-  const cards = choices.map(x => '<article class="public-experience-card"><button class="public-card-image" data-action="experience" data-id="'+x.id+'" aria-label="'+x.cta+'"><img src="'+x.image+'" alt="'+x.alt+'" loading="lazy"><span>'+x.number+' / 03</span></button><div class="public-card-content"><p class="eyebrow">'+x.label+'</p><h3>'+x.title+'</h3><p>'+x.text+'</p><button class="public-text-link" data-action="experience" data-id="'+x.id+'">'+x.cta+' '+arrow+'</button></div></article>').join('');
-  const goals = [
-    ['At-home skin care', 'home', 'Skin', 'Facials & skin care'],
-    ['Hair styling at home', 'home', 'Hair', 'Hair services'],
-    ['A moment to unwind', 'home', 'Spa', 'Spa services'],
-    ['A salon visit', 'salon', 'All', 'Salon & parlour'],
-    ['Everyday skincare', 'shop', 'Skincare', 'Beauty shopping'],
-    ['Makeup essentials', 'shop', 'Makeup', 'Beauty shopping'],
-    ['Haircare at home', 'shop', 'Haircare', 'Beauty shopping']
-  ].map(([title, experience, category, label]) => '<button class="public-goal" data-action="discover-goal" data-experience="'+experience+'" data-category="'+category+'"><span><small>'+label+'</small><strong>'+title+'</strong></span>'+arrow+'</button>').join('');
-  const steps = [['01','Create your account','Sign up and choose the type of beauty business you run.'],['02','Apply to join','Tell us about your services, experience, and business.'],['03','Set up your presence','Once approved, manage your profile and offerings in your partner workspace.']].map(x => '<div class="public-step"><span>'+x[0]+'</span><h3>'+x[1]+'</h3><p>'+x[2]+'</p></div>').join('');
-  const benefits = [['Showcase your work','Present your salon, services, and professional profile.'],['Manage appointments','View and manage bookings in your partner workspace.'],['Set your availability','Choose the days you are available for appointments.'],['Keep details current','Update your services, pricing, and business information.']].map(([title,text]) => '<div><span>'+icon('spark',19)+'</span><div><h3>'+title+'</h3><p>'+text+'</p></div></div>').join('');
-  const partners = [
-    ['01','SALON & PARLOUR OWNERS','Your space. Your story.','Showcase your salon, share your services, and manage appointments.','List Your Salon','Salon Owner','./assets/salon-editorial.webp','A warm contemporary salon interior'],
-    ['02','BEAUTY PROFESSIONALS','Your talent, at their door.','Share your skills and offer at-home beauty services to customers.','Join as a Professional','Professional','./assets/home-editorial.webp','A professional providing a facial treatment'],
-    ['03','BEAUTY SELLERS & BRANDS','A place for your products.','List your beauty and personal care products on GlamGo.','Become a Seller','Product Seller','./assets/shop-editorial.webp','Beauty products arranged on a stone surface']
-  ].map(([n,label,title,desc,cta,role,src,alt]) => '<article class="public-partner-card"><div class="public-partner-image"><img src="'+src+'" alt="'+alt+'" loading="lazy"><span>'+n+' / 03</span></div><div class="public-partner-copy"><p class="eyebrow">'+label+'</p><h3>'+title+'</h3><p>'+desc+'</p><button class="public-text-link" data-action="public-partner" data-id="'+role+'">'+cta+' '+arrow+'</button></div></article>').join('');
-  return '<div class="public-page" id="top"><a class="public-skip" href="#public-main">Skip to content</a><div class="public-announcement">FOR SALON OWNERS & BEAUTY PROFESSIONALS <span>·</span> YOUR BEAUTY. YOUR WAY.</div>'+
-    '<header class="public-header"><a class="wordmark public-logo" href="/" data-action="public-home" aria-label="GlamGo home">GLAMGO<span>✦</span></a><nav class="public-nav" aria-label="Main navigation">'+links+'</nav><div class="public-header-actions"><button class="public-signin" data-action="account">'+(signedIn?'My Account':'Sign In')+' '+arrow+'</button><button class="public-menu-toggle" data-action="public-menu" aria-label="'+(menu?'Close navigation':'Open navigation')+'" aria-expanded="'+menu+'">'+icon(menu?'close':'menu',23)+'</button></div>'+(menu?'<nav class="public-mobile-nav" aria-label="Mobile navigation">'+links+'<button data-action="account">'+(signedIn?'My Account':'Sign In / Create Account')+' '+arrow+'</button></nav>':'')+'</header>'+
-    '<main id="public-main"><section class="public-hero"><div class="public-hero-copy"><p class="public-kicker"><span></span> FOR THE PEOPLE BEHIND BEAUTY</p><h1>Your talent.<br><em>Your place to grow.</em></h1><p class="public-hero-description">Bring your salon, beauty services, or products to GlamGo, and connect with customers looking for their next beauty moment.</p><div class="public-hero-actions"><button class="public-button public-button-dark" data-action="public-partner" data-id="Salon Owner">List Your Salon '+arrow+'</button><button class="public-button public-button-link" data-action="public-partner" data-id="Professional">Join as a Professional '+arrow+'</button></div>'+
-    (experience?'<button class="public-return" data-action="experience" data-id="'+experience+'">Continue to '+(experienceNames[experience]||'your last experience')+' '+arrow+'</button>':'')+
-    '<div class="public-hero-caption"><span>FOR INDEPENDENT BEAUTY BUSINESSES</span><span>YOUR BEAUTY. YOUR WAY.</span></div></div><div class="public-hero-art"><div class="public-art-main"><img src="./assets/salon-editorial.webp" alt="A contemporary salon ready to welcome customers"></div><div class="public-art-small public-art-salon"><img src="./assets/home-editorial.webp" alt="A beauty professional providing care at home"></div><div class="public-art-small public-art-shop"><img src="./assets/shop-editorial.webp" alt="Beauty products arranged in soft natural light"></div><div class="public-art-note"><span>GLAMGO FOR PARTNERS</span><strong>Your work.<br><em>Your next chapter.</em></strong></div></div></section>'+
-    '<div class="public-intro-strip"><span>SALON OWNERS</span><span>·</span><span>BEAUTY PROFESSIONALS</span><span>·</span><span>BEAUTY SELLERS</span></div>'+
-    '<section class="public-section public-partners" id="public-partners"><div class="public-partners-header"><div><p class="eyebrow">MADE FOR BEAUTY BUSINESSES</p><h2>Make your mark in the <em>world of beauty.</em></h2></div><div><p>Whether you run a salon, offer services at home, or sell beauty products, GlamGo gives your business a place to be discovered.</p></div></div><div class="public-partner-grid">'+partners+'</div></section>'+
-    '<section class="public-how" id="public-how"><div class="public-how-inner"><div class="public-how-title"><p class="eyebrow">BECOME A PARTNER</p><h2>Three steps to your <em>GlamGo presence.</em></h2><p>A thoughtful start for your beauty business.</p></div><div class="public-steps">'+steps+'</div></div></section>'+
-    '<section class="public-value" id="public-value"><div class="public-value-image"><img src="./assets/home-editorial.webp" alt="A beauty professional caring for a client" loading="lazy"></div><div class="public-value-content"><p class="eyebrow">YOUR BUSINESS, BEAUTIFULLY PRESENTED</p><h2>More room for<br><em>what you do best.</em></h2><p class="public-value-intro">A space to present your work and manage the details of your beauty business.</p><div class="public-benefits">'+benefits+'</div></div></section>'+
-    '<section class="public-section public-experiences" id="public-experiences"><div class="public-section-heading"><div><p class="eyebrow">FOR CUSTOMERS</p><h2>Looking for your next<br><em>beauty moment?</em></h2></div><p>Discover independent professionals, salons, and beauty sellers on GlamGo.</p></div><div class="public-experience-grid">'+cards+'</div></section>'+
-    '<section class="public-discovery" aria-labelledby="discovery-title"><div class="public-discovery-inner"><div class="public-discovery-heading"><p class="eyebrow">FIND WHAT SUITS YOU</p><h2 id="discovery-title">A little inspiration for <em>your next beauty moment.</em></h2><p>Start with what you have in mind and discover offerings from independent beauty partners.</p></div><div class="public-goals">'+goals+'</div></div></section>'+
-    '<section class="public-customer-how"><div><p class="eyebrow">ONE ACCOUNT, THREE EXPERIENCES</p><h2>Beauty on <em>your terms.</em></h2><p>Discover beauty professionals, salons, and sellers together on GlamGo.</p></div><div class="public-customer-steps"><article><span>01</span><h3>Discover</h3><p>Browse services, salons, and products.</p></article><article><span>02</span><h3>Choose</h3><p>Explore the options that suit you.</p></article><article><span>03</span><h3>Book or shop</h3><p>Plan your appointment or place an order.</p></article></div></section>'+
-    '<section class="public-closing"><p class="eyebrow">YOUR BEAUTY. YOUR WAY.</p><h2>Your work deserves a <em>place to shine.</em></h2><p>Join a marketplace built for independent beauty businesses.</p><button class="public-button public-button-light" data-action="public-scroll" data-target="public-partners">Explore Partner Opportunities '+arrow+'</button></section></main>'+
-    '<footer class="public-footer"><div class="public-footer-grid"><div class="public-footer-brand"><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><p>Beauty made personal,<br><em>wherever you are.</em></p><small>YOUR BEAUTY. YOUR WAY.</small></div><div><h3>EXPLORE</h3><button data-action="experience" data-id="home">Home Services</button><button data-action="experience" data-id="salon">Salons</button><button data-action="experience" data-id="shop">Beauty Shopping</button><button data-action="public-scroll" data-target="public-how">How It Works</button></div><div><h3>YOUR GLAMGO</h3><button data-action="account">'+(signedIn?'My Account':'Sign In / Create Account')+'</button><button data-action="public-scroll" data-target="public-partners">Partner With Us</button><button data-action="support">Customer Support</button></div></div><div class="public-footer-bottom"><span>© '+new Date().getFullYear()+' GlamGo. All rights reserved.</span><span>THREE EXPERIENCES. ONE BEAUTIFUL WORLD.</span></div></footer></div>';
+  const experienceNames = {
+    home: 'At-home services',
+    salon: 'Salons & parlours',
+    shop: 'Beauty shopping'
+  };
+
+  const navLinks = [
+    '<button type="button" data-action="public-scroll" data-target="public-partners">Partner Roles</button>',
+    '<button type="button" data-action="public-scroll" data-target="public-how">How It Works</button>',
+    '<button type="button" data-action="public-scroll" data-target="public-experiences">For Customers</button>'
+  ].join('');
+
+  const partnerRoles = [
+    {
+      role: 'Salon Owner',
+      label: 'Salons & parlours',
+      title: 'Salon & parlour owners',
+      desc: 'Present your salon space, service menu, and team so local customers can book visits.',
+      cta: 'Register your salon',
+      image: './assets/salon-editorial.webp',
+      alt: 'Contemporary salon interior with styling chairs and mirrors'
+    },
+    {
+      role: 'Professional',
+      label: 'At-home services',
+      title: 'Independent professionals',
+      desc: 'Share your profile, set available days, and accept at-home beauty appointments.',
+      cta: 'Apply as a professional',
+      image: './assets/home-editorial.webp',
+      alt: 'Independent beauty professional providing an at-home facial treatment'
+    },
+    {
+      role: 'Product Seller',
+      label: 'Sellers & brands',
+      title: 'Beauty sellers & brands',
+      desc: 'List skincare, haircare, and makeup products for customers shopping on GlamGo.',
+      cta: 'Apply as a seller',
+      image: './assets/shop-editorial.webp',
+      alt: 'Curated beauty and personal care products arranged in natural light'
+    }
+  ].map(item => (
+    '<article class="public-card">' +
+      '<div class="public-card-media"><img src="' + item.image + '" alt="' + item.alt + '" loading="lazy"></div>' +
+      '<div class="public-card-body">' +
+        '<p class="public-eyebrow">' + item.label + '</p>' +
+        '<h3>' + item.title + '</h3>' +
+        '<p>' + item.desc + '</p>' +
+        '<button type="button" class="public-text-link" data-action="public-partner" data-id="' + item.role + '">' + item.cta + ' ' + arrow + '</button>' +
+      '</div>' +
+    '</article>'
+  )).join('');
+
+  const steps = [
+    ['01', 'Create an account', 'Sign in or register and choose the partner role that fits your business.'],
+    ['02', 'Submit your application', 'Share your business details, city, and services or product focus.'],
+    ['03', 'Manage your presence', 'Once approved, update offerings, pricing, and availability in your partner workspace.']
+  ].map(([num, title, desc]) => (
+    '<div class="public-step">' +
+      '<span class="public-step-num" aria-hidden="true">' + num + '</span>' +
+      '<div><h3>' + title + '</h3><p>' + desc + '</p></div>' +
+    '</div>'
+  )).join('');
+
+  const customerExperiences = [
+    {
+      id: 'home',
+      label: 'At-home services',
+      title: 'Beauty at your doorstep',
+      desc: 'Book independent beauty professionals for skin, hair, and spa care at home.',
+      cta: 'Explore at-home services',
+      image: './assets/home-editorial.webp',
+      alt: 'Beauty professional delivering facial care at home'
+    },
+    {
+      id: 'salon',
+      label: 'Salons & parlours',
+      title: 'Salons near you',
+      desc: 'Browse independent salons and parlours, compare menus, and reserve your visit.',
+      cta: 'Explore salons & parlours',
+      image: './assets/salon-editorial.webp',
+      alt: 'Independent salon interior ready for appointments'
+    },
+    {
+      id: 'shop',
+      label: 'Beauty shopping',
+      title: 'Beauty from sellers & brands',
+      desc: 'Shop skincare, haircare, and makeup offered by independent sellers and brands.',
+      cta: 'Explore beauty shopping',
+      image: './assets/shop-editorial.webp',
+      alt: 'Skincare and beauty products displayed on stone'
+    }
+  ].map(item => (
+    '<article class="public-card">' +
+      '<div class="public-card-media"><img src="' + item.image + '" alt="' + item.alt + '" loading="lazy"></div>' +
+      '<div class="public-card-body">' +
+        '<p class="public-eyebrow">' + item.label + '</p>' +
+        '<h3>' + item.title + '</h3>' +
+        '<p>' + item.desc + '</p>' +
+        '<button type="button" class="public-text-link" data-action="experience" data-id="' + item.id + '">' + item.cta + ' ' + arrow + '</button>' +
+      '</div>' +
+    '</article>'
+  )).join('');
+
+  const returnLink = experience
+    ? '<button type="button" class="public-return" data-action="experience" data-id="' + experience + '">Return to ' + (experienceNames[experience] || 'your last experience') + ' ' + arrow + '</button>'
+    : '';
+
+  return (
+    '<div class="public-page" id="top">' +
+      '<a class="public-skip" href="#public-main">Skip to content</a>' +
+      '<header class="public-header">' +
+        '<a class="wordmark public-logo" href="/" data-action="public-home" aria-label="GlamGo home">GLAMGO<span>✦</span></a>' +
+        '<nav class="public-nav" aria-label="Main navigation">' + navLinks + '</nav>' +
+        '<div class="public-header-actions">' +
+          '<button type="button" class="public-signin" data-action="account">' + (signedIn ? 'My Account' : 'Sign In') + ' ' + arrow + '</button>' +
+          '<button type="button" class="public-menu-toggle" data-action="public-menu" aria-label="' + (menu ? 'Close navigation' : 'Open navigation') + '" aria-expanded="' + Boolean(menu) + '">' + icon(menu ? 'close' : 'menu', 22) + '</button>' +
+        '</div>' +
+        (menu
+          ? '<nav class="public-mobile-nav" aria-label="Mobile navigation">' +
+              navLinks +
+              '<button type="button" data-action="account">' + (signedIn ? 'My Account' : 'Sign In / Create Account') + ' ' + arrow + '</button>' +
+            '</nav>'
+          : '') +
+      '</header>' +
+      '<main id="public-main">' +
+        '<section class="public-hero" aria-labelledby="public-hero-title">' +
+          '<div class="public-hero-copy">' +
+            '<p class="public-eyebrow public-kicker"><span></span>Independent beauty marketplace</p>' +
+            '<h1 id="public-hero-title">Connect your beauty<br><em>business with customers.</em></h1>' +
+            '<p class="public-hero-description">GlamGo connects independent beauty professionals, salon owners, and beauty sellers with customers across at-home services, salon visits, and beauty shopping.</p>' +
+            '<div class="public-hero-actions">' +
+              '<button type="button" class="public-button public-button-dark" data-action="public-scroll" data-target="public-partners">Apply as a Partner ' + arrow + '</button>' +
+              returnLink +
+            '</div>' +
+          '</div>' +
+          '<div class="public-hero-art">' +
+            '<div class="public-art-main"><img src="./assets/salon-editorial.webp" alt="Independent salon interior with warm lighting and styling chairs"></div>' +
+            '<div class="public-art-small"><img src="./assets/home-editorial.webp" alt="Beauty professional offering at-home skincare care"></div>' +
+            '<div class="public-art-small"><img src="./assets/shop-editorial.webp" alt="Beauty products from independent sellers and brands"></div>' +
+          '</div>' +
+        '</section>' +
+        '<section class="public-section public-partners" id="public-partners" aria-labelledby="partners-heading">' +
+          '<div class="public-section-head">' +
+            '<div>' +
+              '<p class="public-eyebrow">Partner with GlamGo</p>' +
+              '<h2 id="partners-heading">Three ways independent businesses <em>join.</em></h2>' +
+            '</div>' +
+            '<p>Select your business type to register and manage your own profile, offerings, pricing, and schedule.</p>' +
+          '</div>' +
+          '<div class="public-card-grid">' + partnerRoles + '</div>' +
+        '</section>' +
+        '<section class="public-how" id="public-how" aria-labelledby="how-heading">' +
+          '<div class="public-how-inner">' +
+            '<div class="public-how-intro">' +
+              '<p class="public-eyebrow">How joining works</p>' +
+              '<h2 id="how-heading">Three steps to <em>go live.</em></h2>' +
+              '<p>GlamGo gives independent partners a dedicated workspace without operating your salon or employing your staff.</p>' +
+            '</div>' +
+            '<div class="public-steps">' + steps + '</div>' +
+          '</div>' +
+        '</section>' +
+        '<section class="public-section public-experiences" id="public-experiences" aria-labelledby="experiences-heading">' +
+          '<div class="public-section-head">' +
+            '<div>' +
+              '<p class="public-eyebrow">For customers</p>' +
+              '<h2 id="experiences-heading">Explore three <em>beauty experiences.</em></h2>' +
+            '</div>' +
+            '<p>Discover independent professionals, salons, and beauty sellers together with one account.</p>' +
+          '</div>' +
+          '<div class="public-card-grid">' + customerExperiences + '</div>' +
+        '</section>' +
+      '</main>' +
+      '<footer class="public-footer">' +
+        '<div class="public-footer-grid">' +
+          '<div class="public-footer-brand">' +
+            '<a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a>' +
+            '<p>Connecting independent beauty professionals, salons, and sellers with customers.</p>' +
+          '</div>' +
+          '<div class="public-footer-col">' +
+            '<h3>Customers</h3>' +
+            '<button type="button" data-action="experience" data-id="home">At-home services</button>' +
+            '<button type="button" data-action="experience" data-id="salon">Salons &amp; parlours</button>' +
+            '<button type="button" data-action="experience" data-id="shop">Beauty shopping</button>' +
+          '</div>' +
+          '<div class="public-footer-col">' +
+            '<h3>Partners &amp; Account</h3>' +
+            '<button type="button" data-action="public-partner" data-id="Salon Owner">Salon &amp; parlour owners</button>' +
+            '<button type="button" data-action="public-partner" data-id="Professional">Independent professionals</button>' +
+            '<button type="button" data-action="public-partner" data-id="Product Seller">Beauty sellers &amp; brands</button>' +
+            '<button type="button" data-action="account">' + (signedIn ? 'My Account' : 'Sign In / Create Account') + '</button>' +
+            '<button type="button" data-action="support">Customer support</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="public-footer-bottom">' +
+          '<span>&copy; ' + new Date().getFullYear() + ' GlamGo. All rights reserved.</span>' +
+        '</div>' +
+      '</footer>' +
+    '</div>'
+  );
 }

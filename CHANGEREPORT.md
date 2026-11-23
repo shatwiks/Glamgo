@@ -4,6 +4,24 @@
 
 ---
 
+## Prompt Entry #20 — `2026-11-23`: Simplify Customer Experience Across Landing, Header, Discovery, Filters & Details (`release/54ba3db`, Local)
+
+**Prompt Summary:** Simplify the GlamGo customer experience across desktop and mobile (`1440px`, `1280px`, `768px`, `390px`) using XtremeX-style layout clarity while strictly preserving GlamGo's ivory/cream/charcoal/champagne/terracotta palette, typography, marketplace framing, and API-driven functionality (local preview first, uncommitted/unpushed).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/public-landing.js`, `public-landing.css`: Simplified public partner-first landing page to one clear main headline, concise marketplace copy, one primary partner CTA (`Apply as a Partner`), returning-visitor link (`Return to <experience>`), all 3 partner registration paths (`Salon Owner`, `Professional`, `Product Seller`), and visible customer paths to Home, Salons, and Shop; removed decorative captions, overlay image notes, number badges, and redundant sections.
+- `src/app.js`: Removed generic announcement banner and decorative subnav tag; added direct desktop `.exp-switcher` and mobile `.mobile-exp-bar` (`Home`, `Salons`, `Shop`); compacted mobile header and moved secondary actions (including Partner Portal) into accessible `#mobile-menu-drawer` (`role="dialog"`, `aria-modal="true"`, Esc/Tab focus handling); harmonized desktop `.subnav` with mobile `.mobile-bottom`; streamlined discovery cards (real API data only, no fabricated ratings/distances/hours/availability); unified all 3 experiences (`Home`, `Salons`, `Shop`) with a collapsible `.filter-toggle-pill` (`Show filters` / `Hide filters`), left `.filter-sidebar` on desktop + `#exp-filter-drawer` on mobile (`Sort by` including A-Z/Z-A/price, `Category`, `Availability` checkboxes on Shop, `Collection`/`Brand` on Shop, `Distance` on Salons, `Price` From/To ₹ inputs across all 3), and visible `.active-filters` chips; added product-only Quick View eye button (`quick-view` modal) and `.product-quick-overlay` bottom hover quick-variant add card; added clear step icons (`spark`, `user`, `calendar`, `check`) and structured `.step-head` cards to `#how`; refined Service/Salon/Product detail views, step-by-step Booking flow (with availability disclaimer and distinct `pending`/`expired`/`cancelled`/`confirmed`/`completed` states), and Cart/Checkout states.
+- `public/assets/home-editorial.webp`: Converted directly from native full-resolution `D:\DOWNLOADS!!!!\Calm Linen Spa Facial Scene.png` (`1536x1024` PNG, `2531.4 KB`) to WebP (`1536x1024`, `395.9 KB`, `quality=95`, zero upscaling/downscaling).
+- `styles.css`: Styled compact desktop/mobile headers, experience switchers, mobile drawer, 2-column mobile grids, `.filter-toggle-pill`, sticky collapsible `.filter-sidebar` & `.collection-layout.with-filters`, `.price-range-inputs`, product-only `.product-quick-view-btn`, `.product-quick-overlay` (`@media (hover: hover)` desktop reveal), and `.quick-view-modal`, calm detail/booking/cart/checkout layouts, `.how-section` `.step-head`/`.step-icon` cards with minimal staggered `step-fade-up` + subtle hover lift/progress bar, matched `.home-hero` / `.salon-hero` / `.shop-hero` desktop proportions via absolute `inset: 0` hero image positioning (with `.hero-visual img` centered for the 3:2 hero photo), `:focus-visible` outlines, `overflow-x: clip` zero-overflow rules, and `prefers-reduced-motion` support across `1440px`, `1280px`, `768px`, and `390px`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #20.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c src/app.js`, `node -c src/public-landing.js` -> exited `0`.
+- `npm run build` (`vite build`) -> exited `0` (`dist/assets/index-CX15aJ0J.css` `108.53 kB`, `dist/assets/index-BQCPqAVN.js` `239.38 kB`).
+- Browser QA at `1440px`, `1280px`, `768px`, and `390px` against `http://127.0.0.1:5173/` -> zero horizontal overflow (`scrollWidth <= innerWidth`), zero `pageerror`s/JS console errors (only 1 pre-existing 404 for `/favicon.ico`), reduced-motion verified, and all flows verified (landing, experience switchers, search/location, mobile menu drawer, mobile filter drawer keyboard/Esc/focus-return/Apply/Reset, product/service/salon details, wishlist, cart quantity updates, isolated booking review/statuses & checkout summary without live payments or real bookings).
+
+---
+
 ## Prompt Entry #19 — `2026-11-23`: Commit & Push Booking Payment-State Lifecycle, Service Detail & Landing Updates (`release/54ba3db`)
 
 **Prompt Summary:** Inspect, record, commit, and push the user's backend booking payment-state & expiry lifecycle changes, API-driven frontend/service-detail & public landing updates, and updated test suites on `release/54ba3db`.
