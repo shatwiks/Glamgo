@@ -387,7 +387,6 @@ const roleSections = {
 const defaults = {
   signedIn: false,
   experience: null,
-  audience: 'women',
   user: null,
   location:'Bandra West, Mumbai',
   userCoords: null,
@@ -1373,27 +1372,9 @@ const renderFilterShelfSection = (exp, liveFilters, activeFilters, opts, countTe
     drawerHtml;
 };
 
-const matchesAudience = item => {
-  const tag = String(item?.gender || item?.audience || item?.target_audience || '').trim().toLowerCase();
-  if (!tag || ['all', 'unisex', 'both', 'everyone'].includes(tag)) return true;
-  if (state.audience === 'men') return tag === 'men' || tag === 'male';
-  return tag === 'women' || tag === 'female';
-};
-
-const renderAudienceSwitcher = () => {
-  const cur = state.audience === 'men' ? 'men' : 'women';
-  return '<section class="audience-bar-wrap" aria-label="Choose Women or Men">' +
-    '<div class="audience-switcher" role="group" aria-label="Filter by audience">' +
-      '<button type="button" class="audience-pill' + (cur === 'women' ? ' active' : '') + '" data-action="audience-set" data-id="women" aria-pressed="' + (cur === 'women') + '"><span>Women</span></button>' +
-      '<button type="button" class="audience-pill' + (cur === 'men' ? ' active' : '') + '" data-action="audience-set" data-id="men" aria-pressed="' + (cur === 'men') + '"><span>Men</span></button>' +
-    '</div>' +
-  '</section>';
-};
-
 function homePage(){
   const userCity = normalizeCity(state.location);
-  const isMen = state.audience === 'men';
-  const cityServices = services.filter(s => isServiceAvailableInCity(s, userCity) && matchesAudience(s));
+  const cityServices = services.filter(s => isServiceAvailableInCity(s, userCity));
   const homeFilters = getFiltersForExp('home');
   const filtered = getFilteredHomeServices(cityServices, homeFilters);
   const activeFilters = buildActiveFiltersForExp('home', homeFilters);
@@ -1412,7 +1393,7 @@ function homePage(){
     categories: homeCategories,
     countDraftMatches: draft => getFilteredHomeServices(cityServices, draft).length
   }, countText, servicesResultsHtml);
-  const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && matchesAudience(p));
+  const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
   const prosSection = !professionals.length && state.catalogFeedsLoading.professionals
     ? catalogLoadingState('specialists')
     : !professionals.length && state.catalogErrors.professionals
@@ -1433,18 +1414,17 @@ function homePage(){
   return '<main>' +
     '<section class="home-hero">' +
       '<div class="hero-copy">' +
-        '<p class="eyebrow line-eyebrow">'+(isMen?'AT-HOME GROOMING':'AT-HOME BEAUTY')+'</p>' +
-        '<h1>'+(isMen?'Professional grooming &amp; spa, <em>at your doorstep.</em>':'Professional beauty care, <em>at your doorstep.</em>')+'</h1>' +
-        '<p>'+(isMen?'Book independent professionals for skin care, hair, grooming, and spa rituals in ':'Book independent beauty professionals for skin, hair, nails, and spa care in ')+esc(userCity)+'.</p>' +
+        '<p class="eyebrow line-eyebrow">AT-HOME BEAUTY</p>' +
+        '<h1>Professional beauty care, <em>at your doorstep.</em></h1>' +
+        '<p>Book independent beauty professionals for skin, hair, nails, and spa care in '+esc(userCity)+'.</p>' +
         '<div class="hero-buttons">'+button('Explore services '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+'</div>' +
       '</div>' +
       '<div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'</div>' +
     '</section>' +
     '<section class="discovery-bar" aria-label="Location and search">' +
       '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
-      '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>'+(isMen?'Search grooming, facials, spa or specialists':'Search services, categories or specialists')+'</strong></div>'+icon('arrow',16)+'</button>' +
+      '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search services, categories or specialists</strong></div>'+icon('arrow',16)+'</button>' +
     '</section>' +
-    renderAudienceSwitcher() +
     '<section class="section" id="categories">' +
       sectionHead('CATEGORIES','Browse by treatment.') +
       '<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button type="button" data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span></button>').join('')+'</div>' +
@@ -1481,9 +1461,8 @@ function salonCard(s){
 
 function salonPage(){
   const userCity = normalizeCity(state.location);
-  const isMen = state.audience === 'men';
   const citySalons = salons
-    .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase() && matchesAudience(s))
+    .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase())
     .map(enrichSalonWithDistance);
   const salonFilters = getFiltersForExp('salon');
   const list = getFilteredSalons(citySalons, salonFilters);
@@ -1507,9 +1486,9 @@ function salonPage(){
     '<section class="salon-hero">' +
       '<div class="salon-hero-image">'+image(SALON_IMG,'Contemporary salon interior')+'</div>' +
       '<div class="salon-hero-copy">' +
-        '<p class="eyebrow line-eyebrow">'+(isMen?"MEN'S SALONS &amp; STUDIOS":'SALONS &amp; PARLOURS')+'</p>' +
-        '<h1>'+(isMen?'Discover grooming studios in <em>':'Discover salons in <em>')+esc(userCity)+'.</em></h1>' +
-        '<p>'+(isMen?'Browse independent men’s grooming salons and studios by service and location.':'Browse independent salons by category and location, then request an appointment.')+'</p>' +
+        '<p class="eyebrow line-eyebrow">SALONS &amp; PARLOURS</p>' +
+        '<h1>Discover salons in <em>'+esc(userCity)+'.</em></h1>' +
+        '<p>Browse independent salons by category and location, then request an appointment.</p>' +
         button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"') +
       '</div>' +
     '</section>' +
@@ -1517,7 +1496,6 @@ function salonPage(){
       '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
       '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search salon name or service</strong></div>'+icon('arrow',16)+'</button>' +
     '</section>' +
-    renderAudienceSwitcher() +
     '<section class="section" id="salon-categories">' +
       sectionHead('CATEGORIES','Browse by service.') +
       '<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button type="button" data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div>' +
@@ -1610,41 +1588,38 @@ function productCard(p){
 
 function shopPage(){
   if (!['All','OFFERS'].includes(state.shopCollection)) state.shopCollection = 'All';
-  const isMen = state.audience === 'men';
-  const audienceProducts = products.filter(matchesAudience);
   const shopFilters = getFiltersForExp('shop');
-  const list = getFilteredShopProducts(audienceProducts, shopFilters);
+  const list = getFilteredShopProducts(products, shopFilters);
   const catalogDown = !products.length && state.catalogErrors.products;
   const catalogBusy = !products.length && state.catalogFeedsLoading.products;
-  const shopBrands = ['All', ...Array.from(new Set(audienceProducts.map(p => p.brand).filter(Boolean)))];
-  const visibleCollections = shopCollections.filter(col => col.id === 'All' || (col.id === 'OFFERS' && audienceProducts.some(p => getDiscountPct(p) > 0)));
+  const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
+  const visibleCollections = shopCollections.filter(col => col.id === 'All' || (col.id === 'OFFERS' && products.some(p => getDiscountPct(p) > 0)));
   const activeFilters = buildActiveFiltersForExp('shop', shopFilters, visibleCollections);
 
   const shelfResultsHtml = catalogBusy
     ? catalogLoadingState('beauty store')
     : catalogDown
       ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
-      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',audienceProducts.length?'No products match these filters':'No products are listed yet',audienceProducts.length?'Try clearing one of your active filters to see more products.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Clear all filters '+icon('arrow',16),'exp-reset-all','btn-outline','data-exp="shop"')+'</div></div>');
+      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length?'No products match these filters':'No products are listed yet',products.length?'Try clearing one of your active filters to see more products.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Clear all filters '+icon('arrow',16),'exp-reset-all','btn-outline','data-exp="shop"')+'</div></div>');
 
-  const countText = audienceProducts.length ? 'Showing <strong>'+list.length+'</strong> of '+audienceProducts.length+(audienceProducts.length===1?' product':' products') : '';
+  const countText = products.length ? 'Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products') : '';
   const shopShelfSection = renderFilterShelfSection('shop', shopFilters, activeFilters, {
     categories: shopCategories,
     collections: visibleCollections,
     brands: shopBrands,
-    countDraftMatches: draft => getFilteredShopProducts(audienceProducts, draft).length
+    countDraftMatches: draft => getFilteredShopProducts(products, draft).length
   }, countText, shelfResultsHtml);
 
   return '<main>' +
     '<section class="shop-hero">' +
       '<div class="shop-hero-copy">' +
-        '<p class="eyebrow line-eyebrow">'+(isMen?"MEN'S GROOMING STORE":'BEAUTY SHOPPING')+'</p>' +
-        '<h1>'+(isMen?'Thoughtfully curated <em>grooming essentials.</em>':'Thoughtfully curated <em>beauty essentials.</em>')+'</h1>' +
-        '<p>'+(isMen?'Explore skincare, haircare, fragrance, and grooming tools from independent sellers and brands.':'Explore skincare, makeup, haircare, and personal care from independent sellers and brands.')+'</p>' +
+        '<p class="eyebrow line-eyebrow">BEAUTY SHOPPING</p>' +
+        '<h1>Thoughtfully curated <em>beauty essentials.</em></h1>' +
+        '<p>Explore skincare, makeup, haircare, and personal care from independent sellers and brands.</p>' +
         button('Shop all products '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"') +
       '</div>' +
       '<div class="shop-hero-image">'+image(SHOP_IMG,'Skincare and beauty products')+'</div>' +
     '</section>' +
-    renderAudienceSwitcher() +
     '<section class="section" id="shop-categories">' +
       sectionHead('CATEGORIES','Shop by category.') +
       '<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
@@ -2836,8 +2811,6 @@ function bookingSuccess(){
 
 function render(){
   destroyActiveMaps();
-  const useMenTheme = state.view !== 'public' && state.audience === 'men';
-  document.body.classList.toggle('theme-men', useMenTheme);
   if(state.view === 'public'){
     app.innerHTML = publicLanding({ signedIn: state.signedIn, experience: state.experience, menu: state.publicMenu, icon });
     document.body.classList.remove('modal-open');
@@ -2925,12 +2898,6 @@ async function action(el){
   else if(a==='guest-browse'){ pendingAuthResume=null; state.mobileMenu=false; state.menu=false; state.view=state.experience?'landing':'public'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
-  else if(a==='audience-set'){
-    state.audience = id === 'men' ? 'men' : 'women';
-    persist();
-    render();
-    toast(state.audience === 'men' ? "Switched to Men's grooming theme" : "Switched to Women's beauty theme");
-  }
   else if(a==='discover-goal'){
     const experience = el.dataset.experience;
     const category = el.dataset.category;

@@ -4,22 +4,6 @@
 
 ---
 
-## Prompt Entry #22 — `2026-11-23`: Add Women / Men Audience Filter & Men's White + Forest Green Theme (`release/54ba3db`)
-
-**Prompt Summary:** Add a `Women` / `Men` filter toggle across Home, Salons, and Shop, applying a clean white base (`#FFFFFF`) with YesMadam-inspired deep forest green (`#1C342B`) theme palette and champagne-cream hero accents when `Men` is selected.
-
-**Modified Files (`branch-release-54ba3db`):**
-- `src/app.js`: Added persisted `audience: 'women'` state, `matchesAudience()` filtering (respecting `gender`/`audience`/`target_audience` when present without hiding unisex/unspecified API rows), `renderAudienceSwitcher()` pill toggle (`Women` / `Men`, `data-action="audience-set"`) across `homePage`, `salonPage`, and `shopPage`, tailored Men's/Women's hero & search copy, and `document.body.classList.toggle('theme-men', ...)` in `render()`.
-- `styles.css`: Added `body.theme-men` variable overrides (`--ivory: #FFFFFF`, `--cream: #F3F6F4`, `--card: #FFFFFF`, `--beige: #E3EAE6`, `--ink: #1C342B`, `--terracotta-deep: #1C342B`, `--champagne: #D9C48C`, `--border: #DCE4DF`) and forest-green hero (`#1C342B` background, `#EADCB3` italic & CTA accents), styled `.audience-bar-wrap`/`.audience-switcher`/`.audience-pill`, and fixed `.collection-controls-left` wrapping (`flex: 0 1 auto;` / `flex: 1 1 100%;` on `<= 700px`) so `Show filters` never overlaps `.shelf-count`.
-- `CHANGEREPORT.md`: Prepended Prompt Entry #22.
-
-**Checks Run & Observed Results (`branch-release-54ba3db`):**
-- `node -c branch-release-54ba3db/src/app.js` -> exited `0`.
-- `npm --prefix "branch-release-54ba3db" run build` -> verified clean client build after final `styles.css` update.
-- Live Browser Verification (`http://127.0.0.1:5173/` at `1280x800` & `390x844`) -> `Women` / `Men` toggle switches `body.theme-men` cleanly (`#FFFFFF` base + `#1C342B` forest green hero & controls across `#home`, `#salons`, and `#shop`) with `0` JS console errors, `0` failed requests, `44px` mobile `.audience-pill` touch targets, and `0` horizontal overflow.
-
----
-
 ## Prompt Entry #21 — `2026-11-23`: Port Interactive Leaflet Location Map & Search Autocomplete (`release/54ba3db`)
 
 **Prompt Summary:** Bring back `main`'s interactive Leaflet map picker and live location search suggestions inside the Location modal (`#location-picker-map` and `#location-autocomplete-list`) into `release/54ba3db`.
