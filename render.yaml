@@ -9,6 +9,7 @@ services:
   - type: web
     name: glamgo-backend
     runtime: docker
+    branch: release/54ba3db
     dockerfilePath: backend/Dockerfile
     dockerContext: .
     plan: free
@@ -17,6 +18,22 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: ALLOW_DEV_OTP_ECHO
+        value: "false"
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_FROM_NAME
+        value: GlamGo
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: SMTP_FROM_EMAIL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: REDIS_URL

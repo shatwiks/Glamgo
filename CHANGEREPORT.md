@@ -4,6 +4,23 @@
 
 ---
 
+## Prompt Entry — `2026-11-24`: Render & Vercel Production Deployment Readiness
+
+**Objective:** Prepare `release/54ba3db` for production Render + Vercel deployment without committing secrets.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `render.yaml`: Added `branch: release/54ba3db`, `ALLOW_DEV_OTP_ECHO: "false"`, `SMTP_HOST: smtp.gmail.com`, `SMTP_PORT: "587"`, `SMTP_FROM_NAME: GlamGo`, and `sync: false` placeholders for `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM_EMAIL`, and `RESEND_API_KEY`.
+- `backend/requirements.txt`: Pinned `dnspython>=2.6.0` for live DNS MX real-email verification in Docker.
+- `backend/app/core/config.py`: Added `https://glamgo-um5p.vercel.app` to `BACKEND_CORS_ORIGINS`.
+- `CHANGEREPORT.md`: Prepended Prompt Entry.
+
+**Verification Results:**
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Passed.
+- `pytest backend/tests/test_email_otp.py`: 5 passed in 23.75s.
+- Secret scan on `git diff`: Verified zero literal credentials or secrets.
+
+---
+
 ## Prompt Entry — `2026-11-24`: Remove "Audience not specified" Badge & Clean Catalogue Note
 
 **Objective:** Remove the unnecessary `"Audience not specified"` badge on listing cards and simplify the Women/Men catalogue note.
