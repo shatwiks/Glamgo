@@ -70,6 +70,7 @@ def _format_salon(s: Salon) -> dict:
     ]
     return {
         "id": s.id,
+        "audience": s.audience,
         "owner_id": s.owner_id,
         "name": s.name,
         "area": s.area,
@@ -104,6 +105,7 @@ def _format_product(p: Product) -> dict:
 
     return {
         "id": p.id,
+        "audience": p.audience,
         "seller_id": p.seller_id,
         "brand": p.brand,
         "name": p.name,
@@ -398,6 +400,7 @@ def get_professional_profile(
         db.refresh(pro)
 
     return {
+        "audience": pro.audience,
         "id": pro.id,
         "user_id": pro.user_id,
         "name": pro.name,
@@ -444,10 +447,13 @@ def update_professional_profile(
         if payload.img:
             pro.img = payload.img
 
+    if payload.audience is not None:
+        pro.audience = payload.audience
     db.commit()
     db.refresh(pro)
     cache_service.invalidate_catalog()
     return {
+        "audience": pro.audience,
         "id": pro.id,
         "name": pro.name,
         "specialty": pro.specialty,
@@ -660,6 +666,8 @@ def update_salon_profile(
         salon.img = payload.img.strip()
     if payload.services is not None:
         salon.services_list = ",".join(payload.services)
+    if payload.audience is not None:
+        salon.audience = payload.audience
 
     db.commit()
     db.refresh(salon)
@@ -839,6 +847,7 @@ def create_seller_product(
     product = Product(
         id=pid,
         seller_id=user.id,
+        audience=payload.audience,
         brand=payload.brand.strip(),
         name=payload.name.strip(),
         category=payload.category.strip(),
@@ -888,6 +897,8 @@ def update_seller_product(
             detail="Forbidden: Product belongs to another seller."
         )
 
+    if payload.audience is not None:
+        product.audience = payload.audience
     if payload.brand:
         product.brand = payload.brand.strip()
     if payload.name:

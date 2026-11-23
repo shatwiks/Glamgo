@@ -34,6 +34,7 @@ def catalog_salons(
     sort: Optional[str] = Query("featured"),
     query: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     lat: Optional[float] = Query(None, ge=-90, le=90),
     lng: Optional[float] = Query(None, ge=-180, le=180),
     max_distance_km: Optional[float] = Query(None, gt=0, le=200),
@@ -44,6 +45,7 @@ def catalog_salons(
         sort=sort,
         query=query,
         city=city,
+        audience=audience,
         lat=lat,
         lng=lng,
         max_distance_km=max_distance_km,
@@ -56,12 +58,13 @@ def catalog_services(
     category: Optional[str] = Query(None),
     query: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     from backend.app.models.catalog import Service
     from backend.app.services.cache_service import cache_service
 
-    cache_key = f"glamgo:catalog:services:v2:{category}:{query}:{city}"
+    cache_key = f"glamgo:catalog:services:v3:{category}:{query}:{city}:{audience}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -71,6 +74,16 @@ def catalog_services(
         q = q.filter(Service.category.ilike(category))
     if query:
         q = q.filter((Service.name.ilike(f"%{query}%")) | (Service.desc.ilike(f"%{query}%")))
+    if audience:
+        aud = audience.strip().lower()
+        if aud == "men":
+            q = q.filter(Service.audience.in_(["men", "unisex"]))
+        elif aud == "women":
+            q = q.filter(Service.audience.in_(["women", "unisex", "unspecified"]))
+        elif aud == "unisex":
+            q = q.filter(Service.audience == "unisex")
+        elif aud not in ("all", "*"):
+            q = q.filter(Service.audience == aud)
 
     items = [ServiceResponse.model_validate(s).model_dump() for s in q.all()]
     if city and city.strip():
@@ -87,12 +100,13 @@ def catalog_services(
 def catalog_professionals(
     specialty: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     from backend.app.models.catalog import ProfessionalProfile
     from backend.app.services.cache_service import cache_service
 
-    cache_key = f"glamgo:catalog:professionals:v2:{specialty}:{city}"
+    cache_key = f"glamgo:catalog:professionals:v3:{specialty}:{city}:{audience}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -102,6 +116,16 @@ def catalog_professionals(
         q = q.filter(ProfessionalProfile.specialty.ilike(f"%{specialty}%"))
     if city and city.strip():
         q = q.filter(ProfessionalProfile.city.ilike(city.strip()))
+    if audience:
+        aud = audience.strip().lower()
+        if aud == "men":
+            q = q.filter(ProfessionalProfile.audience.in_(["men", "unisex"]))
+        elif aud == "women":
+            q = q.filter(ProfessionalProfile.audience.in_(["women", "unisex", "unspecified"]))
+        elif aud == "unisex":
+            q = q.filter(ProfessionalProfile.audience == "unisex")
+        elif aud not in ("all", "*"):
+            q = q.filter(ProfessionalProfile.audience == aud)
 
     items = [ProfessionalResponse.model_validate(p).model_dump() for p in q.all()]
     cache_service.set(cache_key, items, ttl=300)

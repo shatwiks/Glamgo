@@ -8,6 +8,8 @@ import {
   apiConfirmPasswordReset,
   apiRequestMobileOtp,
   apiVerifyMobileOtp,
+  apiRequestEmailOtp,
+  apiVerifyEmailOtp,
   apiGetServices,
   apiGetProfessionals,
   apiGetCatalogSalons,
@@ -88,10 +90,18 @@ import {
   apiGetSellerMultiVendorFinancials
 } from './api.js';
 
+const isDemoCatalogue = import.meta.env.VITE_DEMO_CATALOGUE === 'true';
+const hasLocalDemo = import.meta.env.DEV && import.meta.env.VITE_LOCAL_DEMO_CATALOGUE === 'true';
+const isPreviewId = id => String(id || '').startsWith('demo-');
 const HOME_IMG = './assets/home-editorial.webp';
 const AUTH_IMG = './assets/auth-editorial.webp';
 const SALON_IMG = './assets/salon-editorial.webp';
 const SHOP_IMG = './assets/shop-editorial.webp';
+const MEN_HOME_IMG = './assets/men-home-editorial.webp';
+const MEN_SALON_IMG = './assets/men-salon-editorial.webp';
+const MEN_SHOP_IMG = './assets/men-shop-editorial.webp';
+const MEN_CATEGORY_IMAGES = { Hair: './assets/men-hair.webp', Skin: './assets/men-skin.webp', Spa: './assets/men-massage.webp', Packages: './assets/men-massage.webp', Beard: './assets/men-beard.webp' };
+const MEN_SHOP_CATEGORY_IMAGES = { Skincare: './assets/men-category-skincare.webp', Haircare: './assets/men-category-haircare.webp', 'Beard Care': './assets/men-category-beard.webp', 'Body Care': './assets/men-category-body.webp', Fragrance: './assets/men-category-body.webp', 'Beauty Tools': './assets/men-category-beard.webp' };
 const photo = (id, w = 900) => 'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=85';
 
 let leafletMod = null;
@@ -138,7 +148,9 @@ const icons = {
   salon: '<path d="M4 21V7l8-4 8 4v14H4Z"/><path d="M4 10h16M9 21v-6h6v6"/>',
   grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
   truck: '<path d="M2 6h12v11H2V6ZM14 10h4l3 3v4h-7v-7Z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
-  logout: '<path d="M10 3H4v18h6M14 7l5 5-5 5M8 12h11"/>'
+  logout: '<path d="M10 3H4v18h6M14 7l5 5-5 5M8 12h11"/>',
+  female: '<circle cx="12" cy="8" r="4"/><path d="M12 12v9M9 17h6"/>',
+  male: '<circle cx="10" cy="14" r="5"/><path d="m13.5 10.5 5.5-5.5m0 0h-4m4 0v4"/>'
 };
 
 const icon = (name, size = 20, extra = '') => '<svg class="icon ' + extra + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (icons[name] || '') + '</svg>';
@@ -210,6 +222,7 @@ function normalizeCity(loc = '') {
   const parts = String(loc).split(',').map(s => s.trim()).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : 'Mumbai';
 }
+const currentLocationCity = () => state.locationCity || normalizeCity(state.location);
 function resolveUserCoords() {
   if (Array.isArray(state.userCoords) && state.userCoords.length === 2 && Number.isFinite(Number(state.userCoords[0])) && Number.isFinite(Number(state.userCoords[1]))) {
     return [Number(state.userCoords[0]), Number(state.userCoords[1])];
@@ -218,7 +231,7 @@ function resolveUserCoords() {
   const keys = Object.keys(AREA_COORDS).sort((a, b) => b.length - a.length);
   const direct = keys.find(k => text.includes(k));
   if (direct) return AREA_COORDS[direct];
-  return AREA_COORDS[normalizeCity(state.location).toLowerCase()] || AREA_COORDS.mumbai;
+  return AREA_COORDS[currentLocationCity().toLowerCase()] || AREA_COORDS.mumbai;
 }
 function haversineKm(lat1, lng1, lat2, lng2) {
   const toRad = d => (Number(d) * Math.PI) / 180;
@@ -257,19 +270,21 @@ function isProAvailableInCity(p, city) {
 }
 async function reverseGeocodeCoords(lat, lng) {
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`, { headers: { Accept: 'application/json' } });
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(10000) });
     if (res.ok) {
       const data = await res.json();
       const addr = data?.address || {};
       const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.road || '';
       const city = addr.city || addr.town || addr.state_district || '';
       const formatted = [area, city].filter(Boolean).join(', ');
-      if (formatted) return formatted;
+      if (formatted && city) return { label: formatted, city: normalizeCity(city) };
     }
   } catch {}
-  return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+  return null;
 }
 
+let locationDraft = null;
+let locationLookupSeq = 0;
 let activeLeafletMaps = [];
 let activeLocationMap = null;
 let activeLocationMarker = null;
@@ -304,7 +319,7 @@ async function searchLocationSuggestions(query) {
         const name = p.name || p.street || p.district || p.city || '';
         const sub = [p.district, p.city || p.county, p.state, p.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
         const full = sub && !sub.toLowerCase().startsWith(name.toLowerCase()) ? `${name}, ${sub}` : (name || sub);
-        return { label: name || sub, sub, full: full || sub, lat: Number(coords[1]), lng: Number(coords[0]) };
+        return { label: name || sub, sub, full: full || sub, city: (['city', 'town', 'village'].includes(p.type) || (p.osm_key === 'place' && ['city', 'town', 'village'].includes(p.osm_value))) ? name : (p.city || p.town || p.village || p.county || ''), lat: Number(coords[1]), lng: Number(coords[0]) };
       }).filter(x => x.full && Number.isFinite(x.lat) && Number.isFinite(x.lng));
       if (items.length) return items;
     }
@@ -321,6 +336,7 @@ async function searchLocationSuggestions(query) {
           label: parts[0] || r.display_name,
           sub: parts.slice(1, 4).join(', '),
           full: parts.slice(0, 3).join(', '),
+          city: r.address?.city || r.address?.town || r.address?.village || r.address?.municipality || r.address?.county || '',
           lat: Number(r.lat),
           lng: Number(r.lon)
         };
@@ -328,6 +344,27 @@ async function searchLocationSuggestions(query) {
     }
   } catch {}
   return [];
+}
+
+async function selectLocationCoords(lat, lng) {
+  const draft = locationDraft;
+  if (!draft) return;
+  const seq = ++locationLookupSeq;
+  draft.pending = true;
+  const save = document.querySelector('#location-form button[type="submit"]');
+  if (save) save.disabled = true;
+  const result = await reverseGeocodeCoords(lat, lng);
+  if (draft !== locationDraft || seq !== locationLookupSeq || state.modal !== 'location') return;
+  draft.pending = false;
+  if (save) save.disabled = false;
+  if (!result) {
+    toast('Could not identify that location. Search for an area or try again.');
+    if (activeLocationMarker) activeLocationMarker.setLatLng(draft.coords || resolveSalonCoords({ area: draft.label }));
+    return;
+  }
+  Object.assign(draft, { label: result.label, city: result.city, coords: [lat, lng] });
+  const input = document.getElementById('location-search-input');
+  if (input) input.value = result.label;
 }
 
 async function mountLocationPickerMap() {
@@ -338,9 +375,9 @@ async function mountLocationPickerMap() {
 
   const currentLocEl = document.getElementById('location-picker-map');
   if (currentLocEl && !currentLocEl._leaflet_id) {
-    const center = Array.isArray(state.userCoords)
-      ? state.userCoords
-      : resolveSalonCoords({ area: state.location });
+    const center = Array.isArray(locationDraft?.coords)
+      ? locationDraft.coords
+      : resolveSalonCoords({ area: locationDraft?.label || state.location });
     const map = L.map(currentLocEl, {
       scrollWheelZoom: false,
       zoomAnimation: false,
@@ -357,26 +394,20 @@ async function mountLocationPickerMap() {
     const marker = L.marker(center, { icon: pinIcon }).addTo(map);
     activeLocationMap = map;
     activeLocationMarker = marker;
-    map.on('click', async ev => {
+    map.on('click', ev => {
       const { lat, lng } = ev.latlng;
-      state.userCoords = [lat, lng];
       marker.setLatLng([lat, lng]);
-      const input = document.getElementById('location-search-input');
-      if (input) input.value = 'Updating location…';
-      const label = await reverseGeocodeCoords(lat, lng);
-      state.location = label;
-      const freshInput = document.getElementById('location-search-input');
-      if (freshInput) freshInput.value = label;
+      void selectLocationCoords(lat, lng);
     });
     activeLeafletMaps.push(map);
     setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
   }
 }
 
-const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
-const shopCategories = ['All','Skincare','Makeup','Haircare','Body Care','Fragrance','Beauty Tools'];
+const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages','Beard'];
+const shopCategories = ['All','Skincare','Makeup','Haircare','Body Care','Fragrance','Beauty Tools','Beard Care'];
 const shopCategoryLabel = c => (c === 'Beauty Tools' ? 'Tools' : c);
-const salonCategories = ['All','Hair','Skin','Nails','Makeup','Spa'];
+const salonCategories = ['All','Hair','Skin','Nails','Makeup','Spa','Beard'];
 const roles = ['Professional','Salon Owner','Product Seller'];
 const roleSections = {
   Professional:['Overview','Registration','Identity verification','Profile management','Services & pricing','Availability calendar','Booking requests','Upcoming appointments','Booking history','Earnings','Customer reviews'],
@@ -387,8 +418,10 @@ const roleSections = {
 const defaults = {
   signedIn: false,
   experience: null,
+  audience: 'women',
   user: null,
   location:'Bandra West, Mumbai',
+  locationCity: '',
   userCoords: null,
   walletCredits: 0,
   referralCode: '',
@@ -719,10 +752,17 @@ const trapFocusIn = (container, e) => {
     first.focus();
   }
 };
-const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => item.id !== p.id && item.category === p.category).slice(0, limit) : [];
+const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => (matchesAudience(item) || isUnclassified(item)) && item.id !== p.id && item.category === p.category).slice(0, limit) : [];
 const parseIngredientsList = raw => String(raw || '').split(/[,;•\n]+/).map(s => s.trim()).filter(Boolean);
 const ensureProductExtras = id => {
   if (!id) return;
+  if (isPreviewId(id)) {
+    state.productOffers = state.productOffers || {};
+    state.productReviews = state.productReviews || {};
+    state.productOffers[id] = { offers: [] };
+    state.productReviews[id] = { loading: false, items: [] };
+    return;
+  }
   if (!state.productOffers) state.productOffers = {};
   if (!Object.prototype.hasOwnProperty.call(state.productOffers, id)) {
     state.productOffers[id] = { offers: [] };
@@ -746,6 +786,7 @@ const ensureProductExtras = id => {
 const ensureListingReviews = (type, id) => {
   const key = `${type}:${id}`;
   if (state.listingReviews[key]) return;
+  if (isPreviewId(id)) { state.listingReviews[key] = { loading: false, items: [] }; return; }
   state.listingReviews[key] = { loading: true, items: [] };
   apiGetReviews(id, type).then(items => {
     state.listingReviews[key] = { loading: false, items: Array.isArray(items) ? items : [] };
@@ -886,13 +927,25 @@ async function loadCatalogFeeds() {
       refreshUI();
     });
 
-  const userCity = normalizeCity(state.location);
+  const userCity = currentLocationCity();
   const coords = Array.isArray(state.userCoords) ? state.userCoords : null;
+  const withDemo = async (remoteFetcher, demoPath) => {
+    const live = await remoteFetcher();
+    if (!hasLocalDemo) return live;
+    try {
+      const res = await fetch('/preview-api' + demoPath);
+      if (!res.ok) throw new Error('Local demo unavailable');
+      const local = await res.json();
+      if (!Array.isArray(local)) throw new Error('Invalid demo response');
+      const ids = new Set(live.map(item => String(item.id)));
+      return [...live, ...local.filter(item => isPreviewId(item.id) && item.audience === 'men' && !ids.has(String(item.id)))];
+    } catch (err) { console.warn('[Local preview]', err.message); return live; }
+  };
   await Promise.allSettled([
-    fetchFeed('services', () => apiGetServices(null, null, userCity), v => { services = v; }),
+    fetchFeed('services', () => withDemo(() => apiGetServices(null, null, userCity), '/catalog/services?city='+encodeURIComponent(userCity)), v => { services = v; }),
     fetchFeed('professionals', () => apiGetProfessionals(userCity), v => { professionals = v.filter(p => String(p.name || '').trim().toLowerCase() !== 'glamgo admin'); }),
-    fetchFeed('salons', () => apiGetCatalogSalons({ city: userCity, lat: coords?.[0], lng: coords?.[1] }), v => { salons = v; }),
-    fetchFeed('products', apiGetProducts, v => { products = v; })
+    fetchFeed('salons', () => withDemo(() => apiGetCatalogSalons({ city: userCity, lat: coords?.[0], lng: coords?.[1] }), '/catalog/salons?city='+encodeURIComponent(userCity)), v => { salons = v; }),
+    fetchFeed('products', () => withDemo(apiGetProducts, '/products/'), v => { products = v; })
   ]);
   if (generation !== catalogRequestGeneration) return;
   state.catalogLoading = false;
@@ -995,6 +1048,7 @@ const invalidateCheckoutState = (resetReservation = true) => {
 };
 async function ensureCheckoutReservation(force = false) {
   const entries = getCartEntries();
+  if (entries.some(entry => isPreviewId(entry.productId))) { toast('Remove demo items before checking out with real products.'); return null; }
   if (!entries.length) return null;
   const fp = getCartItemsFingerprint(entries);
   const existing = state.pendingReservation;
@@ -1046,30 +1100,40 @@ function auth(){
     ? 'Create your account'
     : mode==='otp'
       ? 'Sign in with Mobile OTP.'
-      : mode==='reset'
-        ? 'Reset your password.'
-        : 'A beautiful place to begin.';
+      : mode==='email_otp'
+        ? 'Sign in with Email OTP.'
+        : mode==='reset'
+          ? 'Reset your password.'
+          : 'A beautiful place to begin.';
   const sub = mode==='otp'
-    ? 'Verify your registered mobile number with a one-time passcode.'
-    : mode==='reset'
-      ? 'Request a 6-digit verification code to set a new password.'
-      : 'Find exceptional care at home, discover salons and shop your favourites.';
+    ? 'Enter your mobile number to receive a 6-digit verification code.'
+    : mode==='email_otp'
+      ? 'Enter your email to receive a 6-digit code. Real inboxes only.'
+      : mode==='reset'
+        ? 'Request a 6-digit verification code to set a new password.'
+        : 'Find exceptional care at home, discover salons and shop your favourites.';
   const methodPills = mode!=='signup'
     ? '<div class="filter-row" style="margin-bottom:18px">' +
-        '<button type="button" class="filter-chip '+(mode==='signin'?'active':'')+'" data-action="auth-mode-set" data-id="signin">Email &amp; Password</button>' +
+        '<button type="button" class="filter-chip '+(mode==='signin'?'active':'')+'" data-action="auth-mode-set" data-id="signin">Password</button>' +
+        '<button type="button" class="filter-chip '+(mode==='email_otp'?'active':'')+'" data-action="auth-mode-set" data-id="email_otp">Email OTP</button>' +
         '<button type="button" class="filter-chip '+(mode==='otp'?'active':'')+'" data-action="auth-mode-set" data-id="otp">Mobile OTP</button>' +
       '</div>'
-    : '';
-  const hint = state.authDevHint
-    ? '<p style="font-size:12px;margin:0 0 12px;padding:8px 12px;border:1px solid var(--border);color:var(--ink)">'+esc(state.authDevHint)+'</p>'
     : '';
   let formHtml = '';
   if(mode==='otp'){
     formHtml = state.authOtpStage==='verify'
-      ? '<p style="margin-bottom:12px;font-size:13px">Code sent to <strong>'+esc(state.authOtpPhone)+'</strong></p>' + hint +
-        '<form id="auth-otp-verify-form"><label>6-digit OTP<input name="otp" inputmode="numeric" required maxlength="8" placeholder="Enter 6-digit OTP" autocomplete="one-time-code"></label><button class="btn btn-primary full" type="submit">Verify &amp; Sign in '+icon('arrow',17)+'</button></form>' +
+      ? '<p style="margin-bottom:8px;font-size:13px">Code sent to <strong>'+esc(state.authOtpPhone)+'</strong></p>' +
+        '<p style="margin-bottom:14px;font-size:12.5px;color:var(--muted);line-height:1.5;">Please enter the 6-digit verification code below.</p>' +
+        '<form id="auth-otp-verify-form"><label>6-digit OTP<input name="otp" id="auth-otp-input" inputmode="numeric" required maxlength="8" placeholder="Enter 6-digit OTP" autocomplete="one-time-code" value=""></label><button class="btn btn-primary full" type="submit">Verify &amp; Sign in '+icon('arrow',17)+'</button></form>' +
         '<p class="auth-switch"><button type="button" data-action="auth-otp-restart">Use a different mobile number</button></p>'
-      : '<form id="auth-otp-request-form"><label>Registered mobile number<input name="phone" type="tel" required placeholder="+91 98765 43210" autocomplete="tel" value="'+esc(state.authOtpPhone||'')+'"></label><button class="btn btn-primary full" type="submit">Send OTP '+icon('arrow',17)+'</button></form>';
+      : '<form id="auth-otp-request-form"><label>Mobile number<input name="phone" type="tel" required placeholder="+91 98765 43210" autocomplete="tel" value="'+esc(state.authOtpPhone||'')+'"></label><button class="btn btn-primary full" type="submit">Send OTP '+icon('arrow',17)+'</button></form>';
+  } else if(mode==='email_otp'){
+    formHtml = state.authEmailOtpStage==='verify'
+      ? '<p style="margin-bottom:8px;font-size:13px">Code sent to <strong>'+esc(state.authEmailOtpEmail)+'</strong></p>' +
+        '<p style="margin-bottom:14px;font-size:12.5px;color:var(--muted);line-height:1.5;">Please check your email inbox and enter the 6-digit verification code below.</p>' +
+        '<form id="auth-email-otp-verify-form"><label>6-digit OTP<input name="otp" id="auth-otp-input" inputmode="numeric" required maxlength="8" placeholder="Enter 6-digit OTP" autocomplete="one-time-code" value=""></label><button class="btn btn-primary full" type="submit">Verify &amp; Sign in '+icon('arrow',17)+'</button></form>' +
+        '<p class="auth-switch"><button type="button" data-action="auth-email-otp-restart">Use a different email address</button></p>'
+      : '<form id="auth-email-otp-request-form"><p style="margin-bottom:12px;font-size:12.5px;color:var(--muted);line-height:1.5;">Enter your real email. We verify active mail exchange servers and send a 6-digit code.</p><label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email" value="'+esc(state.authEmailOtpEmail||'')+'"></label><button class="btn btn-primary full" type="submit">Send Email OTP '+icon('arrow',17)+'</button></form>';
   } else if(mode==='reset'){
     formHtml = state.authResetStage==='confirm'
       ? '<p style="margin-bottom:12px;font-size:13px">Enter the code sent for <strong>'+esc(state.authResetEmail)+'</strong></p>' + hint +
@@ -1188,7 +1252,7 @@ function homeCard(s){
     '<button type="button" class="listing-image-button" data-action="service-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name,'card-img')+'</button>' +
     '<button type="button" class="wishlist-on-card '+(state.wishlist.includes(s.id)?'saved':'')+'" data-action="wish" data-id="'+esc(s.id)+'" aria-pressed="'+state.wishlist.includes(s.id)+'" aria-label="Save '+esc(s.name)+'">'+icon('heart',18)+'</button>' +
     '<div class="card-body">' +
-      '<span class="card-kicker">'+esc(s.category)+'</span>' +
+      '<span class="card-kicker">'+esc(s.category)+'</span>' + audienceBadge(s) +
       '<h3>'+esc(s.name)+'</h3>' +
       '<div class="card-meta">'+icon('clock',14)+'<span>'+esc(s.duration)+'</span></div>' +
       (proName ? '<div class="card-pro">With '+esc(proName)+'</div>' : '') +
@@ -1226,7 +1290,7 @@ function professionalCard(p){
   const hasPrice = p.price != null && Number(p.price) > 0;
   return '<article class="pro-card">' +
     '<div class="pro-top">'+image(p.img,p.name,'pro-avatar')+'<div><h3>'+esc(p.name)+'</h3><span>'+esc(p.specialty)+'</span></div></div>' +
-    (p.experience ? '<p>'+esc(p.experience)+'</p>' : '') +
+    audienceBadge(p) + (p.experience ? '<p>'+esc(p.experience)+'</p>' : '') +
     (hasPrice ? '<div class="pro-bottom"><span>From '+money(p.price)+'</span></div>' : '') +
     '<button type="button" class="pro-book" data-action="book-pro" data-id="'+p.id+'">Book with specialist '+icon('arrow',16)+'</button>' +
   '</article>';
@@ -1372,9 +1436,29 @@ const renderFilterShelfSection = (exp, liveFilters, activeFilters, opts, countTe
     drawerHtml;
 };
 
+const isMenExperience = () => state.audience === 'men';
+const audienceSwitcher = () => '<section class="audience-section" aria-label="Browse by preference">' +
+  '<div class="audience-section-inner">' +
+  '<div class="audience-switcher" role="group" aria-label="Choose browsing preference">' +
+  ['women', 'men'].map(value => '<button type="button" class="audience-choice' + ((isMenExperience() ? 'men' : 'women') === value ? ' active' : '') + '" data-action="audience-set" data-id="' + value + '" aria-pressed="' + ((isMenExperience() ? 'men' : 'women') === value) + '">' +
+    icon(value === 'men' ? 'male' : 'female', 16, 'audience-icon') +
+    '<span>' + (value === 'men' ? 'Men' : 'Women') + '</span>' +
+  '</button>').join('') +
+  '</div></div></section>';
+const matchesAudience = item => {
+  const audience = item?.audience || 'unspecified';
+  return audience === state.audience || audience === 'unisex';
+};
+const audienceBadge = item => (!item?.audience || item.audience === 'unspecified') ? '<span class="audience-badge">Audience not specified</span>' : item.audience === 'unisex' ? '<span class="audience-badge">Unisex</span>' : '';
+const isUnclassified = item => !item?.audience || item.audience === 'unspecified';
+const isVisibleInAudience = item => matchesAudience(item) || (!isMenExperience() && isUnclassified(item));
+const generalCatalogueNote = () => '<div class="audience-catalogue-note">' + (isMenExperience() ? 'Showing Men and unisex listings.' : 'Showing Women, unisex and other partner listings. Some listings have not specified an audience.') + '</div>';
+
+
 function homePage(){
-  const userCity = normalizeCity(state.location);
-  const cityServices = services.filter(s => isServiceAvailableInCity(s, userCity));
+  const isMen = isMenExperience();
+  const userCity = currentLocationCity();
+  const cityServices = services.filter(s => isServiceAvailableInCity(s, userCity) && isVisibleInAudience(s));
   const homeFilters = getFiltersForExp('home');
   const filtered = getFilteredHomeServices(cityServices, homeFilters);
   const activeFilters = buildActiveFiltersForExp('home', homeFilters);
@@ -1393,7 +1477,7 @@ function homePage(){
     categories: homeCategories,
     countDraftMatches: draft => getFilteredHomeServices(cityServices, draft).length
   }, countText, servicesResultsHtml);
-  const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
+  const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && isVisibleInAudience(p));
   const prosSection = !professionals.length && state.catalogFeedsLoading.professionals
     ? catalogLoadingState('specialists')
     : !professionals.length && state.catalogErrors.professionals
@@ -1414,24 +1498,25 @@ function homePage(){
   return '<main>' +
     '<section class="home-hero">' +
       '<div class="hero-copy">' +
-        '<p class="eyebrow line-eyebrow">AT-HOME BEAUTY</p>' +
-        '<h1>Professional beauty care, <em>at your doorstep.</em></h1>' +
-        '<p>Book independent beauty professionals for skin, hair, nails, and spa care in '+esc(userCity)+'.</p>' +
+        '<p class="eyebrow line-eyebrow">'+(isMen?'AT-HOME GROOMING':'AT-HOME BEAUTY')+'</p>' +
+        '<h1>'+(isMen?'Professional grooming, <em>at your doorstep.</em>':'Professional beauty care, <em>at your doorstep.</em>')+'</h1>' +
+        '<p>'+(isMen?'Discover independent professionals offering care and wellness services at home in ':'Book independent beauty professionals for skin, hair, nails, and spa care in ')+esc(userCity)+'.</p>' +
         '<div class="hero-buttons">'+button('Explore services '+icon('arrow',18),'scroll','btn-primary','data-target="popular"')+'</div>' +
       '</div>' +
-      '<div class="hero-visual">'+image(HOME_IMG,'A professional beautician providing a facial treatment')+'</div>' +
+      '<div class="hero-visual">'+image(isMen ? MEN_HOME_IMG : HOME_IMG, isMen ? 'A customer receiving a facial at home' : 'A professional beautician providing a facial treatment')+'</div>' +
     '</section>' +
     '<section class="discovery-bar" aria-label="Location and search">' +
       '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
       '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search services, categories or specialists</strong></div>'+icon('arrow',16)+'</button>' +
     '</section>' +
+    audienceSwitcher() +
     '<section class="section" id="categories">' +
       sectionHead('CATEGORIES','Browse by treatment.') +
-      '<div class="category-grid home-categories">'+homeCategories.slice(1).map((c,i)=>'<button type="button" data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(homeCategoryImages[c],c+' beauty services')+'</div><span>'+c+'</span></button>').join('')+'</div>' +
+      '<div class="category-grid home-categories">'+(isMen ? ['Hair','Skin','Spa','Packages',...(cityServices.some(s=>s.category==='Beard')?['Beard']:[])] : homeCategories.slice(1).filter(c=>c!=='Beard')).map((c,i)=>'<button type="button" data-action="home-category" data-id="'+c+'" class="category-tile'+(state.homeCategory===c?' active':'')+'"><div class="category-art cat-'+i+'">'+image(isMen ? MEN_CATEGORY_IMAGES[c] : homeCategoryImages[c],c+' services')+'</div><span>'+c+'</span></button>').join('')+'</div>' +
     '</section>' +
     '<section class="section soft-section" id="popular">' +
       sectionHead('HOME SERVICES','Services in '+esc(userCity)+'.') +
-      servicesSection +
+      generalCatalogueNote() + servicesSection +
     '</section>' +
     '<section class="section" id="professionals">' +
       sectionHead('SPECIALISTS','Professionals in '+esc(userCity)+'.') +
@@ -1452,7 +1537,7 @@ function salonCard(s){
   return '<article class="salon-card">' +
     '<button type="button" class="listing-image-button salon-image" data-action="salon-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name+' salon','card-img')+'</button>' +
     '<div class="salon-body">' +
-      '<div class="salon-title"><h3>'+esc(s.name)+'</h3></div>' +
+      '<div class="salon-title"><h3>'+esc(s.name)+'</h3></div>' + audienceBadge(s) +
       '<p class="salon-location">'+icon('pin',15)+'<span>'+esc(s.area)+(distText?' · '+esc(distText):'')+'</span></p>' +
       (serviceTags.length ? '<div class="salon-services">'+serviceTags.map(x=>'<span>'+esc(x)+'</span>').join('')+(extraCount?'<span>+'+extraCount+'</span>':'')+'</div>' : '') +
       '<div class="card-bottom">'+(hasPrice?'<strong>From '+money(s.price)+'</strong>':'<span></span>')+'<button type="button" data-action="salon-detail" data-id="'+esc(s.id)+'">View salon '+icon('arrow',16)+'</button></div>' +
@@ -1460,9 +1545,10 @@ function salonCard(s){
 }
 
 function salonPage(){
-  const userCity = normalizeCity(state.location);
+  const isMen = isMenExperience();
+  const userCity = currentLocationCity();
   const citySalons = salons
-    .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase())
+    .filter(s => String(s.city || normalizeCity(s.area) || '').toLowerCase() === userCity.toLowerCase() && isVisibleInAudience(s))
     .map(enrichSalonWithDistance);
   const salonFilters = getFiltersForExp('salon');
   const list = getFilteredSalons(citySalons, salonFilters);
@@ -1473,7 +1559,7 @@ function salonPage(){
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try clearing a filter to see more salons.':'Try another city or check back later.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="salon"') : ''));
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No matching salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try clearing a filter to see more salons.':'Try another city or check back later.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="salon"') : ''));
   const countText = citySalons.length
     ? 'Showing <strong>'+list.length+'</strong> of '+citySalons.length+(citySalons.length===1?' salon':' salons')+' in '+esc(userCity)+(hasDistances?' · '+nearbyCount+' within 8 km':'')
     : '';
@@ -1484,11 +1570,11 @@ function salonPage(){
   }, countText, salonsResultsHtml);
   return '<main>' +
     '<section class="salon-hero">' +
-      '<div class="salon-hero-image">'+image(SALON_IMG,'Contemporary salon interior')+'</div>' +
+      '<div class="salon-hero-image">'+image(isMen ? MEN_SALON_IMG : SALON_IMG, isMen ? 'A contemporary grooming studio' : 'Contemporary salon interior')+'</div>' +
       '<div class="salon-hero-copy">' +
         '<p class="eyebrow line-eyebrow">SALONS &amp; PARLOURS</p>' +
-        '<h1>Discover salons in <em>'+esc(userCity)+'.</em></h1>' +
-        '<p>Browse independent salons by category and location, then request an appointment.</p>' +
+        '<h1>'+(isMen?'Find a salon that <em>suits you.</em>':'Discover salons in <em>'+esc(userCity)+'.</em>')+'</h1>' +
+        '<p>'+(isMen?'Explore independent salons and grooming studios in '+esc(userCity)+', compare services and book a visit.':'Browse independent salons by category and location, then request an appointment.')+'</p>' +
         button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"') +
       '</div>' +
     '</section>' +
@@ -1496,13 +1582,14 @@ function salonPage(){
       '<button type="button" class="discovery-cell" data-action="location">'+icon('pin',18)+'<div><small>LOCATION</small><strong>'+esc(state.location)+'</strong></div></button>' +
       '<button type="button" class="discovery-cell discovery-search" data-action="search-open">'+icon('search',18)+'<div><small>SEARCH</small><strong>Search salon name or service</strong></div>'+icon('arrow',16)+'</button>' +
     '</section>' +
+    audienceSwitcher() +
     '<section class="section" id="salon-categories">' +
       sectionHead('CATEGORIES','Browse by service.') +
-      '<div class="salon-category-grid">'+salonCategories.slice(1).map((c,i)=>'<button type="button" data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image([images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div>' +
+      '<div class="salon-category-grid">'+(isMen ? ['Hair','Skin','Spa',...(citySalons.some(s=>s.services?.includes('Beard'))?['Beard']:[])] : salonCategories.slice(1).filter(c=>c!=='Beard')).map((c,i)=>'<button type="button" data-action="salon-category" data-id="'+c+'" class="salon-category-card'+(state.salonCategory===c?' active':'')+'">'+image(isMen ? MEN_CATEGORY_IMAGES[c] : [images.hair,images.facial,images.nails,images.makeup,images.spa][i],c+' services')+'<span>'+c+' '+icon('arrow',17)+'</span></button>').join('')+'</div>' +
     '</section>' +
     '<section class="section soft-section" id="salons">' +
       sectionHead('DISCOVER SALONS','Salons in '+esc(userCity)+'.') +
-      salonsSection +
+      generalCatalogueNote() + salonsSection +
     '</section>' +
   '</main>';
 }
@@ -1573,7 +1660,7 @@ function productCard(p){
       '</div>' +
       quickOverlayHtml +
     '</div>' +
-    '<div class="product-body">' +
+    '<div class="product-body">' + audienceBadge(p) +
       '<span class="product-brand">'+esc(p.brand)+'</span>' +
       '<button type="button" class="product-name" data-action="product-detail" data-id="'+esc(p.id)+'">'+esc(p.name)+'</button>' +
       (sellerName ? '<span class="product-seller">Sold by '+esc(sellerName)+'</span>' : '') +
@@ -1587,12 +1674,14 @@ function productCard(p){
 }
 
 function shopPage(){
+  const isMen = isMenExperience();
   if (!['All','OFFERS'].includes(state.shopCollection)) state.shopCollection = 'All';
+  const audienceProducts = products.filter(isVisibleInAudience);
   const shopFilters = getFiltersForExp('shop');
-  const list = getFilteredShopProducts(products, shopFilters);
+  const list = getFilteredShopProducts(audienceProducts, shopFilters);
   const catalogDown = !products.length && state.catalogErrors.products;
   const catalogBusy = !products.length && state.catalogFeedsLoading.products;
-  const shopBrands = ['All', ...Array.from(new Set(products.map(p => p.brand).filter(Boolean)))];
+  const shopBrands = ['All', ...Array.from(new Set(audienceProducts.map(p => p.brand).filter(Boolean)))];
   const visibleCollections = shopCollections.filter(col => col.id === 'All' || (col.id === 'OFFERS' && products.some(p => getDiscountPct(p) > 0)));
   const activeFilters = buildActiveFiltersForExp('shop', shopFilters, visibleCollections);
 
@@ -1600,36 +1689,37 @@ function shopPage(){
     ? catalogLoadingState('beauty store')
     : catalogDown
       ? catalogUnavailableState('Storefront catalog', 'We could not load live product pricing and availability right now. Demo inventory is disabled to protect your checkout accuracy.')
-      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length?'No products match these filters':'No products are listed yet',products.length?'Try clearing one of your active filters to see more products.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Clear all filters '+icon('arrow',16),'exp-reset-all','btn-outline','data-exp="shop"')+'</div></div>');
+      : '<div class="product-grid">'+list.map(productCard).join('')+'</div>'+(list.length?'':'<div class="empty-filtered">'+empty('search',products.length && !audienceProducts.length?'No products are classified for this selection yet':products.length?'No products match these filters':'No products are listed yet',products.length && !audienceProducts.length?'Check back as sellers add more products.':products.length?'Try clearing one of your active filters to see more products.':'Check back as independent sellers add their products.')+'<div class="empty-actions">'+button('Clear all filters '+icon('arrow',16),'exp-reset-all','btn-outline','data-exp="shop"')+'</div></div>');
 
-  const countText = products.length ? 'Showing <strong>'+list.length+'</strong> of '+products.length+(products.length===1?' product':' products') : '';
+  const countText = audienceProducts.length ? 'Showing <strong>'+list.length+'</strong> of '+audienceProducts.length+(audienceProducts.length===1?' product':' products') : '';
   const shopShelfSection = renderFilterShelfSection('shop', shopFilters, activeFilters, {
     categories: shopCategories,
     collections: visibleCollections,
     brands: shopBrands,
-    countDraftMatches: draft => getFilteredShopProducts(products, draft).length
+    countDraftMatches: draft => getFilteredShopProducts(audienceProducts, draft).length
   }, countText, shelfResultsHtml);
 
   return '<main>' +
     '<section class="shop-hero">' +
       '<div class="shop-hero-copy">' +
         '<p class="eyebrow line-eyebrow">BEAUTY SHOPPING</p>' +
-        '<h1>Thoughtfully curated <em>beauty essentials.</em></h1>' +
-        '<p>Explore skincare, makeup, haircare, and personal care from independent sellers and brands.</p>' +
+        '<h1>'+(isMen?'Everyday grooming, <em>thoughtfully chosen.</em>':'Thoughtfully curated <em>beauty essentials.</em>')+'</h1>' +
+        '<p>'+(isMen?'Explore skin care, hair care and personal care from independent sellers and brands on GlamGo.':'Explore skincare, makeup, haircare, and personal care from independent sellers and brands.')+'</p>' +
         button('Shop all products '+icon('arrow',18),'scroll','btn-primary','data-target="bestsellers"') +
       '</div>' +
-      '<div class="shop-hero-image">'+image(SHOP_IMG,'Skincare and beauty products')+'</div>' +
+      '<div class="shop-hero-image">'+image(isMen ? MEN_SHOP_IMG : SHOP_IMG,isMen ? 'An editorial arrangement of grooming and personal care products' : 'Skincare and beauty products')+'</div>' +
     '</section>' +
+    audienceSwitcher() +
     '<section class="section" id="shop-categories">' +
       sectionHead('CATEGORIES','Shop by category.') +
-      '<div class="shop-category-grid">'+shopCategories.slice(1).map((c,i)=>{
-        const count = products.filter(p => p.category === c).length;
-        return '<button type="button" class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image([images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
+      '<div class="shop-category-grid">'+(isMen ? ['Skincare','Haircare','Beard Care','Body Care','Fragrance','Beauty Tools'] : shopCategories.slice(1).filter(c=>c!=='Beard Care')).map((c,i)=>{
+        const count = audienceProducts.filter(p => p.category === c).length;
+        return '<button type="button" class="shop-category-card'+(state.shopCategory===c?' active':'')+'" data-action="shop-category" data-id="'+c+'"><div>'+image(isMen ? MEN_SHOP_CATEGORY_IMAGES[c] : [images.serum,images.lipstick,images.haircare,images.cream,images.fragrance,images.tools][i],shopCategoryLabel(c))+'</div><span><span class="cat-copy"><span class="cat-label">'+shopCategoryLabel(c)+'</span>'+(products.length?'<small class="cat-count">'+count+(count===1?' product':' products')+'</small>':'')+'</span>'+icon('arrow',16)+'</span></button>';
       }).join('')+'</div>' +
     '</section>' +
     '<section class="section soft-section" id="bestsellers">' +
       sectionHead('THE BEAUTY SHELF','Products.') +
-      shopShelfSection +
+      generalCatalogueNote() + shopShelfSection +
     '</section>' +
   '</main>';
 }
@@ -1982,6 +2072,9 @@ async function loadPartnerData(){
   }
 }
 
+const audienceOptions = value => ['unspecified','women','men','unisex'].map(v => '<option value="'+v+'"'+((value || 'unspecified')===v?' selected':'')+'>'+({unspecified:'Unspecified',women:'Women',men:'Men',unisex:'Unisex'})[v]+'</option>').join('');
+const audienceField = value => '<label>Suitable for<select name="audience">'+audienceOptions(value)+'</select></label>';
+
 function partnerPage(){
   const role = state.partnerRole, tabs = roleSections[role] || ['Overview'];
   const tab = state.partnerTab;
@@ -2121,6 +2214,7 @@ function partnerPage(){
       '<p>Keep your editorial bio, pricing, and certified specialty current for customer booking.</p>' +
       '<form id="partner-pro-profile-form" class="form-grid" style="margin-top:20px">' +
         '<label>Display name<input name="name" required value="'+esc(pro.name || state.user?.name || '')+'"></label>' +
+        audienceField(pro.audience) +
         '<label>Specialty<input name="specialty" required placeholder="e.g. Bridal hair specialist" value="'+esc(pro.specialty || '')+'"></label>' +
         '<label>Experience level<input name="experience" required placeholder="e.g. 8 years of experience" value="'+esc(pro.experience || '')+'"></label>' +
         '<label>Base appointment price (₹)<input name="price" type="number" min="0" required value="'+(pro.price ?? '')+'"></label>' +
@@ -2136,6 +2230,7 @@ function partnerPage(){
       '<form id="partner-salon-profile-form" class="form-grid" style="margin-top:20px">' +
         '<label>Studio name<input name="name" required value="'+esc(sal.name || '')+'"></label>' +
         '<label>Area / Locality<input name="area" required value="'+esc(sal.area || '')+'"></label>' +
+        audienceField(sal.audience) +
         '<label>Operating hours<input name="hours" required placeholder="10:00 AM - 8:00 PM" value="'+esc(sal.hours || '')+'"></label>' +
         '<label>Starting price (₹)<input name="price" type="number" min="0" required value="'+(sal.price ?? '')+'"></label>' +
         '<label style="grid-column:1/-1">Studio exterior / Interior image URL<input name="img" required value="'+esc(sal.img || '')+'"></label>' +
@@ -2255,6 +2350,7 @@ function partnerPage(){
         '</div>' +
       '</div>' +
       '<form id="partner-seller-product-form" class="form-grid" style="margin:20px 0;padding:20px;background:var(--ivory);border:1px solid var(--border)">' +
+        audienceField('unspecified') +
         '<label>Brand name<input name="brand" required placeholder="e.g. Maison GlamGo"></label>' +
         '<label>Product title<input name="name" required placeholder="e.g. Botanical Facial Oil"></label>' +
         '<label>Category<input name="category" required placeholder="Skincare, Haircare, Cosmetics" value="Skincare"></label>' +
@@ -2265,7 +2361,7 @@ function partnerPage(){
         '<label style="grid-column:1/-1">Description<textarea name="description" required rows="2" placeholder="Cold-pressed organic ingredients..."></textarea></label>' +
         '<button class="btn btn-primary" type="submit" style="grid-column:1/-1">+ Create & List Product</button>' +
       '</form>' +
-      (prods.length ? prods.map(p => '<details class="dash-product"><summary><span><strong>'+esc(p.name)+'</strong><small>'+esc(p.brand)+' · '+esc(p.category)+' · '+money(p.price)+'</small></span><span>Edit product ↓</span></summary><form class="form-grid partner-product-edit-form" data-product-id="'+esc(p.id)+'"><label>Brand<input name="brand" required value="'+esc(p.brand)+'"></label><label>Product name<input name="name" required value="'+esc(p.name)+'"></label><label>Category<input name="category" required value="'+esc(p.category)+'"></label><label>Price (₹)<input name="price" type="number" min="0.01" step="0.01" required value="'+p.price+'"></label><label>Image URL<input name="img" required value="'+esc(p.img || '')+'"></label><label>Ingredients<input name="ingredients" value="'+esc(p.ingredients || '')+'"></label><label style="grid-column:1/-1">Description<textarea name="description" required>'+esc(p.description || '')+'</textarea></label><button class="btn btn-primary" type="submit">Save product</button></form></details>').join('') : '<p style="color:var(--muted)">No products created yet.</p>') +
+      (prods.length ? prods.map(p => '<details class="dash-product"><summary><span><strong>'+esc(p.name)+'</strong><small>'+esc(p.brand)+' · '+esc(p.category)+' · '+money(p.price)+'</small></span><span>Edit product ↓</span></summary><form class="form-grid partner-product-edit-form" data-product-id="'+esc(p.id)+'">'+audienceField(p.audience)+'<label>Brand<input name="brand" required value="'+esc(p.brand)+'"></label><label>Product name<input name="name" required value="'+esc(p.name)+'"></label><label>Category<input name="category" required value="'+esc(p.category)+'"></label><label>Price (₹)<input name="price" type="number" min="0.01" step="0.01" required value="'+p.price+'"></label><label>Image URL<input name="img" required value="'+esc(p.img || '')+'"></label><label>Ingredients<input name="ingredients" value="'+esc(p.ingredients || '')+'"></label><label style="grid-column:1/-1">Description<textarea name="description" required>'+esc(p.description || '')+'</textarea></label><button class="btn btn-primary" type="submit">Save product</button></form></details>').join('') : '<p style="color:var(--muted)">No products created yet.</p>') +
     '</div>';
   } else if(tab === 'Inventory' || tab === 'Inventory & stock'){
     const prods = state.partnerSellerProducts || [];
@@ -2623,8 +2719,8 @@ function adminPage(){
   } else if(tab === 'services'){
     mainContent = '<div class="admin-panel">' +
       '<div class="admin-panel-head"><div><h2>Services Catalog</h2><p style="color:var(--muted);font-size:12px;margin:4px 0 0">Platform doorstep and salon treatments.</p></div><span class="badge badge-info">'+state.adminServices.length+' Services</span></div>' +
-      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Duration</th><th>Price</th><th>Rating</th></tr></thead><tbody>' +
-        state.adminServices.map(s => '<tr><td>'+s.id+'</td><td><strong>'+esc(s.name)+'</strong></td><td><span class="badge badge-info">'+esc(s.category)+'</span></td><td>'+esc(s.duration)+'</td><td><strong>'+money(s.price)+'</strong></td><td>'+s.rating+' ★ ('+s.reviews+')</td></tr>').join('') +
+      '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name</th><th>Category</th><th>Duration</th><th>Price</th><th>Rating</th><th>Suitable for</th></tr></thead><tbody>' +
+        state.adminServices.map(s => '<tr><td>'+s.id+'</td><td><strong>'+esc(s.name)+'</strong></td><td><span class="badge badge-info">'+esc(s.category)+'</span></td><td>'+esc(s.duration)+'</td><td><strong>'+money(s.price)+'</strong></td><td>'+s.rating+' ★ ('+s.reviews+')</td><td><select id="service-audience-'+esc(s.id)+'" aria-label="Audience for '+esc(s.name)+'">'+audienceOptions(s.audience)+'</select><button type="button" data-action="admin-save-audience" data-id="'+esc(s.id)+'">Save</button></td></tr>').join('') +
       '</tbody></table></div>' +
     '</div>';
   } else if(tab === 'products'){
@@ -2671,15 +2767,15 @@ function modal(){
     inner='<div class="modal-head"><p class="eyebrow">PARTNER MODERATION</p><h2>Reject application.</h2><p>Please provide a formal rejection reason for '+esc(draft?.applicant_name || 'the applicant')+'.</p></div><form id="admin-reject-form"><label>Rejection reason<textarea name="reason" required placeholder="e.g. Incomplete training credentials or invalid salon trade license" style="min-height:90px"></textarea></label><button class="btn btn-danger full" type="submit">Confirm rejection '+icon('arrow',17)+'</button></form>';
   }
   if(state.modal==='partner-suborder-ship') inner='<div class="modal-head"><p class="eyebrow">SHIP ORDER</p><h2>Enter tracking details.</h2><p>For suborder '+esc(state.shipSuborderId || '')+'.</p></div><form id="partner-ship-form"><label>Courier name<input name="carrier" required maxlength="100" placeholder="Courier or delivery partner" autocomplete="off"></label><label>Tracking number<input name="tracking" required maxlength="100" placeholder="Tracking or AWB number" autocomplete="off"></label><label>Tracking link (optional)<input name="tracking_url" type="url" placeholder="https://"></label><button class="btn btn-primary full" type="submit">Confirm dispatch '+icon('arrow',17)+'</button></form>';
-  else if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>View city-available services, specialists, and distance-sorted salons.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<div class="gg-loc-field"><input id="location-search-input" name="location" required value="'+esc(state.location)+'" placeholder="Search any area, street, or city…" autocomplete="off" autofocus><div id="location-autocomplete-list" class="gg-loc-dropdown" role="listbox" aria-label="Location suggestions" hidden></div></div></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Indiranagar, Bengaluru','Koramangala, Bengaluru','Whitefield, Bengaluru','Bandra West, Mumbai','Juhu, Mumbai','Hauz Khas, South Delhi'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
+  else if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>View city-available services, specialists, and distance-sorted salons.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<div class="gg-loc-field"><input id="location-search-input" name="location" required value="'+esc(locationDraft?.label || state.location)+'" placeholder="Search any area, street, or city…" autocomplete="off" autofocus><div id="location-autocomplete-list" class="gg-loc-dropdown" role="listbox" aria-label="Location suggestions" hidden></div></div></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Indiranagar, Bengaluru','Koramangala, Bengaluru','Whitefield, Bengaluru','Bandra West, Mumbai','Juhu, Mumbai','Hauz Khas, South Delhi'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
-    const userCity = normalizeCity(state.location);
+    const userCity = currentLocationCity();
     const searchable = [
-      ...products.map(x=>({...x,type:'Product',inCity:true})),
-      ...services.map(x=>({...x,type:'Service',inCity:isServiceAvailableInCity(x,userCity)})),
-      ...salons.map(x=>({...x,type:'Salon',inCity:String(x.city||normalizeCity(x.area)||'').toLowerCase()===userCity.toLowerCase()}))
+      ...products.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Product',inCity:true})),
+      ...services.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Service',inCity:isServiceAvailableInCity(x,userCity)})),
+      ...salons.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Salon',inCity:String(x.city||normalizeCity(x.area)||'').toLowerCase()===userCity.toLowerCase()}))
     ];
     const matched = searchable.filter(x=>{
       if(!q) return true;
@@ -2763,7 +2859,7 @@ function bookingModal(){
   const addonsSum = addonObjects.reduce((acc, a) => acc + Number(a.price || 0), 0);
   const basePrice = Number(service?.price || 0);
   const totalPrice = basePrice + addonsSum;
-  const userCity = normalizeCity(state.location);
+  const userCity = currentLocationCity();
   const steps = b.type==='home'?['Service','Specialist','Date & time','Review']:['Service','Staff','Date & time','Review'];
   const summaryParts = [];
   if (service) summaryParts.push(esc(service.name) + ' (' + money(basePrice) + ')');
@@ -2774,12 +2870,12 @@ function bookingModal(){
     : '';
   let body = '';
   if(b.step===0){
-    const cityHomeServices = services.filter(s => isServiceAvailableInCity(s, userCity));
-    const list0 = b.type==='home' ? cityHomeServices : services.filter(s=>salon&&salon.services.includes(s.category));
+    const cityHomeServices = services.filter(s => !isPreviewId(s.id) && isServiceAvailableInCity(s, userCity) && (matchesAudience(s) || isUnclassified(s)));
+    const list0 = b.type==='home' ? cityHomeServices : cityHomeServices.filter(s=>salon&&salon.services.includes(s.category));
     body='<h3>Choose a service</h3>'+(salon?'<p class="booking-hint">Select a service in one of '+esc(salon.name)+'’s categories.</p>':'<p class="booking-hint">Select the treatment you would like to book.</p>')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button type="button" class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>'+esc(s.duration)+' · '+esc(s.category)+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>';
   }
   if(b.step===1){
-    const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity));
+    const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && (matchesAudience(p) || isUnclassified(p)));
     const list1 = b.type==='home' ? cityPros : (Array.isArray(salon?.staff) ? salon.staff : []);
     body='<h3>'+(b.type==='home'?'Choose a specialist':'Choose a staff member')+'</h3><p class="booking-hint">Select a listed specialist or choose any available expert.</p><div class="booking-options"><button type="button" class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>Match with an available specialist.</small></span></button>'+list1.map(p=>'<button type="button" class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+esc(p.name)+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
   }
@@ -2810,6 +2906,9 @@ function bookingSuccess(){
 }
 
 function render(){
+  const customerTheme = ['landing','service-detail','salon-detail','product-detail','account','cart','checkout','order-success','tracking','booking-success'].includes(state.view);
+  document.body.classList.toggle('theme-men', customerTheme && isMenExperience());
+  if (state.modal !== 'location' && locationDraft) { locationDraft = null; locationLookupSeq++; locationSearchSeq++; clearTimeout(locationSearchTimer); }
   destroyActiveMaps();
   if(state.view === 'public'){
     app.innerHTML = publicLanding({ signedIn: state.signedIn, experience: state.experience, menu: state.publicMenu, icon });
@@ -2835,7 +2934,7 @@ function render(){
   }
   const activeExp = state.experience || 'home';
   let page = state.view==='landing' ? (activeExp==='home'?homePage():activeExp==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
-  app.innerHTML = header() + page + footer() + mobileNav() + modal();
+  app.innerHTML = (isDemoCatalogue ? '<div class="demo-catalogue-notice" role="status">Local demo catalogue · Sample listings and prices · Bookings and checkout are disabled</div>' : hasLocalDemo ? '<div class="demo-catalogue-notice" role="status">Local preview · DEMO listings and prices are samples and cannot be booked or purchased</div>' : '') + header() + page + footer() + mobileNav() + modal();
   document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen));
   if(state.modal === 'location'){
     void mountLocationPickerMap();
@@ -2843,6 +2942,7 @@ function render(){
 }
 
 function openBooking(type, itemId, serviceId = null, pro = null){
+  if (isPreviewId(itemId) || isPreviewId(serviceId)) { toast('Demo listings are for preview only and cannot be booked.'); return; }
   if(!requireAuth({ type: 'booking', args: [type, itemId, serviceId, pro] }, 'Sign in to book an appointment')) return;
   const selectedService = serviceId || (type === 'home' ? itemId : null);
   state.pendingBooking = null;
@@ -2867,6 +2967,8 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
+  if ((a === 'buy-now' && isPreviewId(id)) || (a === 'checkout' && Object.keys(state.cart || {}).some(key => isPreviewId(parseCartKey(key).productId)))) { toast('Remove demo items before checking out with real products.'); return; }
+  if(isDemoCatalogue && ['book-home','book-salon','book-pro','checkout','buy-now'].includes(a)){ toast('Demo listings are for preview only. Booking and checkout are unavailable.'); return; }
   if(a==='public-home'){
     pendingAuthResume=null; state.publicMenu=false; state.view='public';
     if(window.location.protocol !== 'file:') window.history.replaceState(null, '', '/');
@@ -2898,6 +3000,22 @@ async function action(el){
   else if(a==='guest-browse'){ pendingAuthResume=null; state.mobileMenu=false; state.menu=false; state.view=state.experience?'landing':'public'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
+  else if(a==='audience-set'){
+    if (!['women','men'].includes(id)) return;
+    state.audience = id;
+    if (id === 'men' && !['All','Hair','Skin','Spa','Packages','Beard'].includes(state.homeCategory)) state.homeCategory = 'All';
+    if (id === 'men' && !['All','Hair','Skin','Spa','Beard'].includes(state.salonCategory)) state.salonCategory = 'All';
+    if (id === 'women' && state.homeCategory === 'Beard') state.homeCategory = 'All';
+    if (id === 'women' && state.salonCategory === 'Beard') state.salonCategory = 'All';
+    if (id === 'women' && state.shopCategory === 'Beard Care') state.shopCategory = 'All';
+    state.filterDrawerOpen = false; state.filterDrawerDraft = null;
+    persist(); render();
+    document.querySelector('.audience-choice[data-id="'+id+'"]')?.focus({ preventScroll: true });
+  }
+  else if(a==='admin-save-audience'){
+    const value = document.getElementById('service-audience-'+id)?.value;
+    try { await apiRequest('/admin/catalog/service/'+encodeURIComponent(id)+'/audience', { method:'PUT', body:JSON.stringify({audience:value}) }); toast('Service audience saved'); await loadAdminData(); } catch(err){ toast(err.message || 'Could not save audience'); }
+  }
   else if(a==='discover-goal'){
     const experience = el.dataset.experience;
     const category = el.dataset.category;
@@ -3023,54 +3141,70 @@ async function action(el){
     render();
     toast((variant ? variant + ' added' : 'Added') + ' to your beauty bag');
   }
-  else if(a==='location'){ state.mobileMenu=false; state.menu=false; state.modal='location'; render(); }
+  else if(a==='location'){ state.mobileMenu=false; state.menu=false; locationDraft={ label: state.location, city: state.locationCity || '', coords: state.userCoords, pending: false }; state.modal='location'; render(); }
   else if(a==='location-set'){
+    if(state.modal === 'location' && locationDraft){
+      locationLookupSeq++; locationSearchSeq++; clearTimeout(locationSearchTimer); hideLocationAutocomplete();
+      Object.assign(locationDraft, { label: id, city: normalizeCity(id), coords: null, pending: false });
+      const input = document.getElementById('location-search-input');
+      if(input) input.value = id;
+      const save = document.querySelector('#location-form button[type="submit"]');
+      if(save) save.disabled = false;
+      if(activeLocationMap) activeLocationMap.setView(resolveSalonCoords({ area: id }), 13);
+      if(activeLocationMarker) activeLocationMarker.setLatLng(resolveSalonCoords({ area: id }));
+      return;
+    }
     state.location=id;
+    state.locationCity='';
     state.userCoords=null;
     state.salonDistanceFilter='all';
     state.modal=null;
     persist();
+    void loadCatalogFeeds();
     render();
     toast('Location updated to ' + normalizeCity(id));
-    void loadCatalogFeeds();
   }
   else if(a==='location-pick'){
+    if (!locationDraft) return;
     const label = el.dataset.label || '';
-    const lat = Number(el.dataset.lat);
-    const lng = Number(el.dataset.lng);
-    if(label) state.location = label;
-    if(Number.isFinite(lat) && Number.isFinite(lng)){
-      state.userCoords = [lat, lng];
-      if(activeLocationMap) activeLocationMap.setView([lat, lng], 14);
-      if(activeLocationMarker) activeLocationMarker.setLatLng([lat, lng]);
+    const city = el.dataset.city || '';
+    locationSearchSeq++; clearTimeout(locationSearchTimer);
+    const lat = Number(el.dataset.lat), lng = Number(el.dataset.lng);
+    locationLookupSeq++;
+    Object.assign(locationDraft, { label, city: city ? normalizeCity(city) : '', coords: Number.isFinite(lat) && Number.isFinite(lng) ? [lat, lng] : null, pending: false });
+    if(locationDraft.coords){
+      activeLocationMap?.setView(locationDraft.coords, 14);
+      activeLocationMarker?.setLatLng(locationDraft.coords);
     }
     const input = document.getElementById('location-search-input');
-    if(input && label) input.value = label;
-    persist();
+    if(input) input.value = label;
+    const save = document.querySelector('#location-form button[type="submit"]');
+    if(save) save.disabled = false;
     hideLocationAutocomplete();
-    void loadCatalogFeeds({ silent: true });
   }
   else if(a==='map-locate'){
-    if(!navigator.geolocation){
-      toast('Geolocation is not supported in this browser.');
-      return;
-    }
+    if(!navigator.geolocation){ toast('Geolocation is not supported in this browser.'); return; }
+    const draft = locationDraft;
+    const request = ++locationLookupSeq;
+    if (!draft) return;
+    draft.pending = true;
+    const save = document.querySelector('#location-form button[type="submit"]');
+    if (save) save.disabled = true;
     toast('Finding your location...');
     navigator.geolocation.getCurrentPosition(
-      async pos => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-        state.userCoords = [lat, lng];
-        state.location = await reverseGeocodeCoords(lat, lng);
-        state.salonDistanceFilter = 'all';
-        persist();
-        render();
-        toast('Pinned your current location on the map.');
-        void loadCatalogFeeds();
+      pos => {
+        if (draft !== locationDraft || request !== locationLookupSeq || state.modal !== 'location') return;
+        const { latitude: lat, longitude: lng } = pos.coords;
+        activeLocationMap?.setView([lat, lng], 14);
+        activeLocationMarker?.setLatLng([lat, lng]);
+        void selectLocationCoords(lat, lng);
       },
-      err => toast(err?.code === 1
-        ? 'Location blocked in browser settings — tap the map or type your area.'
-        : 'Unable to fetch GPS right now — tap the map or type your area.'),
+      err => {
+        if (draft !== locationDraft || request !== locationLookupSeq || state.modal !== 'location') return;
+        draft.pending = false;
+        if (save) save.disabled = false;
+        toast(err?.code === 1 ? 'Location blocked in browser settings — tap the map or type your area.' : 'Unable to fetch GPS right now — tap the map or type your area.');
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
@@ -3627,11 +3761,19 @@ async function action(el){
     state.authMode = id || 'signin';
     state.authDevHint = '';
     if(state.authMode === 'otp') state.authOtpStage = 'request';
+    if(state.authMode === 'email_otp') state.authEmailOtpStage = 'request';
     if(state.authMode === 'reset') state.authResetStage = 'request';
     render();
   }
-  else if(a==='auth-otp-restart'){ state.authOtpStage='request'; state.authDevHint=''; render(); }
+  else if(a==='auth-otp-restart'){ state.authOtpStage='request'; state.authDevHint=''; state.authDevOtpPrefill=''; render(); }
+  else if(a==='auth-email-otp-restart'){ state.authEmailOtpStage='request'; state.authDevHint=''; state.authDevOtpPrefill=''; render(); }
   else if(a==='auth-reset-restart'){ state.authResetStage='request'; state.authDevHint=''; render(); }
+  else if(a==='autofill-otp'){
+    state.authDevOtpPrefill = id;
+    const input = document.getElementById('auth-otp-input');
+    if (input) input.value = id;
+    render();
+  }
   else if(a==='pro-verify-otp-open'){
     state.proVerifyBookingId = id;
     state.modal = 'pro-verify-otp';
@@ -3970,7 +4112,7 @@ async function action(el){
     render();
   }
   else if(a==='modal-close'){ state.modal=null; render(); }
-  else if(a==='booking-service'){ state.booking.serviceId=id; render(); }
+  else if(a==='booking-service'){ if(isPreviewId(id)){ toast('Demo services cannot be booked.'); return; } state.booking.serviceId=id; render(); }
   else if(a==='booking-addon-toggle'){
     if (!state.booking) return;
     const cur = Array.isArray(state.booking.addons) ? state.booking.addons : [];
@@ -3993,6 +4135,7 @@ async function action(el){
     render();
   }
   else if(a==='booking-confirm'){
+    if (isPreviewId(state.booking?.serviceId) || isPreviewId(state.booking?.itemId)) { toast('Demo listings cannot be booked.'); return; }
     if(state.bookingBusy) return;
     if(!requireAuth({ view: state.experience ? 'landing' : 'onboarding' }, 'Sign in to confirm your booking')) return;
     const b = state.booking;
@@ -4201,6 +4344,7 @@ document.addEventListener('submit', async e => {
     try {
       await apiUpdateSellerProduct(f.dataset.productId, {
         brand: String(d.get('brand') || '').trim(),
+        audience: String(d.get('audience')),
         name: String(d.get('name') || '').trim(),
         category: String(d.get('category') || '').trim(),
         price: Number(d.get('price')),
@@ -4238,9 +4382,10 @@ document.addEventListener('submit', async e => {
       const res = await apiRequestMobileOtp(phone);
       state.authOtpPhone = phone;
       state.authOtpStage = 'verify';
-      state.authDevHint = res?.dev_otp ? `Dev OTP: ${res.dev_otp}` : '';
+      state.authDevHint = '';
+      state.authDevOtpPrefill = '';
       render();
-      toast(res?.message || 'Verification code requested.');
+      toast(res?.message || 'Verification code sent to your mobile phone.');
     } catch (err) {
       toast(err.message || 'Could not request OTP');
     }
@@ -4277,6 +4422,55 @@ document.addEventListener('submit', async e => {
       toast(`Welcome back, ${res.name.split(' ')[0]}`);
     } catch (err) {
       toast(err.message || 'Invalid OTP');
+    }
+    return;
+  }
+  if(f.id === 'auth-email-otp-request-form'){
+    const email = String(d.get('email') || '').trim();
+    try {
+      const res = await apiRequestEmailOtp(email);
+      state.authEmailOtpEmail = email;
+      state.authEmailOtpStage = 'verify';
+      state.authDevHint = '';
+      state.authDevOtpPrefill = '';
+      render();
+      toast(res?.message || 'Verification code sent to your email. Please check your inbox.');
+    } catch (err) {
+      toast(err.message || 'Could not send Email OTP');
+    }
+    return;
+  }
+  if(f.id === 'auth-email-otp-verify-form'){
+    const otp = String(d.get('otp') || '').trim();
+    try {
+      const res = await apiVerifyEmailOtp(state.authEmailOtpEmail, otp);
+      state.signedIn = true;
+      state.user = { id: res.user_id, name: res.name, email: res.email || state.authEmailOtpEmail, phone: res.phone || '', role: res.role };
+      state.authMode = 'signin';
+      state.authEmailOtpStage = 'request';
+      state.authDevHint = '';
+      const bookingResume = applyPostAuthNavigation(res.role);
+      const [myB, myO, myA, myN, myRw] = await Promise.allSettled([
+        apiGetMyBookings(),
+        apiGetMyOrders(),
+        apiGetAddresses(),
+        apiGetNotifications(),
+        apiGetMyRewards()
+      ]);
+      if(myB.status==='fulfilled') state.bookings = myB.value;
+      if(myO.status==='fulfilled') state.orders = myO.value;
+      if(myA.status==='fulfilled') state.addresses = myA.value;
+      if(myN.status==='fulfilled') state.notifications = myN.value;
+      if(myRw.status==='fulfilled' && myRw.value){
+        state.walletCredits = Number(myRw.value.wallet_credits || 0);
+        state.referralCode = myRw.value.referral_code || state.referralCode;
+      }
+      persist();
+      render();
+      if (bookingResume) openBooking(...bookingResume.args);
+      toast(`Welcome back, ${res.name.split(' ')[0]}`);
+    } catch (err) {
+      toast(err.message || 'Invalid or expired OTP');
     }
     return;
   }
@@ -4360,14 +4554,17 @@ document.addEventListener('submit', async e => {
   }
   else if(f.id === 'location-form'){
     const nextLoc = String(d.get('location') || '').trim();
-    if(nextLoc && nextLoc !== state.location) state.userCoords = null;
-    if(nextLoc) state.location = nextLoc;
+    if (!nextLoc || locationDraft?.pending) return;
+    const matchesDraft = locationDraft && nextLoc === locationDraft.label;
+    state.location = nextLoc;
+    state.locationCity = matchesDraft ? (locationDraft.city || normalizeCity(nextLoc)) : normalizeCity(nextLoc);
+    state.userCoords = matchesDraft ? locationDraft.coords : null;
     state.salonDistanceFilter = 'all';
     state.modal = null;
     persist();
-    render();
-    toast('Location updated to ' + normalizeCity(state.location));
     void loadCatalogFeeds();
+    render();
+    toast('Location updated to ' + currentLocationCity());
   }
   else if(f.id === 'profile-form'){
     const name = String(d.get('name')).trim();
@@ -4458,6 +4655,7 @@ document.addEventListener('submit', async e => {
     try {
       const res = await apiUpdateProfessionalProfile({
         name: String(d.get('name')).trim(),
+        audience: String(d.get('audience')),
         specialty: String(d.get('specialty')).trim(),
         experience: String(d.get('experience')).trim(),
         price: parseFloat(String(d.get('price')||'1500')),
@@ -4475,6 +4673,7 @@ document.addEventListener('submit', async e => {
       const res = await apiUpdateSalonProfile({
         name: String(d.get('name')).trim(),
         area: String(d.get('area')).trim(),
+        audience: String(d.get('audience')),
         hours: String(d.get('hours')).trim(),
         price: parseFloat(String(d.get('price')||'2000')),
         img: String(d.get('img')).trim(),
@@ -4506,6 +4705,7 @@ document.addEventListener('submit', async e => {
     try {
       const res = await apiCreateSellerProduct({
         brand: String(d.get('brand')).trim(),
+        audience: String(d.get('audience')),
         name: String(d.get('name')).trim(),
         category: String(d.get('category')).trim(),
         price: parseFloat(String(d.get('price')||'0')),
@@ -4635,6 +4835,11 @@ document.addEventListener('focusout', e => {
 document.addEventListener('input', e => {
   if(e.target.id === 'location-search-input'){
     clearTimeout(locationSearchTimer);
+    locationLookupSeq++;
+    if (locationDraft) { locationDraft.pending = false; locationDraft.label = e.target.value; locationDraft.city = ''; locationDraft.coords = null; }
+    const save = document.querySelector('#location-form button[type="submit"]');
+    if (save) save.disabled = false;
+    const seq = ++locationSearchSeq;
     const val = e.target.value;
     const dd = document.getElementById('location-autocomplete-list');
     if(!dd) return;
@@ -4645,7 +4850,6 @@ document.addEventListener('input', e => {
     }
     dd.hidden = false;
     dd.innerHTML = '<div class="gg-loc-status">Searching locations…</div>';
-    const seq = ++locationSearchSeq;
     locationSearchTimer = setTimeout(async () => {
       const results = await searchLocationSuggestions(val);
       if(seq !== locationSearchSeq) return;
@@ -4656,7 +4860,7 @@ document.addEventListener('input', e => {
         return;
       }
       box.innerHTML = results.map(item =>
-        '<button type="button" class="gg-loc-option" role="option" data-action="location-pick" data-label="' + esc(item.full) + '" data-lat="' + item.lat + '" data-lng="' + item.lng + '">' +
+        '<button type="button" class="gg-loc-option" role="option" data-action="location-pick" data-label="' + esc(item.full) + '" data-city="' + esc(item.city || '') + '" data-lat="' + item.lat + '" data-lng="' + item.lng + '">' +
           icon('pin', 15) +
           '<span><strong>' + esc(item.label) + '</strong>' + (item.sub ? '<small>' + esc(item.sub) + '</small>' : '') + '</span>' +
         '</button>'

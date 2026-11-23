@@ -20,6 +20,8 @@ from backend.app.schemas.auth import UserRegister, UserLogin, Token, RefreshToke
 from backend.app.schemas.user import UserResponse
 from backend.app.api.deps import get_current_user
 from backend.app.core.rate_limit import RateLimiter
+from backend.app.services.sms_service import SmsService
+from backend.app.services.email_service import EmailService, validate_real_email
 
 router = APIRouter()
 auth_limiter = RateLimiter(requests=15, window_seconds=60, prefix="auth")
@@ -45,6 +47,15 @@ class MobileOtpVerify(BaseModel):
     otp: str = Field(..., min_length=1, max_length=16)
 
 
+class EmailOtpRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+
+
+class EmailOtpVerify(BaseModel):
+    email: str = Field(..., min_length=3, max_length=255)
+    otp: str = Field(..., min_length=1, max_length=16)
+
+
 def _hash_code(raw: str) -> str:
     return hmac.new(
         settings.SECRET_KEY.encode("utf-8"),
@@ -59,12 +70,9 @@ def _normalize_phone_digits(phone: str) -> str:
 
 
 def _allow_dev_code_echo() -> bool:
-    env = (settings.ENVIRONMENT or "").strip().lower()
-    if env in ("production", "staging"):
+    if not getattr(settings, "ALLOW_DEV_OTP_ECHO", False):
         return False
-    return bool(os.environ.get("PYTEST_CURRENT_TEST")) or (
-        os.environ.get("ALLOW_DEV_OTP_ECHO", "").strip().lower() == "true"
-    )
+    return os.environ.get("ALLOW_DEV_OTP_ECHO", "").strip().lower() == "true"
 
 
 def _utc_now_naive() -> datetime:
@@ -276,19 +284,46 @@ def confirm_password_reset(payload: PasswordResetConfirm, db: Session = Depends(
 
 @router.post("/otp/request", dependencies=[Depends(auth_limiter)])
 def request_mobile_otp(payload: MobileOtpRequest, db: Session = Depends(get_db)):
-    generic_msg = "If a unique account matches this mobile number, a one-time code has been sent."
     norm_phone = _normalize_phone_digits(payload.phone)
     if len(norm_phone) < 7:
-        return {"message": generic_msg}
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Please enter a valid mobile phone number."
+        )
 
     active_users = db.query(User).filter(User.is_active == True, User.phone.isnot(None)).all()
     matches = [u for u in active_users if _normalize_phone_digits(u.phone or "") == norm_phone]
-    if len(matches) != 1:
-        return {"message": generic_msg}
 
-    user = matches[0]
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Multiple accounts match this mobile number. Please sign in with email and password."
+        )
+    elif not matches:
+        # Seamless consumer mobile onboarding: Auto-create customer account
+        default_email = f"user_{norm_phone}@glamgo.in"
+        existing_email = db.query(User).filter(User.email == default_email).first()
+        if existing_email:
+            default_email = f"user_{norm_phone}_{secrets.token_hex(3)}@glamgo.in"
+        user = User(
+            email=default_email,
+            full_name=f"Customer {norm_phone[-4:]}",
+            phone=payload.phone.strip(),
+            hashed_password=hash_password(secrets.token_urlsafe(16)),
+            role=UserRole.CUSTOMER,
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    else:
+        user = matches[0]
+
     if user.role == UserRole.ADMIN:
-        return {"message": generic_msg}
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator accounts must sign in with email and password."
+        )
 
     otp = str(secrets.randbelow(900000) + 100000)
     user.otp_code_hash = _hash_code(otp)
@@ -296,10 +331,17 @@ def request_mobile_otp(payload: MobileOtpRequest, db: Session = Depends(get_db))
     user.otp_attempts = 0
     db.commit()
 
-    res = {"message": generic_msg}
-    if _allow_dev_code_echo():
-        res["dev_otp"] = otp
-    return res
+    # Dispatch via SMS service (Fast2SMS / Twilio if configured, or simulated)
+    from backend.app.services.sms_service import sms_service
+    sms_service.send_otp(user.phone or payload.phone, otp)
+
+    allow_echo = _allow_dev_code_echo()
+    return {
+        "message": f"Verification code sent to {payload.phone}." if not allow_echo else f"Verification code sent. Code: {otp}",
+        "dev_otp": otp if allow_echo else None,
+        "otp": otp if allow_echo else None,
+        "phone": payload.phone.strip()
+    }
 
 
 @router.post("/otp/verify", response_model=Token, dependencies=[Depends(auth_limiter)])
@@ -349,6 +391,119 @@ def verify_mobile_otp(payload: MobileOtpVerify, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid OTP.",
+        )
+
+    user.otp_code_hash = None
+    user.otp_expires_at = None
+    user.otp_attempts = 0
+    db.commit()
+
+    access_token = create_access_token(subject=user.id, role=user.role.value)
+    refresh_token = create_refresh_token(subject=user.id, role=user.role.value)
+    return Token(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        role=user.role.value,
+        user_id=user.id,
+        name=user.full_name,
+        email=user.email,
+        phone=user.phone,
+    )
+
+
+@router.post("/otp/email/request", dependencies=[Depends(auth_limiter)])
+def request_email_otp(payload: EmailOtpRequest, db: Session = Depends(get_db)):
+    """
+    Enforces real-email verification (valid format, disposable domain blocklist, active DNS MX check),
+    auto-provisions customer accounts for new legitimate emails, and dispatches a 6-digit OTP code.
+    """
+    norm_email = validate_real_email(payload.email)
+
+    user = db.query(User).filter(func.lower(User.email) == norm_email).first()
+    if not user:
+        # Seamless consumer onboarding for real emails: Auto-create customer account
+        name_part = norm_email.split("@")[0].replace(".", " ").replace("_", " ").title()
+        user = User(
+            email=norm_email,
+            full_name=name_part if name_part else "Customer",
+            phone=None,
+            hashed_password=hash_password(secrets.token_urlsafe(16)),
+            role=UserRole.CUSTOMER,
+            is_active=True
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account is deactivated. Please contact support."
+        )
+
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator accounts must sign in with email and password."
+        )
+
+    otp = str(secrets.randbelow(900000) + 100000)
+    user.otp_code_hash = _hash_code(otp)
+    user.otp_expires_at = _utc_now_naive() + timedelta(minutes=10)
+    user.otp_attempts = 0
+    db.commit()
+
+    # Dispatch via Email Service (SMTP / Resend / Dev console)
+    EmailService.send_otp(user.email, otp)
+
+    allow_echo = _allow_dev_code_echo()
+    res = {
+        "message": f"Verification code sent to {user.email}. Please check your inbox.",
+        "email": user.email
+    }
+    if allow_echo:
+        res["dev_otp"] = otp
+        res["otp"] = otp
+    return res
+
+
+@router.post("/otp/email/verify", response_model=Token, dependencies=[Depends(auth_limiter)])
+def verify_email_otp(payload: EmailOtpVerify, db: Session = Depends(get_db)):
+    norm_email = str(payload.email or "").strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == norm_email).first()
+
+    if not user or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP."
+        )
+
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Administrator accounts must sign in with email and password."
+        )
+
+    if not user.otp_code_hash or _is_expired(user.otp_expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired OTP."
+        )
+
+    if not hmac.compare_digest(_hash_code(payload.otp), user.otp_code_hash):
+        user.otp_attempts = int(user.otp_attempts or 0) + 1
+        if user.otp_attempts >= MAX_CODE_ATTEMPTS:
+            user.otp_code_hash = None
+            user.otp_expires_at = None
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many invalid OTP attempts. Please request a new OTP."
+            )
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid OTP."
         )
 
     user.otp_code_hash = None

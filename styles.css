@@ -1976,8 +1976,9 @@ summary:focus-visible {
 .collection-controls-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -6953,3 +6954,40 @@ summary:focus-visible {
     transform: none;
   }
 }
+
+/* Customer browsing preference: pill toggle and scoped Men palette (Yes Madam aesthetic). */
+.audience-section { background: var(--ivory); padding: 20px clamp(20px, 5.5vw, 88px) 0; }
+.audience-section-inner { display: flex; align-items: center; justify-content: flex-start; gap: 16px; }
+.audience-label { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .13em; }
+.audience-switcher { display: inline-flex; align-items: center; border: 1px solid var(--border); background: var(--card); padding: 4px; border-radius: 999px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+.audience-choice { min-height: 40px; min-width: 106px; padding: 6px 18px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: all .2s ease; cursor: pointer; }
+.audience-choice svg { width: 16px; height: 16px; stroke-width: 2; flex-shrink: 0; }
+.audience-choice.active { background: var(--ink); color: #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14); }
+.audience-choice:focus-visible { outline: 3px solid #87622f; outline-offset: 3px; }
+.audience-catalogue-note { margin: -8px 0 24px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+body.theme-men {
+  --ivory: #ffffff; --cream: #f4f7f5; --card: #ffffff; --beige: #e5ece8;
+  --ink: #1e2d28; --muted: #4e6359; --border: #d8e2dc;
+  --champagne: #fbc27d; --terracotta: #1e2d28; --terracotta-deep: #14231c;
+}
+.theme-men .home-hero, .theme-men .salon-hero, .theme-men .shop-hero { background: #1e2d28; color: #fff; }
+.theme-men .home-hero .hero-copy, .theme-men .salon-hero-copy, .theme-men .shop-hero-copy { background: #1e2d28; color: #fff; }
+.theme-men .home-hero .eyebrow, .theme-men .salon-hero .eyebrow, .theme-men .shop-hero .eyebrow { color: #fbc27d; }
+.theme-men .home-hero h1, .theme-men .salon-hero h1, .theme-men .shop-hero h1 { color: #fff; }
+.theme-men .home-hero h1 em, .theme-men .salon-hero h1 em, .theme-men .shop-hero h1 em { color: #fbc27d; }
+.theme-men .home-hero .hero-copy > p:not(.eyebrow), .theme-men .salon-hero-copy > p:not(.eyebrow), .theme-men .shop-hero-copy > p:not(.eyebrow) { color: #e4eee9; }
+.theme-men .home-hero .btn-primary, .theme-men .salon-hero .btn-primary, .theme-men .shop-hero .btn-primary { background: #fcf8d5; color: #1e2d28; border-color: #fcf8d5; border-radius: 999px; }
+.theme-men .home-hero .btn-primary:hover, .theme-men .salon-hero .btn-primary:hover, .theme-men .shop-hero .btn-primary:hover { background: #fff; border-color: #fff; color: #14231c; }
+.theme-men .btn-primary { background: #1e2d28; border-color: #1e2d28; color: #fff; border-radius: 999px; }
+.theme-men .btn-primary:hover:not(:disabled) { background: #14231c; border-color: #14231c; color: #fff; }
+.theme-men .audience-choice.active { background: #1e2d28; color: #fff; box-shadow: 0 2px 8px rgba(30, 45, 40, 0.28); }
+.theme-men .audience-choice:focus-visible { outline-color: #1e2d28; }
+@media (max-width: 700px) {
+  .audience-section { padding: 18px 20px 0; }
+  .audience-section-inner { gap: 12px; }
+  .audience-choice { min-height: 44px; min-width: 88px; }
+}
+.audience-general-toggle { border: 0; padding: 2px 0; background: transparent; color: var(--ink); text-decoration: underline; font-weight: 700; }
+.audience-general-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.audience-badge { display: inline-block; width: fit-content; margin: 3px 0 6px; padding: 3px 6px; color: var(--muted); background: var(--cream); font-size: 11px; line-height: 1.4; }
+.demo-catalogue-notice { padding: 9px 16px; background: #e5ddd2; color: #1e1c1a; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.4; }

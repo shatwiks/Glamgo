@@ -40,6 +40,7 @@ def format_product(p: Product) -> dict:
     )
 
     return {
+        "audience": p.audience,
         "id": p.id,
         "brand": p.brand,
         "name": p.name,
@@ -66,9 +67,10 @@ def get_products(
     sort: Optional[str] = Query("featured"),
     tag: Optional[str] = Query(None),
     query: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:products:v2:{category}:{sort}:{tag}:{query}"
+    cache_key = f"glamgo:catalog:products:v3:{category}:{sort}:{tag}:{query}:{audience}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -78,6 +80,16 @@ def get_products(
         q = q.filter(Product.category.ilike(category))
     if tag:
         q = q.filter(Product.tag == tag)
+    if audience:
+        aud = audience.strip().lower()
+        if aud == "men":
+            q = q.filter(Product.audience.in_(["men", "unisex"]))
+        elif aud == "women":
+            q = q.filter(Product.audience.in_(["women", "unisex", "unspecified"]))
+        elif aud == "unisex":
+            q = q.filter(Product.audience == "unisex")
+        elif aud not in ("all", "*"):
+            q = q.filter(Product.audience == aud)
     if query:
         q_term = f"%{query}%"
         q = q.filter(
@@ -135,6 +147,7 @@ def create_product(
     product = Product(
         id=pid,
         seller_id=user.id,
+        audience=prod_in.audience,
         brand=prod_in.brand,
         name=prod_in.name,
         category=prod_in.category,

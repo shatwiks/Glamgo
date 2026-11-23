@@ -35,17 +35,20 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
 
     migrations = {
         "salons": [
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
             ("city", "VARCHAR(100) NOT NULL DEFAULT 'Mumbai'"),
             ("lat", float_type),
             ("lng", float_type),
         ],
         "professional_profiles": [
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
             ("city", "VARCHAR(100) NOT NULL DEFAULT 'Mumbai'"),
             ("area", "VARCHAR(255)"),
             ("lat", float_type),
             ("lng", float_type),
         ],
         "services": [
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
             ("service_cities", "VARCHAR(255) NOT NULL DEFAULT 'Mumbai,Bengaluru,Delhi'"),
         ],
         "bookings": [
@@ -66,6 +69,8 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
             ("wallet_credits", f"{float_type} NOT NULL DEFAULT 0.0"),
         ],
     }
+
+    migrations["products"] = [("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'")]
 
     pending = []
     for table_name, columns in migrations.items():

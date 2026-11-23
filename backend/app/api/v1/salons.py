@@ -55,6 +55,7 @@ def format_salon(
         distance_display = f"{distance_km:.1f} km away"
 
     return {
+        "audience": s.audience,
         "id": s.id,
         "name": s.name,
         "city": city_val,
@@ -82,12 +83,13 @@ def get_salons(
     sort: Optional[str] = Query("featured"),
     query: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     lat: Optional[float] = Query(None, ge=-90, le=90),
     lng: Optional[float] = Query(None, ge=-180, le=180),
     max_distance_km: Optional[float] = Query(None, gt=0, le=200),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:salons:v2:{category}:{sort}:{query}:{city}:{lat}:{lng}:{max_distance_km}"
+    cache_key = f"glamgo:catalog:salons:v3:{category}:{sort}:{query}:{city}:{audience}:{lat}:{lng}:{max_distance_km}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -97,6 +99,17 @@ def get_salons(
     res = []
     for s in salons:
         data = format_salon(s, user_lat=lat if has_coords else None, user_lng=lng if has_coords else None)
+        if audience:
+            aud = audience.strip().lower()
+            item_aud = (data.get("audience") or "unspecified").lower()
+            if aud == "men" and item_aud not in ("men", "unisex"):
+                continue
+            elif aud == "women" and item_aud not in ("women", "unisex", "unspecified"):
+                continue
+            elif aud == "unisex" and item_aud != "unisex":
+                continue
+            elif aud not in ("all", "*") and item_aud != aud:
+                continue
         if city and city.strip():
             if data["city"].strip().lower() != city.strip().lower():
                 continue
@@ -149,6 +162,7 @@ def create_salon(
     salon = Salon(
         id=sid,
         owner_id=user.id,
+        audience=salon_in.audience,
         name=salon_in.name,
         city=salon_in.city or "Mumbai",
         area=salon_in.area,

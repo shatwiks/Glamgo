@@ -154,6 +154,23 @@ export async function apiVerifyMobileOtp(phone, otp) {
   return data;
 }
 
+export async function apiRequestEmailOtp(email) {
+  return await apiRequest('/auth/otp/email/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function apiVerifyEmailOtp(email, otp) {
+  const data = await apiRequest('/auth/otp/email/verify', {
+    method: 'POST',
+    body: JSON.stringify({ email, otp }),
+  });
+  if (data?.access_token) tokenStorage.set(data.access_token);
+  if (data?.refresh_token) tokenStorage.setRefresh(data.refresh_token);
+  return data;
+}
+
 // Catalog
 export async function apiGetServices(category = null, query = null, city = null) {
   const params = new URLSearchParams();

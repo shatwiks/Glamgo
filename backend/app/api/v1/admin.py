@@ -1,7 +1,8 @@
 import re
 import secrets
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Literal
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -25,6 +26,28 @@ from backend.app.services.audit_service import log_admin_action
 from backend.app.services.cache_service import cache_service
 
 router = APIRouter()
+
+
+class AudienceUpdate(BaseModel):
+    audience: Literal["women", "men", "unisex", "unspecified"]
+
+
+@router.put("/catalog/{kind}/{item_id}/audience")
+def update_catalog_audience(kind: Literal["service", "salon", "product", "professional"], item_id: str, payload: AudienceUpdate, request: Request, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    model = {"service": Service, "salon": Salon, "product": Product, "professional": ProfessionalProfile}[kind]
+    if kind == "professional" and not item_id.isdigit():
+        raise HTTPException(status_code=404, detail="Listing not found")
+    row = db.query(model).filter(model.id == (int(item_id) if kind == "professional" else item_id)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    previous = row.audience
+    row.audience = payload.audience
+    log_admin_action(db, admin.id, "catalog_audience_updated", kind, item_id,
+                     {"previous": previous, "audience": payload.audience},
+                     request.client.host if request.client else None, commit=False)
+    db.commit()
+    cache_service.invalidate_catalog()
+    return {"id": item_id, "audience": row.audience}
 
 
 @router.get("/stats", response_model=AdminStatsEnhancedResponse)

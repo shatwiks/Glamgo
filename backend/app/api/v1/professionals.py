@@ -12,9 +12,11 @@ router = APIRouter()
 @router.get("/", response_model=List[ProfessionalResponse])
 def get_professionals(
     specialty: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:professionals:v1:{specialty}"
+    cache_key = f"glamgo:catalog:professionals:v2:{specialty}:{city}:{audience}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -22,6 +24,18 @@ def get_professionals(
     q = db.query(ProfessionalProfile).filter(ProfessionalProfile.is_verified == True)
     if specialty:
         q = q.filter(ProfessionalProfile.specialty.ilike(f"%{specialty}%"))
+    if city and city.strip():
+        q = q.filter(ProfessionalProfile.city.ilike(city.strip()))
+    if audience:
+        aud = audience.strip().lower()
+        if aud == "men":
+            q = q.filter(ProfessionalProfile.audience.in_(["men", "unisex"]))
+        elif aud == "women":
+            q = q.filter(ProfessionalProfile.audience.in_(["women", "unisex", "unspecified"]))
+        elif aud == "unisex":
+            q = q.filter(ProfessionalProfile.audience == "unisex")
+        elif aud not in ("all", "*"):
+            q = q.filter(ProfessionalProfile.audience == aud)
     result = [ProfessionalResponse.model_validate(p).model_dump() for p in q.all()]
     cache_service.set(cache_key, result, ttl=300)
     return result

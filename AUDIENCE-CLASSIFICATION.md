@@ -1,0 +1,9 @@
+# Audience classification and local testing
+
+Services, salon profiles, professional profiles, and products have an `audience` field: `women`, `men`, `unisex`, or `unspecified`. Existing records migrate to `unspecified`; no classification is inferred. The customer selector shows the selected audience and unisex. Unclassified records remain visible in the main Women browsing view and in search. They are not shown in the Men listing sections. Their classification remains unspecified. Search follows the same preference, and carts and saved favourites remain shared.
+
+Salon owners and professionals can set the audience in their profile, and product sellers can set it on their products. Administrators can classify catalogue items through `PUT /api/v1/admin/catalog/{kind}/{id}/audience` (`kind` is `service`, `salon`, `product`, or `professional`); the service catalogue includes a control. Updates validate the audience, check role or ownership, invalidate catalogue caches, and administrator changes are audited. A listing's category and image do not imply suitability.
+
+The startup additive migration adds the field with an `unspecified` default to existing databases; deployment requires the backend version containing this change. Partners or administrators must classify existing listings based on confirmed business data. Until then, unclassified items remain visible as described above. The existing hosted backend and data are unchanged by local preview work.
+
+The main local preview on port 5175 uses the configured hosted API and, when VITE_LOCAL_DEMO_CATALOGUE=true, merges only clearly labelled male DEMO records from the isolated SQLite-backed preview API on port 8012. Demo items cannot be booked or purchased. This does not modify the hosted catalogue. Port 5176 is the separate demo-only preview. The local demo database is temporary; restarting the preview requires the local backend and the Vite flag.

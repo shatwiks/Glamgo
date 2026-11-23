@@ -31,6 +31,23 @@ class Settings(BaseSettings):
     RAZORPAY_KEY_SECRET: str = ""
     RAZORPAY_WEBHOOK_SECRET: str = ""
 
+    # SMS Gateway (Optional real delivery: Twilio, Fast2SMS)
+    SMS_PROVIDER: str = "auto"
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_FROM_NUMBER: str = ""
+    FAST2SMS_API_KEY: str = ""
+    ALLOW_DEV_OTP_ECHO: bool = False
+
+    # Email Gateway (Optional real delivery: Gmail SMTP, Brevo, Resend)
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "GlamGo"
+    RESEND_API_KEY: str = ""
+
     # Internal Scheduled Maintenance Service Token (required in production)
     INTERNAL_MAINTENANCE_TOKEN: str = ""
 

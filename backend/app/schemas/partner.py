@@ -1,3 +1,4 @@
+from typing import Literal
 from typing import List, Optional, Any, Dict
 from datetime import datetime
 from pydantic import BaseModel, ConfigDict
@@ -49,6 +50,7 @@ class AvailabilityResponse(BaseModel):
 
 
 class ProfessionalProfileUpdate(BaseModel):
+    audience: Optional[Literal["women", "men", "unisex", "unspecified"]] = None
     name: Optional[str] = None
     specialty: Optional[str] = None
     experience: Optional[str] = None
@@ -61,6 +63,7 @@ class ProfessionalServiceAssign(BaseModel):
 
 
 class SalonProfileUpdate(BaseModel):
+    audience: Optional[Literal["women", "men", "unisex", "unspecified"]] = None
     name: Optional[str] = None
     area: Optional[str] = None
     hours: Optional[str] = None
@@ -87,6 +90,7 @@ class SalonStaffResponse(BaseModel):
 
 
 class SellerProductCreate(BaseModel):
+    audience: Literal["women", "men", "unisex", "unspecified"] = "unspecified"
     brand: str
     name: str
     category: str
@@ -101,6 +105,7 @@ class SellerProductCreate(BaseModel):
 
 
 class SellerProductUpdate(BaseModel):
+    audience: Optional[Literal["women", "men", "unisex", "unspecified"]] = None
     brand: Optional[str] = None
     name: Optional[str] = None
     category: Optional[str] = None

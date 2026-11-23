@@ -1,8 +1,12 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Literal
 from pydantic import BaseModel, ConfigDict
 
 
+Audience = Literal["women", "men", "unisex", "unspecified"]
+
+
 class ServiceResponse(BaseModel):
+    audience: Audience = "unspecified"
     id: str
     name: str
     category: str
@@ -18,6 +22,7 @@ class ServiceResponse(BaseModel):
 
 
 class ServiceCreate(BaseModel):
+    audience: Audience = "unspecified"
     id: Optional[str] = None
     name: str
     category: str
@@ -29,6 +34,7 @@ class ServiceCreate(BaseModel):
 
 
 class ProfessionalResponse(BaseModel):
+    audience: Audience = "unspecified"
     id: int
     name: str
     city: str = "Mumbai"
@@ -56,6 +62,7 @@ class SalonStaffResponse(BaseModel):
 
 
 class SalonResponse(BaseModel):
+    audience: Audience = "unspecified"
     id: str
     name: str
     city: str = "Mumbai"
@@ -79,6 +86,7 @@ class SalonResponse(BaseModel):
 
 
 class SalonCreate(BaseModel):
+    audience: Audience = "unspecified"
     id: Optional[str] = None
     name: str
     city: Optional[str] = "Mumbai"
@@ -103,6 +111,7 @@ class ProductVariantResponse(BaseModel):
 
 
 class ProductResponse(BaseModel):
+    audience: Audience = "unspecified"
     id: str
     brand: str
     name: str
@@ -125,6 +134,7 @@ class ProductResponse(BaseModel):
 
 
 class ProductCreate(BaseModel):
+    audience: Audience = "unspecified"
     id: Optional[str] = None
     brand: str
     name: str

@@ -14,9 +14,11 @@ router = APIRouter()
 def get_services(
     category: Optional[str] = Query(None),
     query: Optional[str] = Query(None),
+    audience: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:services:v1:{category}:{query}"
+    cache_key = f"glamgo:catalog:services:v2:{category}:{query}:{audience}:{city}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
@@ -26,6 +28,19 @@ def get_services(
         q = q.filter(Service.category.ilike(category))
     if query:
         q = q.filter((Service.name.ilike(f"%{query}%")) | (Service.desc.ilike(f"%{query}%")))
+    if audience:
+        aud = audience.strip().lower()
+        if aud == "men":
+            q = q.filter(Service.audience.in_(["men", "unisex"]))
+        elif aud == "women":
+            q = q.filter(Service.audience.in_(["women", "unisex", "unspecified"]))
+        elif aud == "unisex":
+            q = q.filter(Service.audience == "unisex")
+        elif aud not in ("all", "*"):
+            q = q.filter(Service.audience == aud)
+    if city and city.strip():
+        q = q.filter(Service.service_cities.ilike(f"%{city.strip()}%"))
+
     result = [ServiceResponse.model_validate(s).model_dump() for s in q.all()]
     cache_service.set(cache_key, result, ttl=300)
     return result
@@ -56,6 +71,7 @@ def create_service(
     sid = service_in.id or f"s{int(time.time()*1000)}"
     service = Service(
         id=sid,
+        audience=service_in.audience,
         name=service_in.name,
         category=service_in.category,
         price=service_in.price,

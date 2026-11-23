@@ -4,6 +4,31 @@
 
 ---
 
+## Prompt Entry — `2026-11-23`: Production OTP Security Hardening (Removed On-Screen Code Display & Auto-Typing)
+
+**Objective:** Secure the OTP login system for production by removing all dev-helper on-screen code displays, auto-typing, prefilled input values, and "Auto-fill" buttons, ensuring OTP codes are delivered exclusively to the user's physical inbox.
+
+**Changes:**
+1. **Frontend (`src/app.js`):**
+   - Removed dev `hint` callout banner (`auth-otp-callout`) and `Auto-fill` button from the modal.
+   - Removed OTP prefilling: input field is rendered completely blank (`value=""`) requiring manual entry.
+   - Updated copy to instruct the user: *"Please check your email inbox and enter the 6-digit verification code below."*
+   - Updated toast notifications to avoid leaking the code: *"Verification code sent to your email. Please check your inbox."*
+2. **Backend (`backend/app/core/config.py` & `backend/app/api/v1/auth.py`):**
+   - Changed `ALLOW_DEV_OTP_ECHO` default to `False`.
+   - Hardened `_allow_dev_code_echo()`: strictly requires explicit environment flag.
+   - Updated `/api/v1/auth/otp/email/request` and `/api/v1/auth/otp/request` to omit `otp` and `dev_otp` from API JSON responses in normal operation.
+3. **Tests (`backend/tests/test_email_otp.py`):**
+   - Updated test runner to explicitly enable dev echo via fixture monkeypatch for test assertions while keeping production and dev environments secure.
+
+**Verification Results:**
+- `python -m pytest backend/tests/test_email_otp.py`: 5 passed in 29.18s.
+- `node --test tests/*.test.mjs`: 6 passed.
+- `npm run build`: Vite production bundle generated cleanly in 2.35s.
+- Live API response verified: `{"message": "Verification code sent to shatwik7@gmail.com. Please check your inbox.", "email": "shatwik7@gmail.com"}` (no OTP field).
+
+---
+
 ## Prompt Entry #21 — `2026-11-23`: Port Interactive Leaflet Location Map & Search Autocomplete (`release/54ba3db`)
 
 **Prompt Summary:** Bring back `main`'s interactive Leaflet map picker and live location search suggestions inside the Location modal (`#location-picker-map` and `#location-autocomplete-list`) into `release/54ba3db`.
