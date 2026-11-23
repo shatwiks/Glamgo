@@ -4,6 +4,23 @@
 
 ---
 
+## Prompt Entry #21 — `2026-11-23`: Port Interactive Leaflet Location Map & Search Autocomplete (`release/54ba3db`)
+
+**Prompt Summary:** Bring back `main`'s interactive Leaflet map picker and live location search suggestions inside the Location modal (`#location-picker-map` and `#location-autocomplete-list`) into `release/54ba3db`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `package.json`, `package-lock.json`: Installed `leaflet` dependency.
+- `src/app.js`: Added lazy `loadLeaflet()`, `destroyActiveMaps()`, `addTileLayerWithFallback()`, `searchLocationSuggestions()` (Photon + Nominatim fallback), `mountLocationPickerMap()` (with click-to-drop-pin reverse geocoding), `location-pick` handler, updated `map-locate`, `#location-search-input` debounced autocomplete + `pointerdown`/`focusout`/`Escape` handling, and updated `modal()`/`render()` lifecycle for `state.modal === 'location'`.
+- `styles.css`: Added `.gg-map-pin-wrap`, `.gg-map-pin`, `.gg-map-pin-active`, `.gg-location-map-bar`, `.gg-map-modal`, `.gg-locate-btn`, `.gg-loc-field`, `.gg-loc-dropdown`, `.gg-loc-option`, `.gg-loc-status`, and responsive `<= 700px` map sizing.
+- `CHANGEREPORT.md`: Prepended Prompt Entry #21.
+
+**Checks Run & Observed Results (`branch-release-54ba3db`):**
+- `node -c branch-release-54ba3db/src/app.js` -> exited `0`.
+- `npm --prefix "branch-release-54ba3db" run build` -> exited `0` (`vite build` v7.3.7, `14 modules transformed`, lazy `leaflet` chunk built in `3.00s`).
+- Live Browser Verification (`http://127.0.0.1:5173/#home` at `1280x800`) -> `#location-picker-map` mounted Leaflet (`.leaflet-container` + `.gg-map-pin-active`), typing `"Indiranagar"` rendered 5 `.gg-loc-option` suggestions in `#location-autocomplete-list`, selecting an option + submitting `#location-form` updated the header and discovery bar cleanly with `0` JS console errors and `0` failed network requests.
+
+---
+
 ## Prompt Entry #20 — `2026-11-23`: Simplify Customer Experience Across Landing, Header, Discovery, Filters & Details (`release/54ba3db`, Local)
 
 **Prompt Summary:** Simplify the GlamGo customer experience across desktop and mobile (`1440px`, `1280px`, `768px`, `390px`) using XtremeX-style layout clarity while strictly preserving GlamGo's ivory/cream/charcoal/champagne/terracotta palette, typography, marketplace framing, and API-driven functionality (local preview first, uncommitted/unpushed).

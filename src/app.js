@@ -94,6 +94,25 @@ const SALON_IMG = './assets/salon-editorial.webp';
 const SHOP_IMG = './assets/shop-editorial.webp';
 const photo = (id, w = 900) => 'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=85';
 
+let leafletMod = null;
+let leafletLoadPromise = null;
+function loadLeaflet() {
+  if (leafletMod) return Promise.resolve(leafletMod);
+  if (leafletLoadPromise) return leafletLoadPromise;
+  leafletLoadPromise = Promise.all([
+    import('leaflet'),
+    import('leaflet/dist/leaflet.css')
+  ]).then(([lMod]) => {
+    leafletMod = lMod.default || lMod;
+    return leafletMod;
+  }).catch(err => {
+    leafletLoadPromise = null;
+    console.warn('[GlamGo] Failed to lazy-load Leaflet:', err);
+    return null;
+  });
+  return leafletLoadPromise;
+}
+
 const icons = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/>',
   pin: '<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
@@ -248,7 +267,110 @@ async function reverseGeocodeCoords(lat, lng) {
       if (formatted) return formatted;
     }
   } catch {}
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  return `${Number(lat).toFixed(4)}, ${Number(lng).toFixed(4)}`;
+}
+
+let activeLeafletMaps = [];
+let activeLocationMap = null;
+let activeLocationMarker = null;
+function destroyActiveMaps() {
+  activeLeafletMaps.forEach(m => {
+    try { m.stop(); m.off(); m.remove(); } catch {}
+  });
+  activeLeafletMaps = [];
+  activeLocationMap = null;
+  activeLocationMarker = null;
+}
+
+function addTileLayerWithFallback(map, L) {
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+}
+
+async function searchLocationSuggestions(query) {
+  const q = String(query || '').trim();
+  if (q.length < 2) return [];
+  const bias = Array.isArray(state.userCoords) ? state.userCoords : [19.076, 72.8777];
+  try {
+    const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=5&lang=en&lat=${encodeURIComponent(bias[0])}&lon=${encodeURIComponent(bias[1])}`);
+    if (res.ok) {
+      const data = await res.json();
+      const features = Array.isArray(data?.features) ? data.features : [];
+      const items = features.map(f => {
+        const p = f.properties || {};
+        const coords = f.geometry?.coordinates || [];
+        const name = p.name || p.street || p.district || p.city || '';
+        const sub = [p.district, p.city || p.county, p.state, p.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+        const full = sub && !sub.toLowerCase().startsWith(name.toLowerCase()) ? `${name}, ${sub}` : (name || sub);
+        return { label: name || sub, sub, full: full || sub, lat: Number(coords[1]), lng: Number(coords[0]) };
+      }).filter(x => x.full && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+      if (items.length) return items;
+    }
+  } catch {}
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&q=${encodeURIComponent(q)}`, {
+      headers: { Accept: 'application/json' }
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      return (Array.isArray(rows) ? rows : []).map(r => {
+        const parts = String(r.display_name || '').split(',').map(s => s.trim()).filter(Boolean);
+        return {
+          label: parts[0] || r.display_name,
+          sub: parts.slice(1, 4).join(', '),
+          full: parts.slice(0, 3).join(', '),
+          lat: Number(r.lat),
+          lng: Number(r.lon)
+        };
+      }).filter(x => x.full && Number.isFinite(x.lat) && Number.isFinite(x.lng));
+    }
+  } catch {}
+  return [];
+}
+
+async function mountLocationPickerMap() {
+  const locEl = document.getElementById('location-picker-map');
+  if (!locEl) return;
+  const L = await loadLeaflet();
+  if (!L) return;
+
+  const currentLocEl = document.getElementById('location-picker-map');
+  if (currentLocEl && !currentLocEl._leaflet_id) {
+    const center = Array.isArray(state.userCoords)
+      ? state.userCoords
+      : resolveSalonCoords({ area: state.location });
+    const map = L.map(currentLocEl, {
+      scrollWheelZoom: false,
+      zoomAnimation: false,
+      fadeAnimation: false,
+      markerZoomAnimation: false
+    }).setView(center, 13);
+    addTileLayerWithFallback(map, L);
+    const pinIcon = L.divIcon({
+      className: 'gg-map-pin-wrap',
+      html: '<span class="gg-map-pin gg-map-pin-active">Selected</span>',
+      iconSize: [74, 28],
+      iconAnchor: [37, 14]
+    });
+    const marker = L.marker(center, { icon: pinIcon }).addTo(map);
+    activeLocationMap = map;
+    activeLocationMarker = marker;
+    map.on('click', async ev => {
+      const { lat, lng } = ev.latlng;
+      state.userCoords = [lat, lng];
+      marker.setLatLng([lat, lng]);
+      const input = document.getElementById('location-search-input');
+      if (input) input.value = 'Updating location…';
+      const label = await reverseGeocodeCoords(lat, lng);
+      state.location = label;
+      const freshInput = document.getElementById('location-search-input');
+      if (freshInput) freshInput.value = label;
+    });
+    activeLeafletMaps.push(map);
+    setTimeout(() => { try { map.invalidateSize(); } catch {} }, 100);
+  }
 }
 
 const homeCategories = ['All','Hair','Skin','Waxing','Threading','Nails','Makeup','Spa','Packages'];
@@ -2549,7 +2671,7 @@ function modal(){
     inner='<div class="modal-head"><p class="eyebrow">PARTNER MODERATION</p><h2>Reject application.</h2><p>Please provide a formal rejection reason for '+esc(draft?.applicant_name || 'the applicant')+'.</p></div><form id="admin-reject-form"><label>Rejection reason<textarea name="reason" required placeholder="e.g. Incomplete training credentials or invalid salon trade license" style="min-height:90px"></textarea></label><button class="btn btn-danger full" type="submit">Confirm rejection '+icon('arrow',17)+'</button></form>';
   }
   if(state.modal==='partner-suborder-ship') inner='<div class="modal-head"><p class="eyebrow">SHIP ORDER</p><h2>Enter tracking details.</h2><p>For suborder '+esc(state.shipSuborderId || '')+'.</p></div><form id="partner-ship-form"><label>Courier name<input name="carrier" required maxlength="100" placeholder="Courier or delivery partner" autocomplete="off"></label><label>Tracking number<input name="tracking" required maxlength="100" placeholder="Tracking or AWB number" autocomplete="off"></label><label>Tracking link (optional)<input name="tracking_url" type="url" placeholder="https://"></label><button class="btn btn-primary full" type="submit">Confirm dispatch '+icon('arrow',17)+'</button></form>';
-  else if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>View city-available services, specialists, and distance-sorted salons.</p></div><button type="button" class="btn btn-outline full" style="margin-bottom:14px" data-action="map-locate">'+icon('pin',16)+' Use my current location (GPS)</button><form id="location-form"><label>Enter area or city<input name="location" required value="'+esc(state.location)+'" placeholder="e.g. Bandra West, Mumbai" autofocus></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Indiranagar, Bengaluru','Koramangala, Bengaluru','Whitefield, Bengaluru','Bandra West, Mumbai','Juhu, Mumbai','Hauz Khas, South Delhi'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
+  else if(state.modal==='location') inner='<div class="modal-head"><p class="eyebrow">YOUR LOCATION</p><h2>Where should we find you?</h2><p>View city-available services, specialists, and distance-sorted salons.</p></div><div class="gg-location-map-bar"><span>Tap anywhere on the map to drop your pin</span><button type="button" class="btn btn-outline btn-sm gg-locate-btn" data-action="map-locate">'+icon('pin',14)+' Use my location</button></div><div id="location-picker-map" class="gg-map-modal" role="region" aria-label="Pick your location on the map"></div><form id="location-form"><label>Enter area or city<div class="gg-loc-field"><input id="location-search-input" name="location" required value="'+esc(state.location)+'" placeholder="Search any area, street, or city…" autocomplete="off" autofocus><div id="location-autocomplete-list" class="gg-loc-dropdown" role="listbox" aria-label="Location suggestions" hidden></div></div></label><button class="btn btn-primary full" type="submit">Save location '+icon('arrow',17)+'</button></form><div class="location-suggestions"><span>POPULAR LOCATIONS</span>'+['Indiranagar, Bengaluru','Koramangala, Bengaluru','Whitefield, Bengaluru','Bandra West, Mumbai','Juhu, Mumbai','Hauz Khas, South Delhi'].map(l=>'<button data-action="location-set" data-id="'+l+'">'+icon('pin',16)+l+'</button>').join('')+'</div>';
   else if(state.modal==='date') inner='<div class="modal-head"><p class="eyebrow">PLAN YOUR VISIT</p><h2>Choose a date.</h2><p>Browse salons for the day that suits you.</p></div><div class="date-grid modal-dates">'+dateOptions().map(d=>'<button class="'+(state.salonDate===d.value?'selected':'')+'" data-action="date-set" data-id="'+d.value+'"><span>'+d.day+'</span><strong>'+d.date+'</strong><small>'+d.month+'</small></button>').join('')+'</div>';
   else if(state.modal==='search'){
     const q = state.query.toLowerCase().trim();
@@ -2688,6 +2810,7 @@ function bookingSuccess(){
 }
 
 function render(){
+  destroyActiveMaps();
   if(state.view === 'public'){
     app.innerHTML = publicLanding({ signedIn: state.signedIn, experience: state.experience, menu: state.publicMenu, icon });
     document.body.classList.remove('modal-open');
@@ -2714,6 +2837,9 @@ function render(){
   let page = state.view==='landing' ? (activeExp==='home'?homePage():activeExp==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
   app.innerHTML = header() + page + footer() + mobileNav() + modal();
   document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen));
+  if(state.modal === 'location'){
+    void mountLocationPickerMap();
+  }
 }
 
 function openBooking(type, itemId, serviceId = null, pro = null){
@@ -2908,6 +3034,22 @@ async function action(el){
     toast('Location updated to ' + normalizeCity(id));
     void loadCatalogFeeds();
   }
+  else if(a==='location-pick'){
+    const label = el.dataset.label || '';
+    const lat = Number(el.dataset.lat);
+    const lng = Number(el.dataset.lng);
+    if(label) state.location = label;
+    if(Number.isFinite(lat) && Number.isFinite(lng)){
+      state.userCoords = [lat, lng];
+      if(activeLocationMap) activeLocationMap.setView([lat, lng], 14);
+      if(activeLocationMarker) activeLocationMarker.setLatLng([lat, lng]);
+    }
+    const input = document.getElementById('location-search-input');
+    if(input && label) input.value = label;
+    persist();
+    hideLocationAutocomplete();
+    void loadCatalogFeeds({ silent: true });
+  }
   else if(a==='map-locate'){
     if(!navigator.geolocation){
       toast('Geolocation is not supported in this browser.');
@@ -2921,15 +3063,14 @@ async function action(el){
         state.userCoords = [lat, lng];
         state.location = await reverseGeocodeCoords(lat, lng);
         state.salonDistanceFilter = 'all';
-        state.modal = null;
         persist();
         render();
-        toast('Location updated to ' + state.location);
+        toast('Pinned your current location on the map.');
         void loadCatalogFeeds();
       },
       err => toast(err?.code === 1
-        ? 'Location access blocked — type your area or pick a city below.'
-        : 'Unable to fetch GPS right now — type your area below.'),
+        ? 'Location blocked in browser settings — tap the map or type your area.'
+        : 'Unable to fetch GPS right now — tap the map or type your area.'),
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
@@ -4465,7 +4606,64 @@ document.addEventListener('submit', async e => {
   }
 });
 
+let locationSearchTimer = null;
+let locationSearchSeq = 0;
+function hideLocationAutocomplete() {
+  const dd = document.getElementById('location-autocomplete-list');
+  if (dd) {
+    dd.hidden = true;
+  }
+}
+
+document.addEventListener('pointerdown', e => {
+  const dd = document.getElementById('location-autocomplete-list');
+  if (dd && !dd.hidden && !e.target.closest('.gg-loc-field')) {
+    hideLocationAutocomplete();
+  }
+});
+
+document.addEventListener('focusout', e => {
+  if (e.target && e.target.id === 'location-search-input') {
+    setTimeout(() => {
+      if (!document.activeElement?.closest('.gg-loc-field')) {
+        hideLocationAutocomplete();
+      }
+    }, 160);
+  }
+});
+
 document.addEventListener('input', e => {
+  if(e.target.id === 'location-search-input'){
+    clearTimeout(locationSearchTimer);
+    const val = e.target.value;
+    const dd = document.getElementById('location-autocomplete-list');
+    if(!dd) return;
+    if(val.trim().length < 2){
+      dd.hidden = true;
+      dd.innerHTML = '';
+      return;
+    }
+    dd.hidden = false;
+    dd.innerHTML = '<div class="gg-loc-status">Searching locations…</div>';
+    const seq = ++locationSearchSeq;
+    locationSearchTimer = setTimeout(async () => {
+      const results = await searchLocationSuggestions(val);
+      if(seq !== locationSearchSeq) return;
+      const box = document.getElementById('location-autocomplete-list');
+      if(!box) return;
+      if(!results.length){
+        box.innerHTML = '<div class="gg-loc-status">No matching places found</div>';
+        return;
+      }
+      box.innerHTML = results.map(item =>
+        '<button type="button" class="gg-loc-option" role="option" data-action="location-pick" data-label="' + esc(item.full) + '" data-lat="' + item.lat + '" data-lng="' + item.lng + '">' +
+          icon('pin', 15) +
+          '<span><strong>' + esc(item.label) + '</strong>' + (item.sub ? '<small>' + esc(item.sub) + '</small>' : '') + '</span>' +
+        '</button>'
+      ).join('');
+    }, 260);
+    return;
+  }
   if(e.target.dataset.dashboardSearch){
     const query = e.target.value.trim().toLowerCase();
     const panel = e.target.closest('.dashboard-panel, .admin-panel');
@@ -4647,6 +4845,14 @@ document.addEventListener('keydown', e => {
     render();
     document.getElementById('mobile-menu-trigger')?.focus();
     return;
+  }
+  if(e.key === 'Escape'){
+    const dd = document.getElementById('location-autocomplete-list');
+    if (dd && !dd.hidden && document.activeElement?.id === 'location-search-input') {
+      e.preventDefault();
+      hideLocationAutocomplete();
+      return;
+    }
   }
   if(e.key === 'Escape' && (state.modal || state.menu)){
     state.modal = null;

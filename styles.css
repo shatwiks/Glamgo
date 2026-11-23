@@ -5265,6 +5265,145 @@ summary:focus-visible {
   padding-top: 16px;
 }
 
+.gg-map-pin-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.gg-map-pin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ivory);
+  border: 1.5px solid var(--champagne);
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(30, 28, 26, .22);
+  transition: transform .16s ease;
+}
+
+.gg-map-pin:hover,
+.gg-map-pin-active {
+  background: var(--champagne);
+  color: var(--ink);
+  border-color: var(--ink);
+  transform: scale(1.06);
+}
+
+.gg-location-map-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 10px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gg-map-modal {
+  width: 100%;
+  height: 210px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  margin: 0 0 14px;
+  z-index: 1;
+  background: var(--cream);
+}
+
+.gg-map-modal .leaflet-tile-pane {
+  filter: sepia(.16) saturate(.88) contrast(.97);
+}
+
+.gg-locate-btn {
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.gg-loc-field {
+  position: relative;
+}
+
+.gg-loc-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(30, 28, 26, .14);
+  z-index: 40;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.gg-loc-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 13px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+  transition: background .15s;
+}
+
+.gg-loc-option:last-child {
+  border-bottom: 0;
+}
+
+.gg-loc-option:hover,
+.gg-loc-option:focus-visible {
+  background: var(--ivory);
+}
+
+.gg-loc-option svg {
+  color: var(--champagne);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.gg-loc-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gg-loc-option strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gg-loc-option small {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gg-loc-status {
+  padding: 11px 14px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .location-suggestions > span {
   display: block;
   font-size: 10px;
@@ -6760,6 +6899,11 @@ summary:focus-visible {
   .steps {
     grid-template-columns: 1fr;
     gap: 18px;
+  }
+
+  .gg-map-modal {
+    height: 175px;
+    margin-bottom: 12px;
   }
 }
 
