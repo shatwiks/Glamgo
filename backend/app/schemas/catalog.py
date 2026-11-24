@@ -1,12 +1,18 @@
 from typing import Dict, List, Optional, Literal
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 
-Audience = Literal["women", "men", "unisex", "unspecified"]
+Audience = Literal["women", "men", "unisex"]
+
+
+def _normalize_audience(v):
+    if not v or str(v).strip().lower() == "unspecified":
+        return "unisex"
+    return str(v).strip().lower()
 
 
 class ServiceResponse(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: str
     name: str
     category: str
@@ -18,11 +24,16 @@ class ServiceResponse(BaseModel):
     desc: str
     cities: List[str] = ["Mumbai", "Bengaluru", "Delhi"]
 
+    @field_validator("audience", mode="before")
+    @classmethod
+    def coerce_audience(cls, v):
+        return _normalize_audience(v)
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class ServiceCreate(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: Optional[str] = None
     name: str
     category: str
@@ -34,7 +45,7 @@ class ServiceCreate(BaseModel):
 
 
 class ProfessionalResponse(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: int
     name: str
     city: str = "Mumbai"
@@ -49,6 +60,11 @@ class ProfessionalResponse(BaseModel):
     specialty: str
     is_verified: bool
 
+    @field_validator("audience", mode="before")
+    @classmethod
+    def coerce_audience(cls, v):
+        return _normalize_audience(v)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -62,7 +78,7 @@ class SalonStaffResponse(BaseModel):
 
 
 class SalonResponse(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: str
     name: str
     city: str = "Mumbai"
@@ -82,11 +98,16 @@ class SalonResponse(BaseModel):
     about: str
     staff: Optional[List[SalonStaffResponse]] = []
 
+    @field_validator("audience", mode="before")
+    @classmethod
+    def coerce_audience(cls, v):
+        return _normalize_audience(v)
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class SalonCreate(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: Optional[str] = None
     name: str
     city: Optional[str] = "Mumbai"
@@ -111,7 +132,7 @@ class ProductVariantResponse(BaseModel):
 
 
 class ProductResponse(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: str
     brand: str
     name: str
@@ -130,11 +151,16 @@ class ProductResponse(BaseModel):
     default_listing_id: Optional[int] = None
     variant_listings: Dict[str, int] = {}
 
+    @field_validator("audience", mode="before")
+    @classmethod
+    def coerce_audience(cls, v):
+        return _normalize_audience(v)
+
     model_config = ConfigDict(from_attributes=True)
 
 
 class ProductCreate(BaseModel):
-    audience: Audience = "unspecified"
+    audience: Audience = "unisex"
     id: Optional[str] = None
     brand: str
     name: str

@@ -35,20 +35,20 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
 
     migrations = {
         "salons": [
-            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unisex'"),
             ("city", "VARCHAR(100) NOT NULL DEFAULT 'Mumbai'"),
             ("lat", float_type),
             ("lng", float_type),
         ],
         "professional_profiles": [
-            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unisex'"),
             ("city", "VARCHAR(100) NOT NULL DEFAULT 'Mumbai'"),
             ("area", "VARCHAR(255)"),
             ("lat", float_type),
             ("lng", float_type),
         ],
         "services": [
-            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'"),
+            ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unisex'"),
             ("service_cities", "VARCHAR(255) NOT NULL DEFAULT 'Mumbai,Bengaluru,Delhi'"),
         ],
         "bookings": [
@@ -70,7 +70,7 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
         ],
     }
 
-    migrations["products"] = [("audience", "VARCHAR(20) NOT NULL DEFAULT 'unspecified'")]
+    migrations["products"] = [("audience", "VARCHAR(20) NOT NULL DEFAULT 'unisex'")]
 
     pending = []
     for table_name, columns in migrations.items():
@@ -81,7 +81,13 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
             if col_name not in existing_cols:
                 pending.append((table_name, col_name, f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_def}"))
 
-    if not pending:
+    audience_tables = [t for t in ("services", "salons", "products", "professional_profiles") if t in existing_tables]
+    normalize_stmts = [
+        f"UPDATE {t} SET audience = 'unisex' WHERE audience IS NULL OR audience = '' OR audience = 'unspecified'"
+        for t in audience_tables
+    ]
+
+    if not pending and not normalize_stmts:
         return []
 
     added: List[str] = []
@@ -89,11 +95,15 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
         for table_name, col_name, ddl in pending:
             target_engine.execute(text(ddl))
             added.append(f"{table_name}.{col_name}")
+        for sql in normalize_stmts:
+            target_engine.execute(text(sql))
     else:
         with target_engine.begin() as conn:
             for table_name, col_name, ddl in pending:
                 conn.execute(text(ddl))
                 added.append(f"{table_name}.{col_name}")
+            for sql in normalize_stmts:
+                conn.execute(text(sql))
 
     return added
 

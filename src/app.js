@@ -781,7 +781,7 @@ const trapFocusIn = (container, e) => {
     first.focus();
   }
 };
-const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => (matchesAudience(item) || isUnclassified(item)) && item.id !== p.id && item.category === p.category).slice(0, limit) : [];
+const getRelatedProducts = (p, limit = 3) => p ? products.filter(item => matchesAudience(item) && item.id !== p.id && item.category === p.category).slice(0, limit) : [];
 const parseIngredientsList = raw => String(raw || '').split(/[,;•\n]+/).map(s => s.trim()).filter(Boolean);
 const ensureProductExtras = id => {
   if (!id) return;
@@ -1475,12 +1475,11 @@ const audienceSwitcher = () => '<section class="audience-section" aria-label="Br
   '</button>').join('') +
   '</div></div></section>';
 const matchesAudience = item => {
-  const audience = item?.audience || 'unspecified';
+  const audience = (!item?.audience || item.audience === 'unspecified') ? 'unisex' : item.audience;
   return audience === state.audience || audience === 'unisex';
 };
 const audienceBadge = item => item?.audience === 'unisex' ? '<span class="audience-badge">Unisex</span>' : '';
-const isUnclassified = item => !item?.audience || item.audience === 'unspecified';
-const isVisibleInAudience = item => matchesAudience(item) || (!isMenExperience() && isUnclassified(item));
+const isVisibleInAudience = item => matchesAudience(item);
 const generalCatalogueNote = () => '<div class="audience-catalogue-note">' + (isMenExperience() ? 'Showing Men and unisex listings.' : 'Showing Women and unisex listings.') + '</div>';
 
 
@@ -2102,7 +2101,7 @@ async function loadPartnerData(){
   }
 }
 
-const audienceOptions = value => ['unspecified','women','men','unisex'].map(v => '<option value="'+v+'"'+((value || 'unspecified')===v?' selected':'')+'>'+({unspecified:'Unspecified',women:'Women',men:'Men',unisex:'Unisex'})[v]+'</option>').join('');
+const audienceOptions = value => ['unisex','women','men'].map(v => '<option value="'+v+'"'+((!value || value === 'unspecified' ? 'unisex' : value)===v?' selected':'')+'>'+({unisex:'Unisex',women:'Women',men:'Men'})[v]+'</option>').join('');
 const audienceField = value => '<label>Suitable for<select name="audience">'+audienceOptions(value)+'</select></label>';
 
 function partnerPage(){
@@ -2380,7 +2379,7 @@ function partnerPage(){
         '</div>' +
       '</div>' +
       '<form id="partner-seller-product-form" class="form-grid" style="margin:20px 0;padding:20px;background:var(--ivory);border:1px solid var(--border)">' +
-        audienceField('unspecified') +
+        audienceField('unisex') +
         '<label>Brand name<input name="brand" required placeholder="e.g. Maison GlamGo"></label>' +
         '<label>Product title<input name="name" required placeholder="e.g. Botanical Facial Oil"></label>' +
         '<label>Category<input name="category" required placeholder="Skincare, Haircare, Cosmetics" value="Skincare"></label>' +
@@ -2803,9 +2802,9 @@ function modal(){
     const q = state.query.toLowerCase().trim();
     const userCity = currentLocationCity();
     const searchable = [
-      ...products.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Product',inCity:true})),
-      ...services.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Service',inCity:isServiceAvailableInCity(x,userCity)})),
-      ...salons.filter(x => matchesAudience(x) || isUnclassified(x)).map(x=>({...x,type:'Salon',inCity:String(x.city||normalizeCity(x.area)||'').toLowerCase()===userCity.toLowerCase()}))
+      ...products.filter(matchesAudience).map(x=>({...x,type:'Product',inCity:true})),
+      ...services.filter(matchesAudience).map(x=>({...x,type:'Service',inCity:isServiceAvailableInCity(x,userCity)})),
+      ...salons.filter(matchesAudience).map(x=>({...x,type:'Salon',inCity:String(x.city||normalizeCity(x.area)||'').toLowerCase()===userCity.toLowerCase()}))
     ];
     const matched = searchable.filter(x=>{
       if(!q) return true;
@@ -2900,12 +2899,12 @@ function bookingModal(){
     : '';
   let body = '';
   if(b.step===0){
-    const cityHomeServices = services.filter(s => !isPreviewId(s.id) && isServiceAvailableInCity(s, userCity) && (matchesAudience(s) || isUnclassified(s)));
+    const cityHomeServices = services.filter(s => !isPreviewId(s.id) && isServiceAvailableInCity(s, userCity) && matchesAudience(s));
     const list0 = b.type==='home' ? cityHomeServices : cityHomeServices.filter(s=>salon&&salon.services.includes(s.category));
     body='<h3>Choose a service</h3>'+(salon?'<p class="booking-hint">Select a service in one of '+esc(salon.name)+'’s categories.</p>':'<p class="booking-hint">Select the treatment you would like to book.</p>')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button type="button" class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>'+esc(s.duration)+' · '+esc(s.category)+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>';
   }
   if(b.step===1){
-    const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && (matchesAudience(p) || isUnclassified(p)));
+    const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && matchesAudience(p));
     const list1 = b.type==='home' ? cityPros : (Array.isArray(salon?.staff) ? salon.staff : []);
     body='<h3>'+(b.type==='home'?'Choose a specialist':'Choose a staff member')+'</h3><p class="booking-hint">Select a listed specialist or choose any available expert.</p><div class="booking-options"><button type="button" class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>Match with an available specialist.</small></span></button>'+list1.map(p=>'<button type="button" class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+esc(p.name)+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
   }

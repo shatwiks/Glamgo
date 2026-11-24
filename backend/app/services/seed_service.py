@@ -354,7 +354,7 @@ def seed_database(db: Session):
                 price=p_data["price"],
                 img=p_data["img"],
                 specialty=p_data["specialty"],
-                audience=p_data.get("audience", "unspecified"),
+                audience=p_data.get("audience", "unisex"),
                 is_verified=True
             )
             db.add(pro)
@@ -403,7 +403,7 @@ def seed_database(db: Session):
                 services_list=s_data["services_list"],
                 hours=s_data["hours"],
                 about=s_data["about"],
-                audience=s_data.get("audience", "unspecified")
+                audience=s_data.get("audience", "unisex")
             )
             db.add(salon)
             db.commit()
@@ -472,7 +472,7 @@ def seed_database(db: Session):
                 description=p_data["description"],
                 ingredients=p_data["ingredients"],
                 stock=initial_prod_stock,
-                audience=p_data.get("audience", "unspecified"),
+                audience=p_data.get("audience", "unisex"),
                 is_active=True
             )
             db.add(product)

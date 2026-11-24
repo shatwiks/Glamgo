@@ -4,6 +4,38 @@
 
 ---
 
+## Prompt Entry — `2026-11-24`: Remove `"unspecified"` Audience State (Default to `"unisex"`)
+
+**Objective:** Eliminate the `"unspecified"` audience state across frontend, backend models/schemas, database migrations, and tests, replacing it with `"unisex"` so all existing listings are visible in both **Women** and **Men**.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Updated `matchesAudience()`, `isVisibleInAudience()`, `getRelatedProducts()`, search, booking modal, and `audienceOptions()` to treat missing/legacy `'unspecified'` values as `'unisex'`, removed `'unspecified'` dropdown option and `isUnclassified`.
+- `backend/app/models/catalog.py`: Changed `Service`, `ProfessionalProfile`, `Salon`, and `Product` `audience` defaults from `'unspecified'` to `'unisex'`.
+- `backend/app/schemas/catalog.py` & `backend/app/schemas/partner.py`: Restricted `Audience` to `Literal["women", "men", "unisex"]` with `"unisex"` default and added `_normalize_audience` response coercion for legacy `'unspecified'` values.
+- `backend/app/core/database.py`: Updated `ensure_phase13_schema_columns()` defaults to `'unisex'` and added idempotent startup `UPDATE` statements converting `NULL`/empty/`'unspecified'` rows to `'unisex'` across `services`, `salons`, `products`, and `professional_profiles`.
+- `backend/app/services/seed_service.py`: Updated fallback audience defaults from `'unspecified'` to `'unisex'`.
+- `tests/audience-filter.test.mjs` & `backend/tests/test_audience_catalog.py`: Updated audience filtering and schema migration assertions for `'unisex'`.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `5/5` passed.
+- `pytest backend/tests/test_security_hardening.py backend/tests/test_audience_catalog.py`: `14/14` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Auto-Normalize PostgreSQL `DATABASE_URL` Driver for Neon/Render
+
+**Objective:** Automatically normalize `postgres://` and `postgresql://` connection strings in `Settings.DATABASE_URL` to `postgresql+psycopg://` so any raw Neon PostgreSQL URL works seamlessly with `psycopg` v3 across both FastAPI and Alembic.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/app/core/config.py`: Added `@field_validator("DATABASE_URL")` (`normalize_database_url`) converting `postgres://` and `postgresql://` prefixes to `postgresql+psycopg://`.
+
+**Verification Results:**
+- Live Render check (`https://glamgo-backend-lqn6.onrender.com/health/ready`): HTTP `200`, `{"status":"ready","database":"healthy","cache":"fallback_memory","redis_required":false}`.
+- `pytest backend/tests/test_security_hardening.py backend/tests/test_audience_catalog.py`: Passed cleanly.
+
+---
+
 ## Prompt Entry — `2026-11-24`: App Banner Luxury Monogram Logo (`/ui-ux-pro-max`)
 
 **Objective:** Replace the `G✦` text badge inside the top `"Download the GlamGo App"` banner with the luxury GlamGo monogram emblem (`./favicon.svg`) and polish its responsive framing.

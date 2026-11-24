@@ -17,7 +17,7 @@ service_professionals = Table(
 class Service(Base):
     __tablename__ = "services"
 
-    audience = Column(String(20), nullable=False, default='unspecified', server_default='unspecified')
+    audience = Column(String(20), nullable=False, default='unisex', server_default='unisex')
     id = Column(String(50), primary_key=True, index=True)  # s1, s2, etc.
     name = Column(String(255), nullable=False)
     category = Column(String(100), nullable=False, index=True)
@@ -43,7 +43,7 @@ class Service(Base):
 class ProfessionalProfile(Base):
     __tablename__ = "professional_profiles"
 
-    audience = Column(String(20), nullable=False, default='unspecified', server_default='unspecified')
+    audience = Column(String(20), nullable=False, default='unisex', server_default='unisex')
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=True)
     name = Column(String(255), nullable=False)
@@ -68,7 +68,7 @@ class ProfessionalProfile(Base):
 class Salon(Base):
     __tablename__ = "salons"
 
-    audience = Column(String(20), nullable=False, default='unspecified', server_default='unspecified')
+    audience = Column(String(20), nullable=False, default='unisex', server_default='unisex')
     id = Column(String(50), primary_key=True, index=True)  # l1, l2, etc.
     owner_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     name = Column(String(255), nullable=False)
@@ -110,7 +110,7 @@ class Product(Base):
         CheckConstraint("stock >= 0", name="ck_products_stock_non_negative"),
     )
 
-    audience = Column(String(20), nullable=False, default='unspecified', server_default='unspecified')
+    audience = Column(String(20), nullable=False, default='unisex', server_default='unisex')
     id = Column(String(50), primary_key=True, index=True)  # b1, b2, etc.
     seller_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     brand = Column(String(255), nullable=False, index=True)

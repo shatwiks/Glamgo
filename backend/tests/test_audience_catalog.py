@@ -95,6 +95,6 @@ def test_existing_catalogue_rows_migrate_without_guessing():
     ensure_phase13_schema_columns(engine)
     with engine.connect() as conn:
         for table in ('services', 'salons', 'products', 'professional_profiles'):
-            assert conn.execute(text(f'SELECT audience FROM {table}')).scalar() == 'unspecified'
+            assert conn.execute(text(f'SELECT audience FROM {table}')).scalar() == 'unisex'
     assert ensure_phase13_schema_columns(engine) == []
     engine.dispose()
