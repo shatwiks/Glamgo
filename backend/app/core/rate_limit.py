@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import time
 import logging
@@ -10,6 +11,35 @@ logger = logging.getLogger("glamgo.ratelimit")
 
 _in_memory_lock = threading.Lock()
 _in_memory_windows: Dict[str, List[float]] = {}
+MAX_IN_MEMORY_KEYS = 5000
+
+
+def _extract_client_ip(request: Request) -> str:
+    """Resolve client IP safely without trusting client-spoofed left-most X-Forwarded-For."""
+    peer_host = (request.client.host if request.client and request.client.host else "").strip()
+    trusted_proxy = False
+    if peer_host in ("testclient", "localhost"):
+        trusted_proxy = False
+    elif peer_host:
+        try:
+            ip_obj = ipaddress.ip_address(peer_host)
+            trusted_proxy = ip_obj.is_loopback or ip_obj.is_private
+        except ValueError:
+            trusted_proxy = False
+
+    if trusted_proxy:
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            # Take the right-most hop appended by the reverse proxy, never the client-controlled left-most hop
+            hops = [h.strip() for h in xff.split(",") if h.strip()]
+            for candidate in reversed(hops):
+                try:
+                    ipaddress.ip_address(candidate)
+                    return candidate
+                except ValueError:
+                    continue
+
+    return peer_host or "unknown"
 
 
 class RateLimiter:
@@ -26,6 +56,17 @@ class RateLimiter:
 
     def _enforce_in_memory(self, key: str, client_ip: str, now: float, window_start: float):
         with _in_memory_lock:
+            if key not in _in_memory_windows and len(_in_memory_windows) >= MAX_IN_MEMORY_KEYS:
+                expired_keys = [
+                    k for k, timestamps in _in_memory_windows.items()
+                    if not timestamps or timestamps[-1] <= window_start
+                ]
+                for k in expired_keys:
+                    _in_memory_windows.pop(k, None)
+                if len(_in_memory_windows) >= MAX_IN_MEMORY_KEYS:
+                    oldest_key = next(iter(_in_memory_windows))
+                    _in_memory_windows.pop(oldest_key, None)
+
             bucket = [ts for ts in _in_memory_windows.get(key, []) if ts > window_start]
             if len(bucket) >= self.requests:
                 _in_memory_windows[key] = bucket
@@ -50,10 +91,7 @@ class RateLimiter:
         if os.environ.get("PYTEST_CURRENT_TEST") and request.headers.get("x-test-rate-limit") != "true":
             return
 
-        client_ip = (
-            request.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            or (request.client.host if request.client else "unknown")
-        )
+        client_ip = _extract_client_ip(request)
         key = f"glamgo:ratelimit:{self.prefix}:{client_ip}"
         now = time.time()
         window_start = now - self.window_seconds

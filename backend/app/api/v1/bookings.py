@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from backend.app.core.database import get_db
+from backend.app.core.rate_limit import RateLimiter
 from backend.app.api.deps import get_current_user
 from backend.app.models.user import User, UserRole, Notification
 from backend.app.models.catalog import Service, Salon, ProfessionalProfile
@@ -327,7 +328,10 @@ def reschedule_booking(
     return booking
 
 
-@router.post("/{booking_id}/verify-arrival-otp")
+arrival_otp_limiter = RateLimiter(requests=8, window_seconds=300, prefix="arrival_otp")
+
+
+@router.post("/{booking_id}/verify-arrival-otp", dependencies=[Depends(arrival_otp_limiter)])
 def verify_arrival_otp(
     booking_id: str,
     payload: BookingOtpVerifyRequest,

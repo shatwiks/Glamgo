@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     TWILIO_FROM_NUMBER: str = ""
     FAST2SMS_API_KEY: str = ""
     ALLOW_DEV_OTP_ECHO: bool = False
+    ALLOW_DEMO_GIFT_CARDS: bool = False
 
     # Email Gateway (Optional real delivery: Gmail SMTP, Brevo, Resend)
     SMTP_HOST: str = "smtp.gmail.com"

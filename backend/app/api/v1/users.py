@@ -2,8 +2,11 @@ import re
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
+from backend.app.core.config import settings
 from backend.app.core.database import get_db
+from backend.app.core.rate_limit import RateLimiter
 from backend.app.api.deps import get_current_user
 from backend.app.models.user import User, Address, Notification
 from backend.app.schemas.user import (
@@ -11,6 +14,7 @@ from backend.app.schemas.user import (
 )
 
 router = APIRouter()
+rewards_limiter = RateLimiter(requests=10, window_seconds=60, prefix="rewards")
 
 GIFT_CARDS_CATALOG = {
     "GLAM500": {"code": "GLAM500", "title": "The Signature Gift Card", "amount": 500.0},
@@ -73,12 +77,14 @@ def update_profile(
         user.full_name = data.name.strip()
     if data.phone is not None:
         user.phone = data.phone.strip()
-    if data.email is not None and data.email != user.email:
-        # Check uniqueness
-        existing = db.query(User).filter(User.email == data.email, User.id != user.id).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="Email is already in use by another account.")
-        user.email = data.email
+    if data.email is not None:
+        norm_email = data.email.strip().lower()
+        if norm_email != (user.email or "").lower():
+            # Check case-insensitive uniqueness
+            existing = db.query(User).filter(func.lower(User.email) == norm_email, User.id != user.id).first()
+            if existing:
+                raise HTTPException(status_code=400, detail="Email is already in use by another account.")
+            user.email = norm_email
 
     db.commit()
     db.refresh(user)
@@ -136,21 +142,28 @@ def get_notifications(user: User = Depends(get_current_user), db: Session = Depe
     return db.query(Notification).filter(Notification.user_id == user.id).order_by(Notification.created_at.desc()).all()
 
 
+def _demo_gift_cards_enabled() -> bool:
+    if (settings.ENVIRONMENT or "").strip().lower() == "production":
+        return bool(getattr(settings, "ALLOW_DEMO_GIFT_CARDS", False))
+    return True
+
+
 @router.get("/rewards", response_model=RewardsSummaryResponse)
 def get_my_rewards(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     ref_code = _ensure_user_referral_code(db, user)
+    visible_cards = list(GIFT_CARDS_CATALOG.values()) if _demo_gift_cards_enabled() else []
     return RewardsSummaryResponse(
         referral_code=ref_code,
         wallet_credits=float(user.wallet_credits or 0.0),
         referral_bonus_amount=REFERRAL_BONUS_AMOUNT,
-        gift_cards=list(GIFT_CARDS_CATALOG.values()),
+        gift_cards=visible_cards,
     )
 
 
-@router.post("/rewards/redeem", response_model=RewardRedeemResponse)
+@router.post("/rewards/redeem", response_model=RewardRedeemResponse, dependencies=[Depends(rewards_limiter)])
 def redeem_reward_code(
     payload: RewardRedeemRequest,
     user: User = Depends(get_current_user),
@@ -184,6 +197,11 @@ def redeem_reward_code(
         )
 
     if code in GIFT_CARDS_CATALOG:
+        if not _demo_gift_cards_enabled():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Code '{code}' is not a valid GlamGo Gift Card or referral code."
+            )
         gc = GIFT_CARDS_CATALOG[code]
         amount = float(gc["amount"])
         locked_user.wallet_credits = float(locked_user.wallet_credits or 0.0) + amount
@@ -200,6 +218,18 @@ def redeem_reward_code(
             credited_amount=amount,
             wallet_credits=float(locked_user.wallet_credits or 0.0),
             message=f"₹{amount:.0f} gift card credited to your GlamGo wallet!",
+        )
+
+    # Prevent multi-referrer farming: each user can claim at most ONE referral welcome bonus ever
+    prior_referral_claim = db.query(Notification).filter(
+        Notification.user_id == locked_user.id,
+        Notification.type == "reward",
+        Notification.text.contains("Referral welcome bonus credited")
+    ).first()
+    if prior_referral_claim:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A referral welcome bonus has already been redeemed on your account."
         )
 
     referrer = db.query(User).filter(

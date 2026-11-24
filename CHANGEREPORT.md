@@ -4,6 +4,35 @@
 
 ---
 
+## Prompt Entry — `2026-11-24`: Full Security Audit, Vulnerability Remediation & `.gitignore` Hardening
+
+**Objective:** Audit repository tracking/history, `.gitignore`, FastAPI backend endpoints, rate limiting, financial/rewards logic, and SPA frontend rendering for security vulnerabilities, then patch and verify every finding with automated tests.
+
+**Modified & Created Files (`branch-release-54ba3db`):**
+- `.gitignore`: Added `.env.*` (preserving `!.env.*.example` and public `!.env.production`), certificate/key exclusions (`*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.crt`), package credential exclusions (`.npmrc`, `.pypirc`), and log/coverage exclusions (`*.log`, `.coverage`, `coverage/`).
+- `backend/app/api/v1/auth.py`:
+  - Blocked anonymous self-registration to all non-customer roles (`admin`, `salon_owner`, `professional`, `seller`) with `403 Forbidden`.
+  - Normalized emails to lowercase with `func.lower(User.email)` in `/register` and `/login` to eliminate case-variant duplicate accounts.
+  - Added `Depends(auth_limiter)` to `POST /api/v1/auth/refresh` and capped `PasswordResetConfirm.new_password` at 72 characters.
+- `backend/app/schemas/auth.py` & `backend/app/core/security.py`: Enforced `min_length=6, max_length=72` (and 72 UTF-8 byte checks) on passwords so empty passwords and >72-byte `bcrypt` `ValueError` HTTP 500 crashes are prevented.
+- `backend/app/core/rate_limit.py`: Fixed `X-Forwarded-For` spoofing bypass (only reading the right-most proxy hop when the peer is loopback/private, never the client-controlled left-most hop) and bounded `_in_memory_windows` to `5000` keys to prevent memory DoS.
+- `backend/app/api/v1/users.py` & `backend/app/core/config.py`:
+  - Added `ALLOW_DEMO_GIFT_CARDS: bool = False` so hardcoded demo gift cards (`GLAM500`, `LUXE1000`, `BRIDAL2500`) are disabled in `ENVIRONMENT=production` by default.
+  - Blocked multi-referrer farming so each account can redeem at most one referral welcome bonus ever, added `rewards_limiter` on `POST /api/v1/users/rewards/redeem`, and normalized `PUT /api/v1/users/profile` email uniqueness case-insensitively.
+- `backend/app/api/v1/bookings.py`: Added `arrival_otp_limiter` (`8` attempts / `300s`) on `POST /api/v1/bookings/{booking_id}/verify-arrival-otp`.
+- `backend/app/schemas/commerce.py`: Added strict `http`/`https` URL validators on `ShipmentCreate.tracking_url` and `ReturnRequestCreate.evidence_image_url` to block `javascript:` and `data:` XSS payloads.
+- `backend/app/main.py` & `backend/app/core/logging_config.py`: Disabled `/openapi.json` when `ENABLE_DOCS=false`, sanitized `X-Request-ID` against `^[A-Za-z0-9._-]{1,64}$`, and expanded `JSONLogFormatter.SENSITIVE_KEYS` (`smtp_password`, `resend_api_key`, `fast2sms_api_key`, `otp`).
+- `index.html`, `src/app.js`, & `vercel.json`: Removed inline `onload`/`onerror` handlers, added `safeHttpUrl()` + `rel="noopener noreferrer"` on courier tracking links, and added a production `Content-Security-Policy` header in `vercel.json`.
+- `backend/tests/test_security_hardening.py`: Created 9 automated security regression tests covering all remediated vectors.
+
+**Verification Results:**
+- `pytest backend/tests/test_security_hardening.py backend/tests/test_audience_catalog.py`: `14 passed in 8.07s`.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Passed (`✓ built in 3.92s`).
+- `git status` & `git diff` secret scan: Confirmed zero secrets tracked in working tree (advised rotation of historical `DATABASE_URL` exposed in past commit `54ed942`).
+
+---
+
 ## Prompt Entry — `2026-11-24`: Render & Vercel Production Deployment Readiness
 
 **Objective:** Prepare `release/54ba3db` for production Render + Vercel deployment without committing secrets.

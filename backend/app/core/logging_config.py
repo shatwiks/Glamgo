@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 import secrets
 import json
@@ -22,12 +23,16 @@ class JSONLogFormatter(logging.Formatter):
     """Formats log records as structured JSON with correlation ID and PII redaction."""
     SENSITIVE_KEYS = {
         "password",
+        "smtp_password",
         "secret",
         "token",
         "access_token",
         "refresh_token",
         "authorization",
         "razorpay_signature",
+        "resend_api_key",
+        "fast2sms_api_key",
+        "otp",
         "internal_maintenance_token",
         "x-maintenance-token",
     }
@@ -67,9 +72,13 @@ def configure_structured_logging():
         root_logger.addHandler(handler)
 
 
+_SAFE_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        cid = request.headers.get("X-Request-ID") or f"req_{secrets.token_hex(6)}"
+        raw_cid = (request.headers.get("X-Request-ID") or "").strip()
+        cid = raw_cid if _SAFE_REQUEST_ID_RE.match(raw_cid) else f"req_{secrets.token_hex(6)}"
         correlation_id_ctx.set(cid)
         request.state.correlation_id = cid
 

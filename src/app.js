@@ -156,6 +156,22 @@ const icons = {
 const icon = (name, size = 20, extra = '') => '<svg class="icon ' + extra + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (icons[name] || '') + '</svg>';
 const money = n => '₹' + Number(n).toLocaleString('en-IN');
 const esc = str => String(str ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const safeHttpUrl = raw => {
+  const s = String(raw ?? '').trim();
+  if (!s) return '';
+  try {
+    const u = new URL(s);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+  } catch {
+    return '';
+  }
+};
+if (typeof document !== 'undefined') {
+  document.addEventListener('error', e => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG') t.style.opacity = '0.15';
+  }, true);
+}
 
 const images = {
   facial: photo('photo-1570172619644-dfd03ed5d881'),
@@ -874,7 +890,7 @@ function requireAuth(resume = null, message = 'Please sign in to continue.') {
 }
 const setExperience = id => { state.experience = id; state.view = 'landing'; state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.filterDrawerOpen = false; state.filterDrawerDraft = null; state.searchOpen = false; persist(); if (window.location.protocol !== 'file:') window.history.replaceState(null, '', '/' + routeHashForExperience(id)); render(); window.scrollTo({top:0,behavior:'instant'}); };
 const navigate = view => { state.view = view; if (view === 'landing' && !state.activeNav) state.activeNav = 'landing'; state.modal = null; state.menu = false; state.mobileMenu = false; state.filterDrawerOpen = false; state.filterDrawerDraft = null; render(); window.scrollTo({top:0,behavior:'instant'}); };
-const image = (src, alt, cls='') => '<img class="'+esc(cls)+'" src="'+esc(src)+'" alt="'+esc(alt)+'" decoding="sync" onerror="this.style.opacity=0.15">';
+const image = (src, alt, cls='') => '<img class="'+esc(cls)+'" src="'+esc(src)+'" alt="'+esc(alt)+'" decoding="sync">';
 const button = (label, action, cls='btn-primary', attrs='') => '<button class="btn '+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>';
 const sectionHead = (eyebrow,title,sub='',action='') => '<div class="section-head"><div><p class="eyebrow">'+eyebrow+'</p><h2>'+title+'</h2>'+(sub?'<p class="section-sub">'+sub+'</p>':'')+'</div>'+action+'</div>';
 
@@ -1955,7 +1971,7 @@ function trackingPage(){
           ${s.shipment ? `
             <p style="font-size:13px;color:#555;margin:4px 0;">
               Carrier: <strong>${esc(s.shipment.carrier_name)}</strong> · Tracking: <strong>${esc(s.shipment.tracking_number)}</strong>
-              ${s.shipment.tracking_url ? `<a href="${esc(s.shipment.tracking_url)}" target="_blank" rel="noopener" style="margin-left:8px;color:#8f6d40;text-decoration:underline;">Track courier</a>` : ''}
+              ${safeHttpUrl(s.shipment.tracking_url) ? `<a href="${esc(safeHttpUrl(s.shipment.tracking_url))}" target="_blank" rel="noopener noreferrer" style="margin-left:8px;color:#8f6d40;text-decoration:underline;">Track courier</a>` : ''}
             </p>
           ` : '<p style="font-size:13px;color:#888;margin:4px 0;">Package being prepared by seller.</p>'}
           <div style="margin-top:8px;border-top:1px solid #eee;padding-top:8px;">
@@ -2409,7 +2425,7 @@ function partnerPage(){
           '<span class="badge badge-'+(s.status==='delivered'?'approved':s.status==='cancelled'?'rejected':'info')+'">'+esc(s.status).toUpperCase()+'</span>' +
         '</div>' +
         '<div style="font-size:11px;color:var(--muted)">Deliver to: '+esc(s.shipping_address_label||'Home')+' — '+esc(s.shipping_address_text||'')+'</div>' +
-        (s.shipment ? '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">Carrier: <strong>'+esc(s.shipment.carrier_name)+'</strong> · Tracking AWB: <strong>'+esc(s.shipment.tracking_number)+'</strong>'+(s.shipment.tracking_url?' · <a href="'+esc(s.shipment.tracking_url)+'" target="_blank" style="color:var(--champagne)">Live Courier Tracking</a>':'')+'</div>' : '') +
+        (s.shipment ? '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border);font-size:12px">Carrier: <strong>'+esc(s.shipment.carrier_name)+'</strong> · Tracking AWB: <strong>'+esc(s.shipment.tracking_number)+'</strong>'+(safeHttpUrl(s.shipment.tracking_url)?' · <a href="'+esc(safeHttpUrl(s.shipment.tracking_url))+'" target="_blank" rel="noopener noreferrer" style="color:var(--champagne)">Live Courier Tracking</a>':'')+'</div>' : '') +
         '<div style="background:var(--ivory);padding:10px;border:1px solid var(--border)">' +
           (s.items || []).map(i => '<div style="font-size:11px">'+esc(i.name)+(i.variant_name?' ('+esc(i.variant_name)+')':'')+(i.sku?' · SKU: '+esc(i.sku):'')+' × '+i.qty+' ('+money(i.price)+')</div>').join('') +
         '</div>' +

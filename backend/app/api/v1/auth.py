@@ -35,7 +35,7 @@ class PasswordResetRequest(BaseModel):
 class PasswordResetConfirm(BaseModel):
     email: EmailStr
     code: str = Field(..., min_length=1, max_length=32)
-    new_password: str = Field(..., min_length=6, max_length=128)
+    new_password: str = Field(..., min_length=6, max_length=72)
 
 
 class MobileOtpRequest(BaseModel):
@@ -88,28 +88,26 @@ def _is_expired(expires_at: Optional[datetime]) -> bool:
 
 @router.post("/register", response_model=Token, dependencies=[Depends(auth_limiter)])
 def register(user_in: UserRegister, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == user_in.email).first()
+    norm_email = user_in.email.strip().lower()
+    existing = db.query(User).filter(func.lower(User.email) == norm_email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="An account with this email address already exists."
         )
 
-    # CRIT-01 Remediation: Prevent anonymous privilege escalation to admin
-    assigned_role = UserRole.CUSTOMER
+    # Prevent anonymous privilege escalation to admin OR unmoderated partner roles
     if user_in.role and user_in.role != UserRole.CUSTOMER:
-        if user_in.role == UserRole.ADMIN:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Administrator accounts cannot be created via public registration."
-            )
-        # Partner roles must be explicitly onboarded; default self-registration to customer
-        assigned_role = user_in.role
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Privileged and partner roles cannot be self-assigned via public registration."
+        )
+    assigned_role = UserRole.CUSTOMER
 
     user = User(
-        email=user_in.email,
-        full_name=user_in.name,
-        phone=user_in.phone,
+        email=norm_email,
+        full_name=user_in.name.strip(),
+        phone=user_in.phone.strip() if user_in.phone else None,
         hashed_password=hash_password(user_in.password),
         role=assigned_role,
         is_active=True
@@ -134,7 +132,8 @@ def register(user_in: UserRegister, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token, dependencies=[Depends(auth_limiter)])
 def login(login_data: UserLogin, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login_data.email).first()
+    norm_email = login_data.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == norm_email).first()
     if not user or not verify_password(login_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -160,7 +159,7 @@ def login(login_data: UserLogin, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh", response_model=Token, dependencies=[Depends(auth_limiter)])
 def refresh_token(req: RefreshTokenRequest, db: Session = Depends(get_db)):
     try:
         payload = decode_token(req.refresh_token)
@@ -188,7 +187,8 @@ def refresh_token(req: RefreshTokenRequest, db: Session = Depends(get_db)):
         role=user.role.value,
         user_id=user.id,
         name=user.full_name,
-        email=user.email
+        email=user.email,
+        phone=user.phone
     )
 
 

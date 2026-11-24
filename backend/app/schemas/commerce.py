@@ -1,6 +1,21 @@
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from urllib.parse import urlparse
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+
+
+def _validate_safe_http_url(v: Optional[str], field_label: str) -> Optional[str]:
+    if v is None:
+        return None
+    cleaned = v.strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > 500:
+        raise ValueError(f"{field_label} must not exceed 500 characters.")
+    parsed = urlparse(cleaned)
+    if parsed.scheme.lower() not in ("http", "https") or not parsed.netloc:
+        raise ValueError(f"{field_label} must be a valid http or https URL.")
+    return cleaned
 
 
 # -------------------------------------------------------------
@@ -139,10 +154,15 @@ class MultiVendorCheckoutResponse(BaseModel):
 # Milestones D & E: Suborder Fulfillment & Tracking
 # -------------------------------------------------------------
 class ShipmentCreate(BaseModel):
-    carrier_name: str
-    tracking_number: str
+    carrier_name: str = Field(..., min_length=1, max_length=100)
+    tracking_number: str = Field(..., min_length=1, max_length=100)
     tracking_url: Optional[str] = None
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("tracking_url")
+    @classmethod
+    def validate_tracking_url(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_safe_http_url(v, "tracking_url")
 
 
 class ShipmentResponse(BaseModel):
@@ -201,9 +221,14 @@ class SubOrderDetailResponse(BaseModel):
 class ReturnRequestCreate(BaseModel):
     order_item_id: int
     qty: Optional[int] = Field(None, gt=0)
-    reason: str
-    detailed_explanation: Optional[str] = None
+    reason: str = Field(..., min_length=1, max_length=200)
+    detailed_explanation: Optional[str] = Field(default=None, max_length=1000)
     evidence_image_url: Optional[str] = None
+
+    @field_validator("evidence_image_url")
+    @classmethod
+    def validate_evidence_url(cls, v: Optional[str]) -> Optional[str]:
+        return _validate_safe_http_url(v, "evidence_image_url")
 
 
 class ReturnDecisionRequest(BaseModel):
