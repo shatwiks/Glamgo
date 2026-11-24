@@ -4,6 +4,184 @@
 
 ---
 
+## Prompt Entry — `2026-11-24`: App Banner Luxury Monogram Logo (`/ui-ux-pro-max`)
+
+**Objective:** Replace the `G✦` text badge inside the top `"Download the GlamGo App"` banner with the luxury GlamGo monogram emblem (`./favicon.svg`) and polish its responsive framing.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/components/appDownload.js`: Replaced `<span class="app-banner-icon">G✦</span>` with `<img class="app-banner-icon-img" src="./favicon.svg" alt="" width="28" height="28" aria-hidden="true">`.
+- `styles.css`: Added `.app-banner-icon-img` styling (`28×28` desktop, `24×24` mobile `<= 680px`, subtle champagne hairline border and shadow).
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Treatment Category Image Framing & Distinct Men's Packages Photo
+
+**Objective:** Ensure every category card under `#categories` ("Browse by treatment.") frames the treatment subject clearly at all responsive alignments without narrow horizontal clipping, and give Men's `Packages` a distinct photo from `Spa`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`: Replaced fixed `128px` / `82px` heights on `.home-categories .category-art` with `height: auto; aspect-ratio: 4 / 3; overflow: hidden;`, and set `object-fit: cover; object-position: center 45%;` on `.home-categories .category-art img`.
+- `src/app.js`: Updated `MEN_CATEGORY_IMAGES.Packages` from duplicate `./assets/men-massage.webp` to `./assets/men-beard.webp`.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Luxury Monogram Favicon Suite (`/ui-ux-pro-max`)
+
+**Objective:** Design and implement a dedicated editorial **GlamGo** monogram favicon suite matching the platform's espresso-black, ivory, champagne, and terracotta palette.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `public/favicon.svg`: Vector `64×64` luxury squircle (`#1E1C1A`) with inner champagne hairline border (`#C8A878`), centered serif `G` monogram (`#FAF7F2` -> `#E5D5BE`), and 4-point terracotta-champagne star accent.
+- `public/favicon-32x32.png` & `public/apple-touch-icon.png`: Supersampled `512×512` -> LANCZOS-downscaled `32×32` and `180×180` PNG fallbacks for legacy browsers and mobile home screens.
+- `index.html`: Wired `favicon.svg`, `favicon-32x32.png`, and `apple-touch-icon.png` in `<head>`.
+
+**Verification Results:**
+- Visually inspected `public/apple-touch-icon.png`: Crisp centered serif monogram, clean squircle corners, and balanced star accent.
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Transparent GLAMGO Logo Assets (`glamgo-logo.png` & `glamgo-logo-light.png`)
+
+**Objective:** Replace the rectangular JPEG GLAMGO logo with true alpha-transparent PNG variants for light and dark surfaces so the logo blends seamlessly into every background with zero box or edge halo.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `public/assets/glamgo-logo.png` & `public/assets/glamgo-logo-light.png`: Created alpha-transparent (`474×130` RGBA) PNG variants (`glamgo-logo.png` for ivory/light surfaces; `glamgo-logo-light.png` with warm terracotta `G` + ivory `LAMGO` for dark surfaces).
+- `src/app.js` & `src/public-landing.js`: Switched light-surface wordmarks (`header()`, `onboarding()`, public header) to `./assets/glamgo-logo.png` and dark-surface wordmarks (`auth()`, `footer()`, `partnerPage()`, `adminPage()`, public footer) to `./assets/glamgo-logo-light.png`.
+- `index.html`: Updated `<link rel="icon">` to `type="image/png" href="./assets/glamgo-logo.png"`.
+- `styles.css`: Removed the ivory background sticker box and `mix-blend-mode: multiply` from `.brand-logo-img` and dark `.wordmark` selectors.
+
+**Verification Results:**
+- `Select-String` scan for `glamgo-logo.jpg`: Zero references remaining in `src/` or `index.html`.
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Compact 5-Column / 4-Column Cards Across Home, Salons & Shop
+
+**Objective:** Reduce card sizes and proportionally scale padding, headings, and CTAs across all three main sections (Home `.card-grid`, Salons `.salon-grid`, and Shop `.product-grid`) so 1–2 more items fit per row cleanly on desktop and laptop viewports.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`:
+  - Increased desktop columns to `5` (`.card-grid`, `.product-grid`) and `4` (`.salon-grid`), and `4`/`3` inside `.collection-layout.with-filters`, with tighter `14px` gaps.
+  - Added proportional laptop (`<= 1200px`: `4`/`3` cols), tablet (`<= 860px`: `3`/`2` cols), and mobile (`<= 700px`: `2`/`1` cols) breakpoints.
+  - Scaled `.card-body`, `.salon-body`, and `.product-body` padding (`12px`), heading/product title sizes (`21px`/`22px`/`13.5px`), pricing (`13.5px`/`14.5px`), and CTA buttons (`min-height: 36px`) proportionally.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Compact Shop Product Card Sizing
+
+**Objective:** Make Shop section product cards cleaner, more uniform, and better proportioned across desktop, tablet, and mobile without altering Home services, Salons, header, footer, or functionality.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`:
+  - Changed `.product-image` aspect ratio from `4 / 5` to `1 / 1` (`object-fit: cover`).
+  - Set `.product-grid` and `.collection-layout.with-filters .product-grid` to `repeat(4, minmax(0, 1fr))` with `16px` gap on desktop (`3` on tablet, `2` with `12px` gap on mobile) and updated `.product-body` padding to `14px`.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Site-Wide GLAMGO Logo & Favicon Replacement
+
+**Objective:** Replace every remaining `GLAMGO✦` text wordmark across all views with `./assets/glamgo-logo.jpg`, add it as the site favicon, and ensure crisp dark-surface contrast.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Replaced all 5 remaining `GLAMGO<span>✦</span>` wordmarks (`onboarding()`, `auth()`, `footer()`, `partnerPage()`, `adminPage()`) with `<img src="./assets/glamgo-logo.jpg" alt="GLAMGO" class="brand-logo-img">`.
+- `src/public-landing.js`: Replaced both `GLAMGO<span>✦</span>` wordmarks (header & footer) with the same `.brand-logo-img` mark.
+- `index.html`: Added `<link rel="icon" type="image/jpeg" href="./assets/glamgo-logo.jpg" />`.
+- `styles.css`: Added dark-surface ivory badge framing (`.footer .wordmark`, `.wordmark.light`, `.dash-sidebar .wordmark`, `.admin-sidebar .wordmark`, `.public-footer .wordmark`) with compact `32px` logo height so the serif wordmark stays crisp against dark backgrounds.
+
+**Verification Results:**
+- `Select-String` scan for `GLAMGO<span>`: Zero occurrences remaining in `src/`.
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Header GLAMGO Logo Prominence & Contrast Polish
+
+**Objective:** Increase the header GLAMGO brand logo size, contrast/saturation blend, alignment padding, and hover polish without altering any other layout or functionality.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `styles.css`:
+  - Updated `.wordmark .brand-logo-img` to `40px` desktop height (`196px` max-width) and `32px` mobile height (`156px` max-width) with `filter: contrast(1.22) saturate(1.18) brightness(1.06)` and `mix-blend-mode: multiply`.
+  - Added `.wordmark:hover .brand-logo-img` (`transform: scale(1.03); opacity: 0.92;`) and `display: inline-flex; align-items: center; padding-right: 6px;` on `.header .wordmark`.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
+## Prompt Entry — `2026-11-24`: Default Homepage Replacement & Header GLAMGO Logo
+
+**Objective:** Replace the default `public` landing view on `/` with the split-screen `AT-HOME BEAUTY` (`landing`, `experience: 'home'`) homepage and integrate the uploaded GLAMGO serif logo into the header while keeping all backend APIs, routing, auth, and features intact.
+
+**Modified & Added Files (`branch-release-54ba3db`):**
+- `public/assets/glamgo-logo.jpg`: Added the uploaded GLAMGO serif brand logo asset.
+- `src/app.js`:
+  - Set `defaults.experience` to `'home'` and initial `state.view` to `'landing'` (with `experience: saved.experience || 'home'`) so `/` opens directly into the split-screen `AT-HOME BEAUTY` homepage (`Professional beauty care, at your doorstep.`, `Explore services` CTA, luxury editorial photo, horizontal `discovery-bar` with Location + `Search services, categories or specialists`, and `Women` / `Men` toggle).
+  - Updated `header()` wordmark link to render `<img src="./assets/glamgo-logo.jpg" alt="GLAMGO" class="brand-logo-img">`.
+  - Updated `public-home`, `guest-browse`, and `applyPostAuthNavigation()` so brand-logo clicks, guest browsing, and default post-auth navigation route directly to `view = 'landing'` (`experience = 'home'`) and persist state cleanly.
+- `styles.css`: Added scoped `.wordmark .brand-logo-img` sizing and desktop/mobile responsive rules (`mix-blend-mode: multiply` + subtle brightness/contrast blend onto `--ivory`).
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly after final edit.
+- `node --test tests/*.test.mjs`: `6/6` passed after final edit.
+- Live browser check (`http://127.0.0.1:5173/`): Confirmed `/` opens into `AT-HOME BEAUTY`, header logo renders cleanly alongside `Home` / `Salons` / `Shop` tabs, Location + Search container, `Women` / `Men` toggle, and all icons with zero horizontal overflow on desktop (`1440×900`) and mobile (`390×844`).
+
+---
+
+## Prompt Entry — `2026-11-24`: Login Show/Hide Password Toggle
+
+**Objective:** Add a Show/Hide Password eye-icon toggle inside the GlamGo login/auth password input fields without altering the existing login layout, theme, typography, buttons, or behavior.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`:
+  - Added `eyeOff` SVG path in the `icons` map right after `eye`.
+  - Wrapped `input[name="password"]` (Sign In / Create Account) and `input[name="new_password"]` (Password Reset confirm) inside `<div class="password-field">` with a right-aligned `<button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" aria-pressed="false">` showing `icon('eye', 18)` by default.
+  - Added `toggle-password` handling in `action(el)` to toggle `input.type` (`password` ↔ `text`), swap between `eye` and `eyeOff` icons, and update `aria-label` / `aria-pressed` directly in-place without calling `render()` so typed input values stay intact.
+- `styles.css`:
+  - Added scoped `.password-field`, `.password-field input` (`padding-right: 44px`), and `.password-toggle` styles so the toggle sits centered vertically on the right edge without changing input height, spacing, colors, or buttons.
+
+**Verification Results:**
+- `npm run build` (`vite build`): Passed cleanly (`✓ built in 3.79s`).
+- `node --test tests/*.test.mjs`: `6/6` passed.
+- Live browser check (`http://127.0.0.1:5173/`): Confirmed masked default (`type="password"`), `type="text"` reveal with preserved input text, toggling back to masked `type="password"`, `aria-label`/`aria-pressed` updates, and crisp alignment with zero horizontal overflow on desktop (`1440×900`) and mobile (`390×844`).
+
+---
+
+## Prompt Entry — `2026-11-24`: App Download Banner/Modal (Kept) & Gender Hub Removed
+
+**Objective:** Keep only the dismissible top App Download plugin bar & modal (`AppDownloadBanner` / `AppDownloadModal`), and remove the extra Men/Women `GenderServicesHub` / `servicesCatalog` section per user review.
+
+**Modified & Deleted Files (`branch-release-54ba3db`):**
+- `src/components/appDownload.js`: Kept `AppDownloadBanner` (`sessionStorage` key `glamgo_app_banner_dismissed=true`) and `AppDownloadModal` (store links, `+91` 10-digit Share App Link form with validation & feedback, desktop SVG QR preview).
+- `src/components/genderServicesHub.js` & `src/data/servicesCatalog.js`: Deleted.
+- `src/app.js`: Removed `GenderServicesHub`, `ServiceDetailDrawer`, `SERVICES_CATALOG`, `?section=` sync, and `hub*` state/handlers while keeping `AppDownloadBanner` and `AppDownloadModal`.
+- `styles.css`: Removed `.gender-hub` / `.service-detail-drawer` / `[data-gender=...]` styles while keeping `.app-download-banner` and `.app-download-modal` responsive styles.
+
+**Verification Results:**
+- `npm --prefix "d:\PROJECTS\Glamgo 4\branch-release-54ba3db" run build`: Passed.
+- `node --test tests/*.test.mjs`: `6/6` passed.
+
+---
+
 ## Prompt Entry — `2026-11-24`: Full Security Audit, Vulnerability Remediation & `.gitignore` Hardening
 
 **Objective:** Audit repository tracking/history, `.gitignore`, FastAPI backend endpoints, rate limiting, financial/rewards logic, and SPA frontend rendering for security vulnerabilities, then patch and verify every finding with automated tests.

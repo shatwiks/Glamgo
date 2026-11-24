@@ -112,7 +112,7 @@ export function publicLanding({ signedIn, experience, menu, icon }) {
     '<div class="public-page" id="top">' +
       '<a class="public-skip" href="#public-main">Skip to content</a>' +
       '<header class="public-header">' +
-        '<a class="wordmark public-logo" href="/" data-action="public-home" aria-label="GlamGo home">GLAMGO<span>✦</span></a>' +
+        '<a class="wordmark public-logo" href="/" data-action="public-home" aria-label="GlamGo home"><img src="./assets/glamgo-logo.png" alt="GLAMGO" class="brand-logo-img"></a>' +
         '<nav class="public-nav" aria-label="Main navigation">' + navLinks + '</nav>' +
         '<div class="public-header-actions">' +
           '<button type="button" class="public-signin" data-action="account">' + (signedIn ? 'My Account' : 'Sign In') + ' ' + arrow + '</button>' +
@@ -176,7 +176,7 @@ export function publicLanding({ signedIn, experience, menu, icon }) {
       '<footer class="public-footer">' +
         '<div class="public-footer-grid">' +
           '<div class="public-footer-brand">' +
-            '<a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a>' +
+            '<a class="wordmark" href="/" data-action="public-home"><img src="./assets/glamgo-logo-light.png" alt="GLAMGO" class="brand-logo-img"></a>' +
             '<p>Connecting independent beauty professionals, salons, and sellers with customers.</p>' +
           '</div>' +
           '<div class="public-footer-col">' +

@@ -1,5 +1,11 @@
 import { publicLanding } from './public-landing.js';
 import {
+  isAppBannerDismissed,
+  dismissAppBanner,
+  renderAppDownloadBanner,
+  renderAppDownloadModal
+} from './components/appDownload.js';
+import {
   tokenStorage,
   apiLogin,
   apiRegister,
@@ -100,7 +106,7 @@ const SHOP_IMG = './assets/shop-editorial.webp';
 const MEN_HOME_IMG = './assets/men-home-editorial.webp';
 const MEN_SALON_IMG = './assets/men-salon-editorial.webp';
 const MEN_SHOP_IMG = './assets/men-shop-editorial.webp';
-const MEN_CATEGORY_IMAGES = { Hair: './assets/men-hair.webp', Skin: './assets/men-skin.webp', Spa: './assets/men-massage.webp', Packages: './assets/men-massage.webp', Beard: './assets/men-beard.webp' };
+const MEN_CATEGORY_IMAGES = { Hair: './assets/men-hair.webp', Skin: './assets/men-skin.webp', Spa: './assets/men-massage.webp', Packages: './assets/men-beard.webp', Beard: './assets/men-beard.webp' };
 const MEN_SHOP_CATEGORY_IMAGES = { Skincare: './assets/men-category-skincare.webp', Haircare: './assets/men-category-haircare.webp', 'Beard Care': './assets/men-category-beard.webp', 'Body Care': './assets/men-category-body.webp', Fragrance: './assets/men-category-body.webp', 'Beauty Tools': './assets/men-category-beard.webp' };
 const photo = (id, w = 900) => 'https://images.unsplash.com/' + id + '?auto=format&fit=crop&w=' + w + '&q=85';
 
@@ -141,6 +147,7 @@ const icons = {
   minus: '<path d="M4 12h16"/>',
   filter: '<line x1="4" y1="8" x2="20" y2="8"/><circle cx="15" cy="8" r="2.2" fill="currentColor"/><line x1="4" y1="16" x2="20" y2="16"/><circle cx="9" cy="16" r="2.2" fill="currentColor"/>',
   eye: '<path d="M2 12s3.8-6.5 10-6.5S22 12 22 12s-3.8 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.8"/>',
+  eyeOff: '<path d="M9.9 4.2A10.4 10.4 0 0 1 12 4c6.2 0 10 8 10 8a18.5 18.5 0 0 1-3.2 4.3M6.6 6.6A17.7 17.7 0 0 0 2 12s3.8 8 10 8a9.8 9.8 0 0 0 5.4-1.6"/><path d="M14.1 14.1a3 3 0 0 1-4.2-4.2"/><path d="M3 3l18 18"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="1"/><path d="M7 3v4M17 3v4M3 10h18"/>',
   shield: '<path d="M12 2 4 5v6c0 6 4 9 8 11 4-2 8-5 8-11V5l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
   spark: '<path d="M12 2.7 6.3 8.4a8 8 0 1 0 11.4 0L12 2.7Z"/>',
@@ -433,7 +440,7 @@ const roleSections = {
 
 const defaults = {
   signedIn: false,
-  experience: null,
+  experience: 'home',
   audience: 'women',
   user: null,
   location:'Bandra West, Mumbai',
@@ -492,7 +499,8 @@ const state = {
   ...defaults,
   ...saved,
   signedIn: Boolean(tokenStorage.get() && saved.signedIn),
-  view: 'public',
+  experience: saved.experience || 'home',
+  view: 'landing',
   publicMenu: false,
   modal: null,
   menu: false,
@@ -577,6 +585,11 @@ const state = {
   adminUserFilter: 'ALL',
   adminUserSearch: '',
   selectedDraftId: null,
+  appDownloadModal: false,
+  appSharePhone: '',
+  appShareStatus: '',
+  appShareError: '',
+  appBannerDismissed: isAppBannerDismissed(),
   reviews: [],
   catalogFeedsLoading: {
     services: !services.length,
@@ -1107,7 +1120,7 @@ const dateOptions = () => Array.from({length:6},(_,i)=>{const d=new Date();d.set
 const formatDate = value => new Date(value+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'long',year:'numeric'});
 
 function onboarding(){
-  return '<div class="onboarding"><div class="onboard-top"><a class="wordmark" href="#" data-action="onboarding">GLAMGO<span>✦</span></a><div class="onboard-top-right"><span>YOUR BEAUTY. YOUR WAY.</span>'+button((state.signedIn?'My account ':'Sign in ')+icon('user',17),'account','btn-text')+'</div></div><div class="onboard-intro"><p class="eyebrow line-eyebrow">THREE EXPERIENCES. ONE BEAUTIFUL WORLD.</p><h1>Beauty is yours <em>to define.</em></h1><p>Where would you like to begin today?</p></div><div class="experience-grid">'+experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><span class="eyebrow">'+x.eyebrow+'</span><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',18)+'</span></div></button>').join('')+'</div><div class="onboard-bottom"><span>ONE ACCOUNT. EVERY SIDE OF BEAUTY.</span><span>CURATED WITH CARE &nbsp; · &nbsp; MADE FOR YOU</span></div></div>';
+  return '<div class="onboarding"><div class="onboard-top"><a class="wordmark" href="#" data-action="onboarding"><img src="./assets/glamgo-logo.png" alt="GLAMGO" class="brand-logo-img"></a><div class="onboard-top-right"><span>YOUR BEAUTY. YOUR WAY.</span>'+button((state.signedIn?'My account ':'Sign in ')+icon('user',17),'account','btn-text')+'</div></div><div class="onboard-intro"><p class="eyebrow line-eyebrow">THREE EXPERIENCES. ONE BEAUTIFUL WORLD.</p><h1>Beauty is yours <em>to define.</em></h1><p>Where would you like to begin today?</p></div><div class="experience-grid">'+experiences.map(x=>'<button class="experience-card" data-action="experience" data-id="'+x.id+'"><div class="experience-photo">'+image(x.img,x.title)+'</div><div class="experience-content"><span class="eyebrow">'+x.eyebrow+'</span><h2>'+x.title+'</h2><p>'+x.desc+'</p><span class="experience-link">'+x.cta+' '+icon('arrow',18)+'</span></div></button>').join('')+'</div><div class="onboard-bottom"><span>ONE ACCOUNT. EVERY SIDE OF BEAUTY.</span><span>CURATED WITH CARE &nbsp; · &nbsp; MADE FOR YOU</span></div></div>';
 }
 
 function auth(){
@@ -1153,21 +1166,21 @@ function auth(){
   } else if(mode==='reset'){
     formHtml = state.authResetStage==='confirm'
       ? '<p style="margin-bottom:12px;font-size:13px">Enter the code sent for <strong>'+esc(state.authResetEmail)+'</strong></p>' + hint +
-        '<form id="auth-reset-confirm-form"><label>6-digit reset code<input name="code" inputmode="numeric" required maxlength="16" placeholder="Enter 6-digit code"></label><label>New password<input name="new_password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password"></label><button class="btn btn-primary full" type="submit">Reset password '+icon('arrow',17)+'</button></form>' +
+        '<form id="auth-reset-confirm-form"><label>6-digit reset code<input name="code" inputmode="numeric" required maxlength="16" placeholder="Enter 6-digit code"></label><label>New password<div class="password-field"><input name="new_password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="new-password"><button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" aria-pressed="false">'+icon('eye',18)+'</button></div></label><button class="btn btn-primary full" type="submit">Reset password '+icon('arrow',17)+'</button></form>' +
         '<p class="auth-switch"><button type="button" data-action="auth-reset-restart">Use a different email</button></p>'
       : '<form id="auth-reset-request-form"><label>Account email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email" value="'+esc(state.authResetEmail||'')+'"></label><button class="btn btn-primary full" type="submit">Send reset code '+icon('arrow',17)+'</button></form>';
   } else {
     formHtml = '<form id="auth-form">' +
       (mode==='signup'?'<label>Full name<input name="name" required placeholder="Your full name" autocomplete="name"></label><label>Phone number<input name="phone" placeholder="Contact number"></label>':'') +
       '<label>Email address<input name="email" type="email" required placeholder="you@example.com" autocomplete="email"></label>' +
-      '<label>Password<input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'"></label>' +
+      '<label>Password<div class="password-field"><input name="password" type="password" required minlength="6" placeholder="At least 6 characters" autocomplete="'+(mode==='signup'?'new-password':'current-password')+'"><button type="button" class="password-toggle" data-action="toggle-password" aria-label="Show password" aria-pressed="false">'+icon('eye',18)+'</button></div></label>' +
       '<button class="btn btn-primary full" type="submit">'+(mode==='signup'?'Create account':'Sign in')+' '+icon('arrow',17)+'</button></form>' +
       (mode==='signin'?'<p class="auth-switch"><button type="button" data-action="auth-mode-set" data-id="reset">Forgot password?</button></p>':'');
   }
   const bottomSwitch = mode==='reset'
     ? '<p class="auth-switch"><button type="button" data-action="auth-mode-set" data-id="signin">Back to Email Sign In</button></p>'
     : '<p class="auth-switch">'+(mode==='signup'?'Already have an account?':'New to GlamGo?')+' <button data-action="auth-toggle">'+(mode==='signup'?'Sign in':'Create an account')+'</button></p>';
-  return '<div class="auth-layout"><div class="auth-image">'+image(AUTH_IMG,'GlamGo beauty sanctuary')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse">GLAMGO<span>✦</span></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+heading+'</h2><p>'+sub+'</p>'+methodPills+formHtml+bottomSwitch+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
+  return '<div class="auth-layout"><div class="auth-image">'+image(AUTH_IMG,'GlamGo beauty sanctuary')+'<div class="auth-image-copy"><a class="wordmark light" href="#onboarding" data-action="guest-browse"><img src="./assets/glamgo-logo-light.png" alt="GLAMGO" class="brand-logo-img"></a><h1>Your beauty.<br><em>Your way.</em></h1><p>One account for every side of beauty.</p></div></div><div class="auth-panel"><div class="auth-box"><p class="eyebrow">WELCOME TO GLAMGO</p><h2>'+heading+'</h2><p>'+sub+'</p>'+methodPills+formHtml+bottomSwitch+'<p class="auth-switch" style="margin-top:10px"><button data-action="guest-browse">← Continue browsing as guest</button></p></div></div></div>';
 }
 
 function header(){
@@ -1222,7 +1235,7 @@ function header(){
       '</div>'
     : '';
   return '<div class="site-shell"><header class="header">' +
-    '<a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a>' +
+    '<a class="wordmark" href="/" data-action="public-home" aria-label="GLAMGO Home"><img src="./assets/glamgo-logo.png" alt="GLAMGO" class="brand-logo-img"></a>' +
     expSwitcherHtml +
     '<div class="header-location"><button type="button" class="header-location-btn" data-action="location" aria-label="Change location: '+esc(state.location)+'">'+icon('pin',16)+'<span class="header-location-text">'+esc(state.location)+'</span>'+icon('chevron',14)+'</button></div>' +
     '<button type="button" class="header-search" data-action="search-open" aria-label="Search services, salons and products">'+icon('search',17)+'<span>Search GlamGo</span><kbd>⌘K</kbd></button>' +
@@ -1244,7 +1257,7 @@ function header(){
 }
 
 function footer(){
-  return '<footer class="footer"><div class="footer-grid"><div><a class="wordmark" href="/" data-action="public-home">GLAMGO<span>✦</span></a><p>Beauty made personal, wherever you are.</p></div><div><h4>Explore</h4>'+experiences.map(x=>'<button type="button" data-action="experience" data-id="'+x.id+'">'+x.eyebrow.split('/ ')[1]+'</button>').join('')+'</div><div><h4>Your account</h4><button type="button" data-action="account">My profile</button><button type="button" data-action="account-bookings">My bookings</button><button type="button" data-action="orders">My orders</button><button type="button" data-action="wishlist">Wishlist</button></div><div><h4>GlamGo</h4><button type="button" data-action="partners">Partner with us</button>'+(state.user?.role==='admin'?'<button type="button" data-action="admin">Command Centre</button>':'')+'<button type="button" data-action="support">Customer support</button><button type="button" data-action="notifications">Notifications</button></div></div><div class="footer-bottom"><span>© '+new Date().getFullYear()+' GlamGo.</span></div></footer>';
+  return '<footer class="footer"><div class="footer-grid"><div><a class="wordmark" href="/" data-action="public-home"><img src="./assets/glamgo-logo-light.png" alt="GLAMGO" class="brand-logo-img"></a><p>Beauty made personal, wherever you are.</p></div><div><h4>Explore</h4>'+experiences.map(x=>'<button type="button" data-action="experience" data-id="'+x.id+'">'+x.eyebrow.split('/ ')[1]+'</button>').join('')+'</div><div><h4>Your account</h4><button type="button" data-action="account">My profile</button><button type="button" data-action="account-bookings">My bookings</button><button type="button" data-action="orders">My orders</button><button type="button" data-action="wishlist">Wishlist</button></div><div><h4>GlamGo</h4><button type="button" data-action="partners">Partner with us</button>'+(state.user?.role==='admin'?'<button type="button" data-action="admin">Command Centre</button>':'')+'<button type="button" data-action="support">Customer support</button><button type="button" data-action="notifications">Notifications</button></div></div><div class="footer-bottom"><span>© '+new Date().getFullYear()+' GlamGo.</span></div></footer>';
 }
 
 function mobileNav(){
@@ -2554,7 +2567,7 @@ function partnerPage(){
 
   const applicant = state.user?.role === 'customer';
   const navTabs = applicant ? ['Registration'] : tabs;
-  return '<div class="partner-page dash-shell"><aside class="partner-sidebar dash-sidebar"><div class="dash-brand"><button class="wordmark" data-action="public-home">GLAMGO<span>✦</span></button><small>PARTNER WORKSPACE</small></div><div class="dash-role"><span>YOUR WORKSPACE</span><strong>'+esc(role)+'</strong></div><label class="dash-mobile-nav">Workspace section<select id="partner-mobile-nav">'+navTabs.map(t=>'<option value="'+esc(t)+'" '+(t===tab?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label><nav aria-label="Partner navigation">'+navTabs.map(t => '<button class="'+(t===tab?'active':'')+'" '+(t===tab?'aria-current="page"':'')+' data-action="partner-tab" data-id="'+esc(t)+'"><span>'+esc(t)+'</span><span aria-hidden="true">→</span></button>').join('')+'</nav><button class="dash-exit" data-action="public-home">← Back to GlamGo</button></aside>'+
+  return '<div class="partner-page dash-shell"><aside class="partner-sidebar dash-sidebar"><div class="dash-brand"><button class="wordmark" data-action="public-home"><img src="./assets/glamgo-logo-light.png" alt="GLAMGO" class="brand-logo-img"></button><small>PARTNER WORKSPACE</small></div><div class="dash-role"><span>YOUR WORKSPACE</span><strong>'+esc(role)+'</strong></div><label class="dash-mobile-nav">Workspace section<select id="partner-mobile-nav">'+navTabs.map(t=>'<option value="'+esc(t)+'" '+(t===tab?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></label><nav aria-label="Partner navigation">'+navTabs.map(t => '<button class="'+(t===tab?'active':'')+'" '+(t===tab?'aria-current="page"':'')+' data-action="partner-tab" data-id="'+esc(t)+'"><span>'+esc(t)+'</span><span aria-hidden="true">→</span></button>').join('')+'</nav><button class="dash-exit" data-action="public-home">← Back to GlamGo</button></aside>'+
     '<main class="partner-main dash-main"><header class="dash-topbar"><div><span>GLAMGO / '+esc(role.toUpperCase())+'</span><strong>'+esc(tab)+'</strong></div><button class="dash-account" data-action="account">'+icon('user',17)+' <span>'+esc(state.user?.name || 'My account')+'</span></button></header>'+
     '<div class="dash-content">'+(applicant ? '<div class="role-picker" aria-label="Choose partner type">'+roles.map(r => '<button class="'+(r===role?'active':'')+'" data-action="partner-role" data-id="'+r+'">'+r+'</button>').join('')+'</div>' : '')+
     '<div class="dashboard-heading"><div><p class="eyebrow">'+esc(role.toUpperCase())+' DASHBOARD</p><h2>'+esc(tab)+'.</h2></div></div>'+
@@ -2604,7 +2617,7 @@ function adminPage(){
 
   const sidebar = '<aside class="admin-sidebar">' +
     '<div class="admin-sidebar-brand">' +
-      '<a class="wordmark light" href="#" data-action="landing" style="text-decoration:none">GLAMGO<span>✦</span></a>' +
+      '<a class="wordmark light" href="#" data-action="landing" style="text-decoration:none"><img src="./assets/glamgo-logo-light.png" alt="GLAMGO" class="brand-logo-img"></a>' +
       '<h3>Command Centre</h3>' +
       '<span>PLATFORM GOVERNANCE</span>' +
     '</div>' +
@@ -2928,8 +2941,16 @@ function render(){
   if (state.modal !== 'location' && locationDraft) { locationDraft = null; locationLookupSeq++; locationSearchSeq++; clearTimeout(locationSearchTimer); }
   destroyActiveMaps();
   if(state.view === 'public'){
-    app.innerHTML = publicLanding({ signedIn: state.signedIn, experience: state.experience, menu: state.publicMenu, icon });
-    document.body.classList.remove('modal-open');
+    app.innerHTML = renderAppDownloadBanner(state.appBannerDismissed) +
+      publicLanding({ signedIn: state.signedIn, experience: state.experience, menu: state.publicMenu, icon }) +
+      renderAppDownloadModal({
+        open: state.appDownloadModal,
+        phone: state.appSharePhone,
+        statusMsg: state.appShareStatus,
+        errorMsg: state.appShareError,
+        esc
+      });
+    document.body.classList.toggle('modal-open', Boolean(state.appDownloadModal));
     return;
   }
   if(state.view === 'auth' || (!state.signedIn && PROTECTED_VIEWS.has(state.view))){ app.innerHTML = auth(); document.body.classList.remove('modal-open'); return; }
@@ -2951,8 +2972,16 @@ function render(){
   }
   const activeExp = state.experience || 'home';
   let page = state.view==='landing' ? (activeExp==='home'?homePage():activeExp==='salon'?salonPage():shopPage()) : state.view==='service-detail'?serviceDetail():state.view==='salon-detail'?salonDetail():state.view==='product-detail'?productDetail():state.view==='account'?account():state.view==='cart'?cartPage():state.view==='checkout'?checkoutPage():state.view==='order-success'?orderSuccess():state.view==='tracking'?trackingPage():state.view==='booking-success'?bookingSuccess():state.view==='partner'?partnerPage():homePage();
-  app.innerHTML = (isDemoCatalogue ? '<div class="demo-catalogue-notice" role="status">Local demo catalogue · Sample listings and prices · Bookings and checkout are disabled</div>' : hasLocalDemo ? '<div class="demo-catalogue-notice" role="status">Local preview · DEMO listings and prices are samples and cannot be booked or purchased</div>' : '') + header() + page + footer() + mobileNav() + modal();
-  document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen));
+  const appBannerHtml = renderAppDownloadBanner(state.appBannerDismissed);
+  const appModalHtml = renderAppDownloadModal({
+    open: state.appDownloadModal,
+    phone: state.appSharePhone,
+    statusMsg: state.appShareStatus,
+    errorMsg: state.appShareError,
+    esc
+  });
+  app.innerHTML = appBannerHtml + (isDemoCatalogue ? '<div class="demo-catalogue-notice" role="status">Local demo catalogue · Sample listings and prices · Bookings and checkout are disabled</div>' : hasLocalDemo ? '<div class="demo-catalogue-notice" role="status">Local preview · DEMO listings and prices are samples and cannot be booked or purchased</div>' : '') + header() + page + footer() + mobileNav() + modal() + appModalHtml;
+  document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen || state.appDownloadModal));
   if(state.modal === 'location'){
     void mountLocationPickerMap();
   }
@@ -2987,7 +3016,7 @@ async function action(el){
   if ((a === 'buy-now' && isPreviewId(id)) || (a === 'checkout' && Object.keys(state.cart || {}).some(key => isPreviewId(parseCartKey(key).productId)))) { toast('Remove demo items before checking out with real products.'); return; }
   if(isDemoCatalogue && ['book-home','book-salon','book-pro','checkout','buy-now'].includes(a)){ toast('Demo listings are for preview only. Booking and checkout are unavailable.'); return; }
   if(a==='public-home'){
-    pendingAuthResume=null; state.publicMenu=false; state.view='public';
+    pendingAuthResume=null; state.publicMenu=false; state.experience='home'; state.view='landing'; state.activeNav='landing'; persist();
     if(window.location.protocol !== 'file:') window.history.replaceState(null, '', '/');
     render(); window.scrollTo({top:0,behavior:'instant'});
   }
@@ -3014,9 +3043,38 @@ async function action(el){
     navigate('partner'); loadPartnerData();
   }
   else if(a==='onboarding'){ pendingAuthResume=null; state.view='onboarding'; render(); }
-  else if(a==='guest-browse'){ pendingAuthResume=null; state.mobileMenu=false; state.menu=false; state.view=state.experience?'landing':'public'; render(); window.scrollTo({top:0,behavior:'instant'}); }
+  else if(a==='guest-browse'){ pendingAuthResume=null; state.mobileMenu=false; state.menu=false; state.experience=state.experience||'home'; state.view='landing'; render(); window.scrollTo({top:0,behavior:'instant'}); }
   else if(a==='landing'){ state.activeNav='landing'; navigate('landing'); }
   else if(a==='experience') setExperience(id);
+  else if(a==='toggle-password'){
+    const input = el.closest('.password-field')?.querySelector('input');
+    if(!input) return;
+    const show = input.type === 'password';
+    input.type = show ? 'text' : 'password';
+    el.innerHTML = icon(show ? 'eyeOff' : 'eye', 18);
+    el.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    el.setAttribute('aria-pressed', show ? 'true' : 'false');
+    return;
+  }
+  else if(a==='app-download-open'){
+    state.appDownloadModal = true;
+    state.appShareError = '';
+    state.appShareStatus = '';
+    render();
+  }
+  else if(a==='app-download-close'){
+    state.appDownloadModal = false;
+    render();
+  }
+  else if(a==='app-download-dismiss'){
+    dismissAppBanner();
+    state.appBannerDismissed = true;
+    render();
+  }
+  else if(a==='app-store-click'){
+    e?.preventDefault?.();
+    toast((id || 'GlamGo App') + ' download link ready — scan QR or enter your number below.');
+  }
   else if(a==='audience-set'){
     if (!['women','men'].includes(id)) return;
     state.audience = id;
@@ -4333,7 +4391,8 @@ function applyPostAuthNavigation(role) {
   if (role !== 'admin' && window.location.hash === '#admin') {
     history.replaceState(null, '', '#home');
   }
-  state.view = state.experience ? 'landing' : 'public';
+  state.experience = state.experience || 'home';
+  state.view = 'landing';
   return null;
 }
 
@@ -4613,6 +4672,20 @@ document.addEventListener('submit', async e => {
     } catch (err) {
       toast(err.message || 'Failed to save address');
     }
+  }
+  else if(f.id === 'app-download-share-form'){
+    const raw = String(d.get('phone') || '').replace(/\D/g, '');
+    state.appSharePhone = raw.slice(0, 10);
+    if (!/^[6-9]\d{9}$/.test(state.appSharePhone)) {
+      state.appShareStatus = '';
+      state.appShareError = 'Please enter a valid 10-digit Indian mobile number.';
+    } else {
+      state.appShareError = '';
+      state.appShareStatus = 'App download link sent via SMS to +91 ' + state.appSharePhone + '!';
+      toast('App link sent to +91 ' + state.appSharePhone);
+    }
+    render();
+    return;
   }
   else if(f.id === 'coupon-form'){
     const code = String(d.get('coupon')).trim().toUpperCase();

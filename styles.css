@@ -149,6 +149,47 @@ summary:focus-visible {
   color: var(--card);
 }
 
+.wordmark .brand-logo-img {
+  height: 40px;
+  width: auto;
+  max-width: 196px;
+  padding: 2px 0;
+  object-fit: contain;
+  display: block;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.wordmark:hover .brand-logo-img {
+  transform: scale(1.03);
+  opacity: 0.92;
+}
+
+.footer .wordmark,
+.wordmark.light,
+.dash-sidebar .wordmark,
+.admin-sidebar .wordmark,
+.public-footer .wordmark {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+}
+
+.footer .wordmark .brand-logo-img,
+.wordmark.light .brand-logo-img,
+.dash-sidebar .wordmark .brand-logo-img,
+.admin-sidebar .wordmark .brand-logo-img,
+.public-footer .wordmark .brand-logo-img {
+  height: 32px;
+  max-width: 160px;
+}
+
+@media (max-width: 640px) {
+  .wordmark .brand-logo-img {
+    height: 32px;
+    max-width: 156px;
+  }
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -499,6 +540,38 @@ summary:focus-visible {
   border-color: var(--ink);
 }
 
+.password-field {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 34px;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  color: var(--ink);
+}
+
 .auth-switch {
   margin-top: 18px;
   text-align: center;
@@ -541,6 +614,9 @@ summary:focus-visible {
 
 .header .wordmark {
   font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 6px;
 }
 
 .exp-switcher {
@@ -1181,14 +1257,14 @@ summary:focus-visible {
 .card-grid,
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .salon-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .rating {
@@ -1305,7 +1381,7 @@ summary:focus-visible {
 }
 
 .card-body {
-  padding: 18px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1323,9 +1399,9 @@ summary:focus-visible {
 
 .card-body h3 {
   font-family: var(--serif);
-  font-size: 26px;
+  font-size: 21px;
   line-height: 1.15;
-  margin: 8px 0 10px;
+  margin: 6px 0 8px;
 }
 
 .card-meta {
@@ -1349,7 +1425,7 @@ summary:focus-visible {
 
 .card-bottom {
   border-top: 1px solid var(--border);
-  padding-top: 14px;
+  padding-top: 10px;
   margin-top: auto;
   display: flex;
   justify-content: space-between;
@@ -1358,7 +1434,7 @@ summary:focus-visible {
 }
 
 .card-bottom strong {
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -1371,7 +1447,7 @@ summary:focus-visible {
   background: none;
   border: 0;
   padding: 0;
-  min-height: 44px;
+  min-height: 36px;
   color: var(--ink);
   font-size: 12px;
   font-weight: 700;
@@ -1533,11 +1609,17 @@ summary:focus-visible {
 }
 
 .home-categories .category-art {
-  height: 128px;
+  height: auto;
+  aspect-ratio: 4 / 3;
   padding: 0;
+  overflow: hidden;
 }
 
 .home-categories .category-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 45%;
   transition: transform .35s ease;
 }
 
@@ -1817,7 +1899,7 @@ summary:focus-visible {
 }
 
 .salon-body {
-  padding: 18px 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1832,9 +1914,9 @@ summary:focus-visible {
 
 .salon-title h3 {
   font-family: var(--serif);
-  font-size: 29px;
+  font-size: 22px;
   line-height: 1.15;
-  margin: 0 0 8px;
+  margin: 0 0 6px;
 }
 
 .salon-location,
@@ -2065,11 +2147,13 @@ summary:focus-visible {
 
 .collection-layout.with-filters .card-grid,
 .collection-layout.with-filters .product-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .collection-layout.with-filters .salon-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .collection-results {
@@ -2485,7 +2569,7 @@ summary:focus-visible {
 
 .product-image {
   height: auto;
-  aspect-ratio: 4 / 5;
+  aspect-ratio: 1 / 1;
   position: relative;
   background: var(--cream);
   overflow: hidden;
@@ -2680,7 +2764,7 @@ summary:focus-visible {
 }
 
 .product-body {
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2693,11 +2777,11 @@ summary:focus-visible {
   text-align: left;
   padding: 0;
   font-family: var(--sans);
-  font-size: 15px;
+  font-size: 13.5px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.38;
   color: var(--ink);
-  margin: 6px 0;
+  margin: 4px 0;
 }
 
 .product-seller {
@@ -2751,7 +2835,7 @@ summary:focus-visible {
 .product-price,
 .product-bottom strong {
   font-family: var(--sans);
-  font-size: 16px;
+  font-size: 14.5px;
   font-weight: 800;
   color: var(--ink);
 }
@@ -2772,8 +2856,8 @@ summary:focus-visible {
 
 .add-bag-btn {
   width: 100%;
-  min-height: 44px;
-  padding: 8px 12px;
+  min-height: 36px;
+  padding: 6px 10px;
   border: 1px solid var(--ink);
   background: var(--ink);
   color: var(--card);
@@ -5912,8 +5996,17 @@ summary:focus-visible {
   }
 
   .card-grid,
-  .product-grid {
+  .product-grid,
+  .collection-layout.with-filters .card-grid,
+  .collection-layout.with-filters .product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .salon-grid,
+  .collection-layout.with-filters .salon-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .category-grid {
@@ -6120,6 +6213,22 @@ summary:focus-visible {
 
   .admin-main {
     padding: 20px 16px;
+  }
+}
+
+@media (max-width: 860px) {
+  .card-grid,
+  .product-grid,
+  .collection-layout.with-filters .card-grid,
+  .collection-layout.with-filters .product-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .salon-grid,
+  .collection-layout.with-filters .salon-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 }
 
@@ -6373,7 +6482,8 @@ summary:focus-visible {
   }
 
   .home-categories .category-art {
-    height: 82px;
+    height: auto;
+    aspect-ratio: 4 / 3;
   }
 
   .category-art {
@@ -6450,7 +6560,7 @@ summary:focus-visible {
   .empty-recs-grid,
   .wishlist-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
+    gap: 12px;
   }
 
   .salon-grid,
@@ -7014,3 +7124,250 @@ body.theme-men {
 .audience-general-toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
 .audience-badge { display: inline-block; width: fit-content; margin: 3px 0 6px; padding: 3px 6px; color: var(--muted); background: var(--cream); font-size: 11px; line-height: 1.4; }
 .demo-catalogue-notice { padding: 9px 16px; background: #e5ddd2; color: #1e1c1a; text-align: center; font-size: 12px; font-weight: 700; line-height: 1.4; }
+
+
+/* ==========================================================================
+   TOP APP DOWNLOAD BANNER, MODAL & SCOPED GENDER SERVICES HUB
+   ========================================================================== */
+.app-download-banner {
+  background: #1E1C1A;
+  color: #F7F4EF;
+  border-bottom: 1px solid rgba(197, 160, 89, .28);
+  position: relative;
+  z-index: 65;
+}
+
+.app-banner-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  min-height: 44px;
+  padding: 6px clamp(12px, 3vw, 32px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.app-banner-copy {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-banner-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #C5A059;
+  color: #1E1C1A;
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.app-banner-icon-img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  object-fit: contain;
+  flex-shrink: 0;
+  display: block;
+  border: 1px solid rgba(200, 168, 120, 0.35);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.app-banner-text {
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.app-banner-cta {
+  border: 0;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #1E1C1A;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.app-banner-cta:hover {
+  background: #EFEAE1;
+}
+
+.app-banner-close {
+  border: 0;
+  background: transparent;
+  color: rgba(247, 244, 239, .85);
+  font-size: 20px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.app-banner-close:hover {
+  background: rgba(255, 255, 255, .12);
+  color: #FFFFFF;
+}
+
+/* App Download Modal */
+.app-download-modal {
+  max-width: 600px;
+}
+
+.app-modal-sub {
+  color: var(--muted);
+  margin: 6px 0 18px;
+  font-size: 13.5px;
+}
+
+.app-modal-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 20px;
+  align-items: start;
+}
+
+.app-store-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.app-store-btn {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 8px 16px;
+  border-radius: 8px;
+  background: #1E1C1A;
+  color: #FFFFFF;
+  min-width: 138px;
+}
+
+.app-store-btn small {
+  font-size: 10px;
+  opacity: .8;
+}
+
+.app-store-btn strong {
+  font-size: 13.5px;
+}
+
+.app-share-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.app-share-input-wrap {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.app-share-prefix {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  background: var(--cream);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+  border-right: 1px solid var(--border);
+}
+
+.app-share-input-wrap input {
+  border: 0 !important;
+  flex: 1;
+  min-width: 0;
+  padding: 9px 10px;
+  outline: none;
+}
+
+.app-share-input-wrap .btn {
+  border-radius: 0;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
+.app-share-feedback {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.app-share-feedback.is-error {
+  color: #B91C1C;
+}
+
+.app-share-feedback.is-ok {
+  color: #15803D;
+}
+
+.app-qr-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  background: var(--ivory);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+@media (max-width: 680px) {
+  .app-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .app-qr-card {
+    display: none;
+  }
+
+  .app-banner-inner {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+
+  .app-banner-text {
+    font-size: 11.5px;
+  }
+
+  .app-banner-cta {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+
+  .app-banner-icon-img {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+  }
+}

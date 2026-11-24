@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="GlamGo">
+  <defs>
+    <linearGradient id="gg-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#25221F" />
+      <stop offset="100%" stop-color="#171513" />
+    </linearGradient>
+    <linearGradient id="gg-ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FAF7F2" />
+      <stop offset="100%" stop-color="#E5D5BE" />
+    </linearGradient>
+    <linearGradient id="gg-gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E0AE8D" />
+      <stop offset="100%" stop-color="#B06B52" />
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#gg-bg)" />
+  <rect x="4.5" y="4.5" width="55" height="55" rx="11.5" fill="none" stroke="#C8A878" stroke-opacity="0.45" stroke-width="1.2" />
+  <text x="29" y="45" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif" font-size="39" font-weight="400" fill="url(#gg-ink)">G</text>
+  <path d="M49 9.5 L50.4 13.6 L54.5 15 L50.4 16.4 L49 20.5 L47.6 16.4 L43.5 15 L47.6 13.6 Z" fill="url(#gg-gold)" />
+</svg>
