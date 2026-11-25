@@ -47,8 +47,8 @@ export async function apiRequest(endpoint, options = {}) {
   try {
     const res = await fetch(url, { ...options, headers });
 
-    // MAJ-07: Intercept 401 Unauthorized for transparent token refresh
-    if (res.status === 401 && !options._retry && !endpoint.startsWith('/auth/')) {
+    // MAJ-07: Intercept 401 Unauthorized for transparent token refresh (never on /auth/ or /payments/ gateway errors)
+    if (res.status === 401 && !options._retry && !endpoint.startsWith('/auth/') && !endpoint.startsWith('/payments/')) {
       const refreshToken = tokenStorage.getRefresh();
       if (refreshToken) {
         try {

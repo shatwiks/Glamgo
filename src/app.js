@@ -2327,9 +2327,10 @@ function partnerPage(){
       '</div>' +
       (bList.length ? '<label class="dash-search">Search appointments<input type="search" data-dashboard-search=".dash-row" placeholder="Search service, customer or date"></label>' : '') +
       (bList.length ? bList.map(b => '<div class="dash-row">' +
-        '<div><strong>'+esc(b.title)+'</strong><small>'+formatDate(b.date)+' · '+b.time+' · '+esc(b.customer_name||'Client')+' · '+money(b.price)+'</small><small style="color:var(--muted)">Location: '+esc(b.location)+'</small>'+((Array.isArray(b.addons)&&b.addons.length)?'<small style="color:var(--muted)">Add-ons: '+esc(b.addons.map(x=>x.name||x).join(', '))+'</small>':'')+'</div>' +
+        '<div><strong>'+esc(b.title)+'</strong><small>'+formatDate(b.date)+' · '+b.time+(b.professional?' · Staff: '+esc(b.professional):'')+' · '+esc(b.customer_name||'Client')+' · '+money(b.price)+'</small><small style="color:var(--muted)">Location: '+esc(b.location)+'</small>'+((Array.isArray(b.addons)&&b.addons.length)?'<small style="color:var(--muted)">Add-ons: '+esc(b.addons.map(x=>x.name||x).join(', '))+'</small>':'')+'</div>' +
         '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
           '<span class="badge badge-'+b.status.toLowerCase()+'">'+esc(b.status)+'</span>' +
+          (b.status === 'pending' ? '<button class="btn btn-danger btn-sm" data-action="'+(role==='Professional'?'partner-pro-cancel':'partner-salon-cancel')+'" data-id="'+b.id+'">Cancel</button>' : '') +
           (b.status === 'confirmed' ? 
             (role === 'Professional' ? (state.proVerifiedArrival?.[b.id] ? '<span class="badge badge-approved">Arrival verified</span>' : '<button class="btn btn-outline btn-sm" data-action="pro-verify-otp-open" data-id="'+b.id+'">Verify arrival PIN</button>') : '') +
             '<button class="btn btn-success btn-sm" data-action="'+(role==='Professional'?'partner-pro-complete':'partner-salon-complete')+'" data-id="'+b.id+'">Complete</button>' +
@@ -3630,7 +3631,7 @@ async function action(el){
         currency: payOrder.currency || 'INR',
         name: 'GlamGo Luxury Beauty',
         description: `Order #${order.id}`,
-        order_id: payOrder.razorpay_order_id,
+        order_id: payOrder.razorpay_order_id || payOrder.order_id,
         prefill: {
           name: state.user?.name || '',
           email: state.user?.email || '',
@@ -4263,7 +4264,7 @@ async function action(el){
           currency: payOrder.currency || 'INR',
           name: 'GlamGo Luxury Beauty',
           description: `Appointment #${booked.id} (${s?.name || 'Service'})`,
-          order_id: payOrder.razorpay_order_id,
+          order_id: payOrder.razorpay_order_id || payOrder.order_id,
           prefill: {
             name: state.user?.name || '',
             email: state.user?.email || '',

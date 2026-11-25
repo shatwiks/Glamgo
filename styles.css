@@ -4851,8 +4851,10 @@ summary:focus-visible {
 .availability-grid button {
   border: 1px solid var(--border);
   background: var(--ivory);
-  padding: 16px 4px;
+  padding: 14px 6px;
   min-height: 74px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .availability-grid button.active {
@@ -6213,6 +6215,10 @@ summary:focus-visible {
 
   .admin-main {
     padding: 20px 16px;
+  }
+
+  .availability-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

@@ -46,7 +46,7 @@ else
 fi
 
 # 3. Optional initial data seed
-if [ "${SEED_ON_STARTUP:-false}" = "true" ]; then
+if [ "${SEED_ON_STARTUP:-true}" = "true" ]; then
     echo "[GlamGo Entrypoint] SEED_ON_STARTUP is enabled. Running seed service..."
     python -m backend.app.services.seed_service || echo "[GlamGo Entrypoint] Seed service finished."
 fi

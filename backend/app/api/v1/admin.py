@@ -29,7 +29,7 @@ router = APIRouter()
 
 
 class AudienceUpdate(BaseModel):
-    audience: Literal["women", "men", "unisex", "unspecified"]
+    audience: Literal["women", "men", "unisex"]
 
 
 @router.put("/catalog/{kind}/{item_id}/audience")
@@ -335,6 +335,8 @@ def approve_partner_draft(
                     workspace_label = "Salon Owner Hub"
                     existing_salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
                     if not existing_salon:
+                        desc_low = (draft.description or "").lower()
+                        parsed_cats = [c for c in ("Hair", "Skin", "Nails", "Makeup", "Spa", "Beard") if c.lower() in desc_low]
                         salon = Salon(
                             id=f"sal-{secrets.token_hex(3)}",
                             owner_id=user.id,
@@ -349,7 +351,7 @@ def approve_partner_draft(
                             reviews=1,
                             img="https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&auto=format&fit=crop&q=80",
                             tag="New Partner",
-                            services_list="Hair,Skin,Nails",
+                            services_list=",".join(parsed_cats) if parsed_cats else "Hair,Skin,Nails",
                             hours="10:00 AM - 8:00 PM",
                             about=draft.description,
                         )

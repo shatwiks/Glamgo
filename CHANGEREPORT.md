@@ -4,6 +4,57 @@
 
 ---
 
+## Prompt Entry — `2026-11-25`: Full 6-Phase Salon Marketplace E2E QA & Bug Fixes
+
+**Objective:** Execute a full 6-phase end-to-end live lifecycle test (Owner registration -> Admin approval -> Owner workspace management -> Customer booking -> Owner appointment management -> Admin governance) and fix all discovered bugs.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/api.js`: Exempted `/payments/` endpoints from the HTTP `401` JWT refresh interceptor so gateway authentication failures never rotate/clear a signed-in user's session or double-fire `/payments/razorpay/create-order`.
+- `backend/app/api/v1/payments.py`: Deleted `initiating` `PaymentTransaction` rows on deterministic `razorpay.errors.BadRequestError` failures (including `Authentication failed`) for both orders and bookings so failed gateway handshakes do not leave a booking stuck in `409 Conflict`.
+- `backend/app/api/v1/admin.py`: Removed `'unspecified'` from `AudienceUpdate.audience` (`Literal["women", "men", "unisex"]`) and parsed matching service categories (`Hair`, `Skin`, `Nails`, `Makeup`, `Spa`, `Beard`) from `draft.description` during partner salon approval.
+- `src/app.js`: Displayed the booked specialist (`b.professional`) inside Partner Workspace Appointments rows and added a `Cancel` action button on `pending` bookings alongside `confirmed` controls.
+- `styles.css`: Added `min-width: 0; overflow: hidden;` on `.availability-grid button` and wrapped `.availability-grid` to 4 columns at `@media (max-width: 950px)` so Saturday/Sunday buttons stay cleanly within the viewport.
+
+**Verification Results:**
+- 6-Phase E2E Browser Walkthrough (`http://127.0.0.1:5173/`): Passed Owner sign-up (`200`), Partner draft submission (`200`), pre-approval isolation, Admin approval (`200` + role upgrade + Audit log), Owner profile/staff persistence across reload, Customer Women/Men salon discovery & detail view, Booking DB persistence (`200` + reload), Owner live appointment visibility & KPI metrics, and Admin governance view.
+- Post-fix `pytest` (`test_razorpay_checkout.py`, `test_booking_payment_state.py`, `test_security_hardening.py`, `test_audience_catalog.py`), `npm run build`, & `node --test tests/*.test.mjs`: Passed cleanly.
+
+---
+
+## Prompt Entry — `2026-11-25`: Seed & Sync Men, Women & Unisex Catalog Listings on Startup
+
+**Objective:** Ensure all existing Men (`ms1–ms8`, `201–203`, `ml1–ml4`, `mb1–mb4`), Women, and Unisex services, specialists, salons, and products in `seed_service.py` are seeded and properly categorized across both local SQLite and Neon PostgreSQL (Render).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/entrypoint.sh` & `render.yaml`: Enabled `SEED_ON_STARTUP` (`"true"`) by default so the idempotent `python -m backend.app.services.seed_service` runs on container startup and syncs missing/updated `men`, `women`, and `unisex` listings without touching existing customer orders, bookings, or accounts.
+
+**Verification Results:**
+- Executed `python -m backend.app.services.seed_service` locally against `sqlite:///./glamgo_dev.db`:
+  - `services`: `men: 8`, `women: 8`, `unisex: 1`
+  - `professional_profiles`: `men: 3`, `women: 5`, `unisex: 2`
+  - `salons`: `men: 4`, `women: 5`, `unisex: 3`
+  - `products`: `men: 4`, `unisex: 5`, `women: 2`
+
+---
+
+## Prompt Entry — `2026-11-24`: Razorpay Standard Web Checkout Completion & Verification
+
+**Objective:** Complete and verify GlamGo's Razorpay Standard Web Checkout integration without duplicating existing routes, configure environment variables (`RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `VITE_RAZORPAY_KEY_ID`) in the gitignored `.env`, align error status codes (`401` auth failure, `500` gateway failure, `400` missing verification fields / signature mismatch), and verify end-to-end tests + live Razorpay order creation.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `.env` *(gitignored, untracked)*: Configured `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, and `VITE_RAZORPAY_KEY_ID` (`KEY_ID` only for Vite).
+- `backend/app/schemas/payment.py`: Added `order_id` to `PaymentOrderResponse` alongside `razorpay_order_id`, and made `PaymentVerifyRequest` signature fields optional so missing/blank fields return HTTP `400`.
+- `backend/app/api/v1/payments.py`: Populated `order_id` on `PaymentOrderResponse`, updated `_raise_gateway_error()` to return `401` on gateway auth failure and `500` on gateway API errors, and enforced an upfront `400` validation for missing fields in `verify_razorpay_payment()` before `HMAC-SHA256` signature verification.
+- `src/app.js`: Supported `payOrder.razorpay_order_id || payOrder.order_id` in both Order Checkout and Booking Checkout.
+- `backend/tests/test_razorpay_checkout.py`: Added automated tests covering `< 100` paise validation (`400`), auth failure (`401`), gateway error (`500`), missing verify fields (`400`), invalid `HMAC-SHA256` signature (`400` without marking paid), and valid `HMAC-SHA256` verification (`200`).
+
+**Verification Results:**
+- `pytest backend/tests/test_razorpay_checkout.py backend/tests/test_booking_payment_state.py backend/tests/test_security_hardening.py backend/tests/test_audience_catalog.py`: `19/19` passed in `11.58s`.
+- Live Razorpay probe (`api.razorpay.com`): Returned `Authentication failed` (`401` via `_raise_gateway_error`), confirming auth-error handling works and indicating the test key pair should be refreshed in Razorpay Dashboard if rotated.
+- `npm run build` (`2.02s`), `node --test tests/*.test.mjs` (`5/5`), `git check-ignore -v .env`, & tracked-file secret scan: Passed cleanly with zero credentials in source files.
+
+---
+
 ## Prompt Entry — `2026-11-24`: Remove `"unspecified"` Audience State (Default to `"unisex"`)
 
 **Objective:** Eliminate the `"unspecified"` audience state across frontend, backend models/schemas, database migrations, and tests, replacing it with `"unisex"` so all existing listings are visible in both **Women** and **Men**.

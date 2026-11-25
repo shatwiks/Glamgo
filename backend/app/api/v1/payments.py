@@ -52,7 +52,7 @@ def _raise_gateway_error(exc: Exception, operation: str) -> None:
     lower = msg.lower()
     if "authentication" in lower or "unauthorized" in lower or "invalid api key" in lower:
         raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Payment gateway authentication failed. Verify Razorpay credentials on the server."
         )
     if isinstance(exc, razorpay.errors.BadRequestError):
@@ -61,8 +61,8 @@ def _raise_gateway_error(exc: Exception, operation: str) -> None:
             detail=f"Payment gateway rejected {operation}: {msg}"
         )
     raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Payment gateway is temporarily unavailable. Please try again."
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Payment gateway error occurred while processing the request. Please try again."
     )
 
 
@@ -535,6 +535,7 @@ def create_razorpay_order(
                 )
             if idem_tx.razorpay_order_id and idem_tx.status in ("created", "captured"):
                 return PaymentOrderResponse(
+                    order_id=idem_tx.razorpay_order_id,
                     razorpay_order_id=idem_tx.razorpay_order_id,
                     amount=float(idem_tx.amount),
                     amount_paise=to_paise(idem_tx.amount),
@@ -566,6 +567,7 @@ def create_razorpay_order(
         and to_paise(existing_tx.amount) == amount_paise
     ):
         return PaymentOrderResponse(
+            order_id=existing_tx.razorpay_order_id,
             razorpay_order_id=existing_tx.razorpay_order_id,
             amount=float(existing_tx.amount),
             amount_paise=amount_paise,
@@ -605,6 +607,7 @@ def create_razorpay_order(
                     )
                 if dup.razorpay_order_id and dup.status in ("created", "captured"):
                     return PaymentOrderResponse(
+                        order_id=dup.razorpay_order_id,
                         razorpay_order_id=dup.razorpay_order_id,
                         amount=float(dup.amount),
                         amount_paise=to_paise(dup.amount),
@@ -637,9 +640,9 @@ def create_razorpay_order(
     ) as exc:
         failed_tx = db.query(PaymentTransaction).filter(PaymentTransaction.id == tx_id).first()
         if failed_tx and failed_tx.status == "initiating":
-            # Booking initiation may have succeeded despite a lost response.
-            # Keep it for reconciliation; do not release a potentially paid slot.
-            if target_type != "booking":
+            # BadRequestError (including gateway Authentication failed) confirms no order was created.
+            # Only ambiguous transport/server errors keep initiating booking tx for reconciliation.
+            if target_type != "booking" or isinstance(exc, razorpay.errors.BadRequestError):
                 db.delete(failed_tx)
             db.commit()
         _raise_gateway_error(exc, "order creation")
@@ -703,6 +706,7 @@ def create_razorpay_order(
             rec_db.close()
 
     return PaymentOrderResponse(
+        order_id=razorpay_order_id,
         razorpay_order_id=razorpay_order_id,
         amount=server_amount,
         amount_paise=amount_paise,
@@ -717,6 +721,16 @@ def verify_razorpay_payment(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    if not (
+        req.razorpay_order_id and req.razorpay_order_id.strip()
+        and req.razorpay_payment_id and req.razorpay_payment_id.strip()
+        and req.razorpay_signature and req.razorpay_signature.strip()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required Razorpay verification fields (razorpay_order_id, razorpay_payment_id, razorpay_signature)."
+        )
+
     transaction = _lookup_transaction_for_verify(db, req)
 
     if transaction.user_id != user.id and user.role != UserRole.ADMIN:

@@ -44,6 +44,8 @@ services:
         generateValue: true
       - key: AUTO_MIGRATE
         value: "true"
+      - key: SEED_ON_STARTUP
+        value: "true"
       - key: ENABLE_DOCS
         value: "false"
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
