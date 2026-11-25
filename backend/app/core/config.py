@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "GlamGo"
     RESEND_API_KEY: str = ""
+    RESEND_FROM_EMAIL: str = ""
 
     # Internal Scheduled Maintenance Service Token (required in production)
     INTERNAL_MAINTENANCE_TOKEN: str = ""

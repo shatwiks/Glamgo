@@ -1,6 +1,7 @@
 import logging
 import smtplib
 import json
+import urllib.error
 import urllib.request
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -10,6 +11,11 @@ from email_validator import validate_email, EmailNotValidError
 from backend.app.core.config import settings
 
 logger = logging.getLogger("glamgo.email")
+
+PUBLIC_WEBMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "outlook.com",
+    "hotmail.com", "icloud.com", "live.com"
+}
 
 # Comprehensive set of common disposable/burner email domains
 DISPOSABLE_DOMAINS = {
@@ -63,14 +69,95 @@ def validate_real_email(email_str: str) -> str:
         )
 
 
+def _resolve_resend_from() -> str:
+    explicit = str(getattr(settings, "RESEND_FROM_EMAIL", "") or "").strip()
+    if explicit:
+        return explicit
+    smtp_from = str(getattr(settings, "SMTP_FROM_EMAIL", "") or "").strip()
+    if "@" in smtp_from:
+        domain = smtp_from.split("@")[-1].rstrip(">").strip().lower()
+        if domain and domain not in PUBLIC_WEBMAIL_DOMAINS:
+            return smtp_from
+    return "GlamGo <onboarding@resend.dev>"
+
+
+def _send_via_smtp(to_email: str, subject: str, plain_text: str, html_content: str) -> bool:
+    smtp_user = getattr(settings, "SMTP_USER", None)
+    smtp_pass = getattr(settings, "SMTP_PASSWORD", None)
+    if not (smtp_user and smtp_pass):
+        return False
+    try:
+        clean_pass = str(smtp_pass).replace(" ", "").strip()
+        smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
+        smtp_port = int(getattr(settings, "SMTP_PORT", 587))
+        from_email = getattr(settings, "SMTP_FROM_EMAIL", None) or smtp_user
+        from_name = getattr(settings, "SMTP_FROM_NAME", "GlamGo")
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = f"{from_name} <{from_email}>"
+        msg["To"] = to_email
+
+        msg.attach(MIMEText(plain_text, "plain"))
+        msg.attach(MIMEText(html_content, "html"))
+
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user.strip(), clean_pass)
+            server.sendmail(from_email, [to_email], msg.as_string())
+
+        logger.info("SMTP email OTP dispatched to %s via %s", to_email, smtp_host)
+        return True
+    except Exception as e:
+        logger.error("SMTP dispatch failed for %s: %s", to_email, e)
+        return False
+
+
+def _send_via_resend(to_email: str, subject: str, plain_text: str, html_content: str) -> bool:
+    api_key = getattr(settings, "RESEND_API_KEY", None)
+    if not api_key:
+        return False
+    try:
+        from_addr = _resolve_resend_from()
+        data = json.dumps({
+            "from": from_addr,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+            "text": plain_text
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=data,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "User-Agent": "GlamGo-Backend/1.0"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=8) as res:
+            logger.info("Resend email OTP dispatched to %s via %s (HTTP %s)", to_email, from_addr, res.status)
+            return True
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        logger.error("Resend API dispatch HTTP %s for %s: %s %s", e.code, to_email, e, err_body)
+        return False
+    except Exception as e:
+        logger.error("Resend API dispatch failed for %s: %s", to_email, e)
+        return False
+
+
 class EmailService:
     @staticmethod
     def send_otp(to_email: str, otp: str) -> bool:
         """
         Dispatches a 6-digit login OTP code to the recipient email:
-        1. Resend API (if RESEND_API_KEY is configured).
-        2. SMTP / Gmail (if SMTP_USER and SMTP_PASSWORD are configured).
-        3. Console / Dev mode fallback.
+        - In production with RESEND_API_KEY: tries Resend HTTPS API first (Render blocks outbound SMTP), then SMTP.
+        - In development/local: tries SMTP first, then Resend HTTPS API, then console fallback.
         """
         subject = f"Your GlamGo Login Code: {otp}"
         plain_text = (
@@ -111,61 +198,19 @@ class EmailService:
 </body>
 </html>"""
 
-        # 1. Try SMTP / Gmail first (zero sandbox limits, delivers to ANY recipient)
-        smtp_user = getattr(settings, "SMTP_USER", None)
-        smtp_pass = getattr(settings, "SMTP_PASSWORD", None)
-        if smtp_user and smtp_pass:
-            try:
-                clean_pass = str(smtp_pass).replace(" ", "").strip()
-                smtp_host = getattr(settings, "SMTP_HOST", "smtp.gmail.com")
-                smtp_port = int(getattr(settings, "SMTP_PORT", 587))
-                from_email = getattr(settings, "SMTP_FROM_EMAIL", None) or smtp_user
-                from_name = getattr(settings, "SMTP_FROM_NAME", "GlamGo")
-
-                msg = MIMEMultipart("alternative")
-                msg["Subject"] = subject
-                msg["From"] = f"{from_name} <{from_email}>"
-                msg["To"] = to_email
-
-                msg.attach(MIMEText(plain_text, "plain"))
-                msg.attach(MIMEText(html_content, "html"))
-
-                with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
-                    server.starttls()
-                    server.login(smtp_user.strip(), clean_pass)
-                    server.sendmail(from_email, [to_email], msg.as_string())
-
-                logger.info("SMTP email OTP dispatched to %s via %s", to_email, smtp_host)
+        is_prod = str(getattr(settings, "ENVIRONMENT", "") or "").strip().lower() == "production"
+        if is_prod and getattr(settings, "RESEND_API_KEY", None):
+            if _send_via_resend(to_email, subject, plain_text, html_content):
                 return True
-            except Exception as e:
-                logger.error("SMTP dispatch failed for %s: %s", to_email, e)
+            if _send_via_smtp(to_email, subject, plain_text, html_content):
+                return True
+        else:
+            if _send_via_smtp(to_email, subject, plain_text, html_content):
+                return True
+            if _send_via_resend(to_email, subject, plain_text, html_content):
+                return True
 
-        # 2. Try Resend API if configured
-        if getattr(settings, "RESEND_API_KEY", None):
-            try:
-                data = json.dumps({
-                    "from": getattr(settings, "SMTP_FROM_EMAIL", None) or "GlamGo <onboarding@resend.dev>",
-                    "to": [to_email],
-                    "subject": subject,
-                    "html": html_content,
-                    "text": plain_text
-                }).encode("utf-8")
-                req = urllib.request.Request(
-                    "https://api.resend.com/emails",
-                    data=data,
-                    headers={
-                        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
-                        "Content-Type": "application/json",
-                        "User-Agent": "GlamGo-Backend/1.0"
-                    }
-                )
-                with urllib.request.urlopen(req, timeout=8) as res:
-                    logger.info("Resend email OTP dispatched to %s (HTTP %s)", to_email, res.status)
-                    return True
-            except Exception as e:
-                logger.error("Resend API dispatch failed for %s: %s", to_email, e)
-
-        # 3. Dev / Console fallback
+        # Dev / Console fallback
         logger.info("[EMAIL DISPATCH] To: %s | OTP: %s", to_email, otp)
         print(f"\n[DEV EMAIL GATEWAY] To: {to_email} | OTP: {otp}\n")
         return True

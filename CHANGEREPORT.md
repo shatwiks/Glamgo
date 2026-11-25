@@ -4,6 +4,20 @@
 
 ---
 
+## Prompt Entry — `2026-11-25`: Fix Production Email OTP Delivery via Resend HTTPS API on Render
+
+**Objective:** Ensure Email OTP login works reliably on Render + Vercel by prioritizing the Resend HTTPS API in production (avoiding Render Free tier's blocked outbound SMTP port) and preventing public webmail `SMTP_FROM_EMAIL` addresses (such as `@gmail.com`) from breaking Resend's `from` validation.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `backend/app/core/config.py`: Added optional `RESEND_FROM_EMAIL` setting.
+- `backend/app/services/email_service.py`: Added `_resolve_resend_from()` (skips `@gmail.com` / public webmail domains and defaults cleanly to `GlamGo <onboarding@resend.dev>` unless a verified domain or `RESEND_FROM_EMAIL` is supplied), extracted `_send_via_smtp()` and `_send_via_resend()` (with HTTP error body logging), and prioritized Resend HTTPS API before SMTP when `ENVIRONMENT=production`.
+- `backend/tests/test_email_service.py`: Added 3 unit tests covering sender resolution, production Resend-first order, and development SMTP-first order.
+
+**Verification Results:**
+- `pytest backend/tests/test_email_service.py -v`: `3 passed in 1.27s`.
+
+---
+
 ## Prompt Entry — `2026-11-25`: Declare `WHATSAPP_CONCIERGE_NUMBER` in `render.yaml`
 
 **Objective:** Declare `WHATSAPP_CONCIERGE_NUMBER: "916360849512"` in `render.yaml` alongside `SEED_ON_STARTUP` so Render Blueprint manages all non-secret backend settings cleanly from `render.yaml`.
