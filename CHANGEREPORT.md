@@ -4,6 +4,21 @@
 
 ---
 
+## Prompt Entry — `2026-11-25`: Add Free Brevo HTTPS Transactional Email Provider (No Domain Required)
+
+**Objective:** Allow Email OTPs to be sent from Render Free tier to any customer email address (for free, without purchasing or verifying a custom domain) via Brevo's HTTPS transactional email API (`https://api.brevo.com/v3/smtp/email`).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/app/core/config.py`: Added `BREVO_API_KEY` and `BREVO_FROM_EMAIL` settings.
+- `backend/app/services/email_service.py`: Added `_resolve_brevo_sender()` and `_send_via_brevo()`, prioritizing Brevo HTTPS API → Resend → SMTP in production.
+- `render.yaml`: Added `BREVO_API_KEY` and `BREVO_FROM_EMAIL` (`sync: false`).
+- `backend/tests/test_email_service.py`: Added tests for Brevo sender resolution, HTTPS payload structure, and production provider priority (`5 passed in 1.45s`).
+
+**Verification Results:**
+- `pytest backend/tests/test_email_service.py -v`: `5 passed in 1.45s`.
+
+---
+
 ## Prompt Entry — `2026-11-25`: Fix Production Email OTP Delivery via Resend HTTPS API on Render
 
 **Objective:** Ensure Email OTP login works reliably on Render + Vercel by prioritizing the Resend HTTPS API in production (avoiding Render Free tier's blocked outbound SMTP port) and preventing public webmail `SMTP_FROM_EMAIL` addresses (such as `@gmail.com`) from breaking Resend's `from` validation.

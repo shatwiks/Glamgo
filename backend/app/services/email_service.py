@@ -113,6 +113,57 @@ def _send_via_smtp(to_email: str, subject: str, plain_text: str, html_content: s
         return False
 
 
+def _resolve_brevo_sender() -> tuple[str, str]:
+    from_name = str(getattr(settings, "SMTP_FROM_NAME", "GlamGo") or "GlamGo").strip()
+    sender_email = (
+        str(getattr(settings, "BREVO_FROM_EMAIL", "") or "").strip()
+        or str(getattr(settings, "SMTP_FROM_EMAIL", "") or "").strip()
+        or str(getattr(settings, "SMTP_USER", "") or "").strip()
+    )
+    if "<" in sender_email and ">" in sender_email:
+        sender_email = sender_email.split("<", 1)[-1].split(">", 1)[0].strip()
+    return from_name, sender_email
+
+
+def _send_via_brevo(to_email: str, subject: str, plain_text: str, html_content: str) -> bool:
+    api_key = str(getattr(settings, "BREVO_API_KEY", "") or "").strip()
+    from_name, sender_email = _resolve_brevo_sender()
+    if not (api_key and sender_email):
+        return False
+    try:
+        data = json.dumps({
+            "sender": {"name": from_name, "email": sender_email},
+            "to": [{"email": to_email}],
+            "subject": subject,
+            "htmlContent": html_content,
+            "textContent": plain_text,
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            "https://api.brevo.com/v3/smtp/email",
+            data=data,
+            headers={
+                "api-key": api_key,
+                "accept": "application/json",
+                "content-type": "application/json",
+                "user-agent": "GlamGo-Backend/1.0",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=8) as res:
+            logger.info("Brevo email OTP dispatched to %s via %s (HTTP %s)", to_email, sender_email, res.status)
+            return True
+    except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        logger.error("Brevo API dispatch HTTP %s for %s: %s %s", e.code, to_email, e, err_body)
+        return False
+    except Exception as e:
+        logger.error("Brevo API dispatch failed for %s: %s", to_email, e)
+        return False
+
+
 def _send_via_resend(to_email: str, subject: str, plain_text: str, html_content: str) -> bool:
     api_key = getattr(settings, "RESEND_API_KEY", None)
     if not api_key:
@@ -199,15 +250,13 @@ class EmailService:
 </html>"""
 
         is_prod = str(getattr(settings, "ENVIRONMENT", "") or "").strip().lower() == "production"
-        if is_prod and getattr(settings, "RESEND_API_KEY", None):
-            if _send_via_resend(to_email, subject, plain_text, html_content):
-                return True
-            if _send_via_smtp(to_email, subject, plain_text, html_content):
-                return True
-        else:
-            if _send_via_smtp(to_email, subject, plain_text, html_content):
-                return True
-            if _send_via_resend(to_email, subject, plain_text, html_content):
+        providers = (
+            (_send_via_brevo, _send_via_resend, _send_via_smtp)
+            if is_prod
+            else (_send_via_smtp, _send_via_brevo, _send_via_resend)
+        )
+        for dispatch in providers:
+            if dispatch(to_email, subject, plain_text, html_content):
                 return True
 
         # Dev / Console fallback

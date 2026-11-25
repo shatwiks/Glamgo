@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
     SMTP_FROM_NAME: str = "GlamGo"
+    BREVO_API_KEY: str = ""
+    BREVO_FROM_EMAIL: str = ""
     RESEND_API_KEY: str = ""
     RESEND_FROM_EMAIL: str = ""
 
