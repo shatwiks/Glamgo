@@ -1194,7 +1194,7 @@ function auth(){
 function header(){
   const activeExp = state.experience || 'home';
   const expTabs = [
-    { id: 'home', label: 'Home', full: 'At-home services' },
+    { id: 'home', label: 'At Home', full: 'At-home services' },
     { id: 'salon', label: 'Salons', full: 'Salons & parlours' },
     { id: 'shop', label: 'Shop', full: 'Beauty shopping' }
   ];

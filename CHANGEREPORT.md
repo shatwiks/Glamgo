@@ -4,6 +4,19 @@
 
 ---
 
+## Prompt Entry — `2026-11-25`: Rename Experience Switcher Pill Label from `Home` to `At Home`
+
+**Objective:** Replace the `Home` tab label with `At Home` in the header experience switcher (`expTabs`).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Updated `expTabs` first entry label from `'Home'` to `'At Home'`.
+
+**Verification Results:**
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`, `3.77s`).
+- `node --test tests/*.test.mjs`: `5/5` tests passed.
+
+---
+
 ## Prompt Entry — `2026-11-25`: Add Free Brevo HTTPS Transactional Email Provider (No Domain Required)
 
 **Objective:** Allow Email OTPs to be sent from Render Free tier to any customer email address (for free, without purchasing or verifying a custom domain) via Brevo's HTTPS transactional email API (`https://api.brevo.com/v3/smtp/email`).
