@@ -676,3 +676,10 @@ export async function apiDecideSellerReturn(returnId, action, restockInventory =
 export async function apiGetSellerMultiVendorFinancials() {
   return await apiRequest('/partners/seller/financials');
 }
+
+export async function apiConciergeChat({ message, location = '', audience = 'women' }) {
+  return await apiRequest('/concierge/chat', {
+    method: 'POST',
+    body: JSON.stringify({ message, location, audience }),
+  });
+}

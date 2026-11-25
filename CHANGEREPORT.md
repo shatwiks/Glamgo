@@ -4,6 +4,67 @@
 
 ---
 
+## Prompt Entry — `2026-11-25`: Declare `WHATSAPP_CONCIERGE_NUMBER` in `render.yaml`
+
+**Objective:** Declare `WHATSAPP_CONCIERGE_NUMBER: "916360849512"` in `render.yaml` alongside `SEED_ON_STARTUP` so Render Blueprint manages all non-secret backend settings cleanly from `render.yaml`.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `render.yaml`: Added `WHATSAPP_CONCIERGE_NUMBER` (`"916360849512"`) under `envVars`.
+
+**Verification Results:**
+- Verified YAML syntax matches existing `render.yaml` `envVars` schema.
+
+---
+
+## Prompt Entry — `2026-11-25`: Update WhatsApp Concierge Number to `916360849512`
+
+**Objective:** Update the GlamGo WhatsApp Concierge phone number across backend config, router, and frontend to `916360849512` and restart the local FastAPI backend.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/app/core/config.py`: Updated `WHATSAPP_CONCIERGE_NUMBER` to `"916360849512"`.
+- `backend/app/api/v1/concierge.py`: Updated fallback WhatsApp number inside `_wa_url()` to `"916360849512"`.
+- `src/app.js`: Updated `CONCIERGE_WHATSAPP_NUMBER` to `'916360849512'`.
+
+**Verification Results:**
+- `pytest backend/tests/test_concierge.py -v`: `3 passed, 1 warning in 5.41s`.
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`).
+
+---
+
+## Prompt Entry — `2026-11-25`: Port Floating AI Concierge, WhatsApp Capsule Dock & Backend Concierge API
+
+**Objective:** Port only the floating bottom-right `AI Concierge [Ask AI] | [WhatsApp]` capsule dock, slide-up AI chat drawer, and WhatsApp links from `d:\PROJECTS\Glamgo 4` into `d:\PROJECTS\Glamgo 4\branch-release-54ba3db`, backed by a catalog-aware FastAPI concierge endpoint without copying unrelated header, hero, or homepage layout changes.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `backend/app/core/config.py`: Added `WHATSAPP_CONCIERGE_NUMBER` setting (`"919876543210"`).
+- `backend/app/schemas/concierge.py`: Created Pydantic schemas `ConciergeChatRequest`, `ConciergeAction`, and `ConciergeChatResponse`.
+- `backend/app/api/v1/concierge.py`: Created `GET /api/v1/concierge/config` and `POST /api/v1/concierge/chat` endpoints querying active `Service` and `Salon` catalog records by keyword, city/location, and audience (`women`/`men`/`unisex`), returning structured booking/navigation actions and WhatsApp deep links.
+- `backend/app/api/v1/api.py`: Registered `concierge.router` at `/api/v1/concierge`.
+- `backend/tests/test_concierge.py`: Added Pytest coverage for `/api/v1/concierge/config`, `/api/v1/concierge/chat` (facial, women/men hair, hygiene, WhatsApp, and empty-input 422 validation).
+- `src/api.js`: Added `apiConciergeChat({ message, location, audience })`.
+- `src/app.js`: Added `whatsapp`, `sparkle`, `bot`, and `send` SVG icons, `aiChatOpen` / `aiChatBusy` / `aiChatMessages` state, `floatingConciergeDock()`, `aiChatDrawer()`, `buildLocalAiReply()` fallback, `handleAiUserMessage()`, click handlers (`toggle-ai-chat`, `ai-prompt`, drawer auto-close on navigation/booking), `#ai-chat-form` submit handler, and mounted the dock & drawer in `render()`.
+- `styles.css`: Appended scoped styles for `.floating-concierge-dock`, `.concierge-capsule-island`, `.capsule-ai-trigger`, `.capsule-wa-trigger`, `.ai-chat-drawer`, and mobile breakpoints (`<=700px` dock elevation above mobile nav, `<=600px` mobile bottom-sheet drawer).
+
+**Verification Results:**
+- `pytest backend/tests/test_concierge.py -v`: `3 passed, 1 warning in 6.29s`.
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`).
+- `node --test tests/*.test.mjs`: `5/5` tests passed.
+
+---
+
+## Prompt Entry — `2026-11-25`: Sync PostgreSQL Sequences Before Seeding Products in Neon
+
+**Objective:** Prevent `salon_staff_pkey` / sequence collisions on PostgreSQL from aborting `seed_database()` before `# 5. Seed Products & Variants` executes, ensuring Men (`mb1–mb4`), Women (`b3`, `b6`), and Unisex (`b1`, `b2`, `b4`, `b5`, `b7`) products sync into Neon PostgreSQL cleanly.
+
+**Modified Files (`branch-release-54ba3db`):**
+- `backend/app/services/seed_service.py`: Extracted `_sync_pg_sequences(db)` using `pg_get_serial_sequence` across `users`, `professional_profiles`, `salon_staff`, `product_variants`, `seller_listings`, and `availabilities`, invoking it both before and after seeding.
+
+**Verification Results:**
+- Executed `python -m backend.app.services.seed_service` locally against `sqlite:///./glamgo_dev.db`: Passed cleanly.
+- `pytest backend/tests/test_audience_catalog.py`: Passed cleanly.
+
+---
+
 ## Prompt Entry — `2026-11-25`: Full 6-Phase Salon Marketplace E2E QA & Bug Fixes
 
 **Objective:** Execute a full 6-phase end-to-end live lifecycle test (Owner registration -> Admin approval -> Owner workspace management -> Customer booking -> Owner appointment management -> Admin governance) and fix all discovered bugs.

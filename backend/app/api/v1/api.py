@@ -6,7 +6,7 @@ from backend.app.api.deps import require_maintenance_auth
 from backend.app.schemas.catalog import SalonResponse, ServiceResponse, ProfessionalResponse
 from backend.app.api.v1 import (
     auth, users, services, professionals, salons, products,
-    bookings, orders, partners, admin, payments, reviews
+    bookings, orders, partners, admin, payments, reviews, concierge
 )
 
 api_router = APIRouter()
@@ -23,6 +23,7 @@ api_router.include_router(partners.router, prefix="/partners", tags=["Partner Po
 api_router.include_router(admin.router, prefix="/admin", tags=["Administrator"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payments (Razorpay)"])
 api_router.include_router(reviews.router, prefix="/reviews", tags=["Reviews & Ratings"])
+api_router.include_router(concierge.router, prefix="/concierge", tags=["AI Concierge"])
 
 # Catalog aliases
 catalog_router = APIRouter()

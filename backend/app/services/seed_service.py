@@ -265,8 +265,24 @@ PRODUCTS_DATA = [
 ]
 
 
+def _sync_pg_sequences(db: Session):
+    """Synchronize PostgreSQL serial sequences before and after seeding to prevent pkey collisions."""
+    if db.bind and db.bind.dialect.name == "postgresql":
+        for table in ["users", "professional_profiles", "salon_staff", "product_variants", "seller_listings", "availabilities"]:
+            try:
+                db.execute(text(
+                    f"SELECT setval(pg_get_serial_sequence('{table}', 'id'), "
+                    f"COALESCE((SELECT MAX(id) FROM {table}), 1), "
+                    f"(SELECT COUNT(*) > 0 FROM {table}));"
+                ))
+            except Exception:
+                db.rollback()
+        db.commit()
+
+
 def seed_database(db: Session):
     ensure_phase13_schema_columns(db.get_bind())
+    _sync_pg_sequences(db)
 
     # 1. Seed Users
     users_to_seed = [
@@ -526,13 +542,7 @@ def seed_database(db: Session):
         db.commit()
 
     # 8. Reset PostgreSQL sequences for tables seeded with explicit IDs
-    if db.bind and db.bind.dialect.name == "postgresql":
-        for table in ["users", "professional_profiles", "salon_staff", "product_variants", "availabilities"]:
-            try:
-                db.execute(text(f"SELECT setval('{table}_id_seq', (SELECT COALESCE(MAX(id), 1) FROM {table}));"))
-            except Exception:
-                pass
-        db.commit()
+    _sync_pg_sequences(db)
 
     try:
         from backend.app.services.cache_service import cache_service

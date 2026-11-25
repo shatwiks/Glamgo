@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # Internal Scheduled Maintenance Service Token (required in production)
     INTERNAL_MAINTENANCE_TOKEN: str = ""
 
+    # AI Concierge & WhatsApp Desk
+    WHATSAPP_CONCIERGE_NUMBER: str = "916360849512"
+
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

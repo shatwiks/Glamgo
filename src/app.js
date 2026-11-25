@@ -93,7 +93,8 @@ import {
   apiSubmitReturnRequest,
   apiGetSellerReturns,
   apiDecideSellerReturn,
-  apiGetSellerMultiVendorFinancials
+  apiGetSellerMultiVendorFinancials,
+  apiConciergeChat
 } from './api.js';
 
 const isDemoCatalogue = import.meta.env.VITE_DEMO_CATALOGUE === 'true';
@@ -157,7 +158,11 @@ const icons = {
   truck: '<path d="M2 6h12v11H2V6ZM14 10h4l3 3v4h-7v-7Z"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
   logout: '<path d="M10 3H4v18h6M14 7l5 5-5 5M8 12h11"/>',
   female: '<circle cx="12" cy="8" r="4"/><path d="M12 12v9M9 17h6"/>',
-  male: '<circle cx="10" cy="14" r="5"/><path d="m13.5 10.5 5.5-5.5m0 0h-4m4 0v4"/>'
+  male: '<circle cx="10" cy="14" r="5"/><path d="m13.5 10.5 5.5-5.5m0 0h-4m4 0v4"/>',
+  whatsapp: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z"/><path d="M16.5 14.5c-.3-.2-1.6-.8-1.9-.9-.2-.1-.4-.2-.5.1-.2.2-.6.8-.7 1-.1.1-.3.2-.5.1-.3-.2-1.2-.4-2.3-1.4-.8-.8-1.4-1.7-1.6-2-.2-.3 0-.4.1-.6.1-.1.3-.3.4-.5.1-.2.2-.3.3-.4.1-.2 0-.3 0-.5s-.5-1.3-.7-1.7c-.2-.5-.4-.4-.5-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s1 2.5 1.1 2.7c.2.2 2 3.1 4.8 4.3.7.3 1.2.5 1.6.6.7.2 1.3.2 1.8.1.6-.1 1.7-.7 1.9-1.4.3-.7.3-1.3.2-1.4-.1-.2-.3-.3-.6-.5Z"/>',
+  sparkle: '<path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3L12 3Z"/>',
+  bot: '<rect width="18" height="12" x="3" y="6" rx="2"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><path d="M12 2v4M2 12h1M21 12h1M7 18v2M17 18v2"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>'
 };
 
 const icon = (name, size = 20, extra = '') => '<svg class="icon ' + extra + '" width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (icons[name] || '') + '</svg>';
@@ -590,6 +595,9 @@ const state = {
   appShareStatus: '',
   appShareError: '',
   appBannerDismissed: isAppBannerDismissed(),
+  aiChatOpen: false,
+  aiChatBusy: false,
+  aiChatMessages: null,
   reviews: [],
   catalogFeedsLoading: {
     services: !services.length,
@@ -2935,6 +2943,224 @@ function bookingSuccess(){
   return '<main class="success-page"><div class="success-mark">'+icon(isConfirmed?'check':'clock',34)+'</div><p class="eyebrow">'+badgeText+'</p><h1>'+headingHtml+'</h1><p>'+esc(b.title)+' for '+formatDate(b.date)+' at '+esc(b.time)+'.'+(isConfirmed?' Details are saved in My bookings.':' Complete payment before expiry to confirm.')+'</p><div class="success-details"><span>EXPERIENCE <strong>'+(b.type==='home'?'At-home service':'Salon &amp; parlour')+'</strong></span><span>SPECIALIST <strong>'+esc(b.professional)+'</strong></span>'+(isConfirmed && b.arrival_otp?'<span>ARRIVAL PIN <strong>'+esc(b.arrival_otp)+'</strong></span>':'')+'</div><div class="success-actions">'+button('View my bookings '+icon('arrow',17),'account-bookings','btn-primary')+button('Keep exploring','landing','btn-outline')+'</div></main>';
 }
 
+const CONCIERGE_WHATSAPP_NUMBER = '916360849512';
+const conciergeWaUrl = text => 'https://wa.me/' + CONCIERGE_WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
+
+const defaultAiWelcome = [
+  {
+    sender: 'ai',
+    text: "Welcome to GlamGo! I'm your AI Beauty Concierge. Whether you need a recommendation for radiant skin, want details on our hospital-grade hygiene protocol, or want to connect with our team on WhatsApp, I'm here to guide you.",
+    time: 'Just now',
+    actions: [
+      { label: 'Recommend a facial', prompt: 'Recommend a facial for glowing skin' },
+      { label: 'Hair blowout at home', prompt: 'Tell me about at-home hair styling' },
+      { label: 'Complete Glow package', prompt: 'What is the Complete Glow package?' },
+      { label: 'Chat on WhatsApp', url: conciergeWaUrl('Hello GlamGo! I would like to inquire about booking a treatment.') }
+    ]
+  }
+];
+
+function floatingConciergeDock() {
+  if (state.view === 'admin') return '';
+  return '<aside class="floating-concierge-dock" aria-label="Customer concierge">' +
+    '<div class="concierge-capsule-island">' +
+      '<button type="button" class="capsule-ai-trigger ' + (state.aiChatOpen ? 'active' : '') + '" data-action="toggle-ai-chat" aria-label="Open GlamGo AI Beauty Concierge" title="GlamGo AI Beauty Concierge">' +
+        '<span class="capsule-sparkle">✦</span>' +
+        '<span class="capsule-label">AI Concierge</span>' +
+        '<span class="capsule-badge">Ask AI</span>' +
+      '</button>' +
+      '<span class="capsule-divider"></span>' +
+      '<a href="' + esc(conciergeWaUrl('Hello GlamGo! I would like to inquire about beauty services and salon appointments.')) + '" target="_blank" rel="noopener noreferrer" class="capsule-wa-trigger" aria-label="Chat with GlamGo on WhatsApp" title="WhatsApp Chat">' +
+        icon('whatsapp', 16) +
+        '<span class="capsule-wa-label">WhatsApp</span>' +
+      '</a>' +
+    '</div>' +
+  '</aside>';
+}
+
+function aiChatDrawer() {
+  if (state.view === 'admin') return '';
+  const messages = (state.aiChatMessages && state.aiChatMessages.length) ? state.aiChatMessages : defaultAiWelcome;
+  return '<div class="ai-chat-drawer ' + (state.aiChatOpen ? 'open' : '') + '" role="dialog" aria-modal="true" aria-label="GlamGo AI Concierge">' +
+    '<div class="ai-chat-header">' +
+      '<div class="ai-chat-profile">' +
+        '<div class="ai-chat-avatar"><span>✦</span><i class="ai-online-dot"></i></div>' +
+        '<div><h4>GlamGo AI Concierge</h4><p>Online · Instant Beauty Advisor</p></div>' +
+      '</div>' +
+      '<div class="ai-chat-actions">' +
+        '<a href="' + esc(conciergeWaUrl('Hello GlamGo! Connecting from AI chat for assistance.')) + '" target="_blank" rel="noopener noreferrer" class="ai-wa-link" title="Open WhatsApp">' + icon('whatsapp', 14) + ' WhatsApp</a>' +
+        '<button type="button" class="ai-chat-close-btn" data-action="toggle-ai-chat" aria-label="Close chat">' + icon('close', 18) + '</button>' +
+      '</div>' +
+    '</div>' +
+    '<div class="ai-chat-body" id="ai-chat-body">' +
+      messages.map(m =>
+        '<div class="ai-msg msg-' + m.sender + '">' +
+          '<div class="ai-bubble">' + esc(m.text).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') + '</div>' +
+          (m.actions && m.actions.length ?
+            '<div class="ai-actions-wrap">' +
+              m.actions.map(act => {
+                const url = act.url ? safeHttpUrl(act.url) : '';
+                if (url) {
+                  return '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" class="ai-action-btn ai-action-wa">' + icon('whatsapp', 14) + ' ' + esc(act.label) + ' ↗</a>';
+                }
+                return '<button type="button" class="ai-action-btn" data-action="' + esc(act.action || 'ai-prompt') + '"' +
+                  (act.id ? ' data-id="' + esc(act.id) + '"' : '') +
+                  (act.target ? ' data-target="' + esc(act.target) + '"' : '') +
+                  (act.prompt ? ' data-prompt="' + esc(act.prompt) + '"' : '') +
+                  '>' + esc(act.label) + ' →</button>';
+              }).join('') +
+            '</div>' : '') +
+          '<span class="ai-time">' + esc(m.time || 'Just now') + '</span>' +
+        '</div>'
+      ).join('') +
+      (state.aiChatBusy ? '<div class="ai-msg msg-ai"><div class="ai-bubble ai-typing-bubble">Finding the best match for you…</div></div>' : '') +
+    '</div>' +
+    '<div class="ai-chat-suggestions">' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Recommend a facial for glowing skin">' + icon('spark', 13) + ' Glowing facial</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about at-home hair styling">' + icon('sparkle', 13) + ' Hair blowout</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about bridal and occasion makeup">' + icon('star', 13) + ' Bridal makeup</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="What is the Complete Glow package?">' + icon('check', 13) + ' Complete Glow</button>' +
+      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="How do at-home appointments work?">' + icon('shield', 13) + ' How it works</button>' +
+    '</div>' +
+    '<form class="ai-chat-input-bar" id="ai-chat-form">' +
+      '<input type="text" id="ai-chat-input" placeholder="Ask about facials, makeup, pricing, hair…" autocomplete="off" />' +
+      '<button type="submit" class="ai-send-btn" aria-label="Send message"' + (state.aiChatBusy ? ' disabled' : '') + '>' + icon('arrow', 18) + '</button>' +
+    '</form>' +
+  '</div>';
+}
+
+function buildLocalAiReply(q) {
+  const low = q.toLowerCase();
+  if (low.includes('facial') || low.includes('skin') || low.includes('glow')) {
+    return {
+      reply: "For an instant radiant complexion, I recommend **The Signature Facial** (75 min, ₹1,499). It includes a gentle botanical cleanse, lymphatic massage, and an antioxidant vitamin infusion. Our verified specialists arrive with a sterile kit and fresh linens directly at your door.",
+      actions: [
+        { label: 'Book The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
+        { label: 'View Skin Category', action: 'home-category', id: 'Skin' }
+      ]
+    };
+  }
+  if (low.includes('hair') || low.includes('blowout') || low.includes('styling')) {
+    return {
+      reply: "Our **Express Hair Styling** (45 min, ₹899) is ideal for polished blowouts, silk presses, or event curls. Our vetted hair stylists bring professional heat tools and styling serums to your home.",
+      actions: [
+        { label: 'Book Hair Styling (₹899)', action: 'book-home', id: 's2' },
+        { label: 'View Hair Category', action: 'home-category', id: 'Hair' }
+      ]
+    };
+  }
+  if (low.includes('nail') || low.includes('manicure') || low.includes('pedicure')) {
+    return {
+      reply: "Treat your hands with the **Classic Manicure & Gel** (50 min, ₹699). Includes gentle cuticle care, shape refinement, nourishing hand massage, and long-wear chip-free polish.",
+      actions: [
+        { label: 'Book Classic Manicure (₹699)', action: 'book-home', id: 's3' },
+        { label: 'View Nails Category', action: 'home-category', id: 'Nails' }
+      ]
+    };
+  }
+  if (low.includes('makeup') || low.includes('bridal') || low.includes('wedding') || low.includes('party')) {
+    return {
+      reply: "For special celebrations, our **Occasion & Bridal Makeup** (90 min, ₹2,499) provides bespoke high-definition looks using luxury, non-comedogenic cosmetics matched to your undertones.",
+      actions: [
+        { label: 'Book Occasion Makeup (₹2,499)', action: 'book-home', id: 's4' },
+        { label: 'Explore Complete Glow Ritual', action: 'book-home', id: 's8' }
+      ]
+    };
+  }
+  if (low.includes('massage') || low.includes('spa') || low.includes('relax')) {
+    return {
+      reply: "Unwind with our **Relax & Restore Massage** (60 min, ₹1,799). A soothing, rhythmic full-body ritual using warm aromatic botanical oils.",
+      actions: [{ label: 'Book Relax Massage (₹1,799)', action: 'book-home', id: 's5' }]
+    };
+  }
+  if (low.includes('wax') || low.includes('waxing')) {
+    return {
+      reply: "Our **Smooth Botanical Waxing** (40 min, ₹599) uses gentle, low-heat strip-less peel wax and soothing aloe post-treatment care.",
+      actions: [{ label: 'Book Botanical Waxing (₹599)', action: 'book-home', id: 's6' }]
+    };
+  }
+  if (low.includes('thread') || low.includes('brow')) {
+    return {
+      reply: "Define your arches with the **Brow & Threading Precision Edit** (25 min, ₹299). Clean mapping and threading for a crisp, natural frame.",
+      actions: [{ label: 'Book Brow Threading (₹299)', action: 'book-home', id: 's7' }]
+    };
+  }
+  if (low.includes('package') || low.includes('complete glow')) {
+    return {
+      reply: "The **Complete Glow Ritual** (150 min, ₹3,299) is our premier head-to-toe package: combines a botanical facial, classic manicure, and polished salon blowout in a single visit.",
+      actions: [{ label: 'Book Complete Glow (₹3,299)', action: 'book-home', id: 's8' }]
+    };
+  }
+  if (low.includes('how') || low.includes('safe') || low.includes('sterile') || low.includes('hygiene') || low.includes('work')) {
+    return {
+      reply: "Booking with GlamGo takes 60 seconds: 1) Pick your treatment with upfront pricing, 2) Select your verified specialist, 3) Choose date, time slot & address, 4) Specialist arrives with hospital-grade sanitized tools in sealed pouches.",
+      actions: [
+        { label: 'Browse Treatments', action: 'scroll', target: 'popular' },
+        { label: 'Chat with Support on WhatsApp', url: conciergeWaUrl('Hi GlamGo! I have a question about at-home treatments.') }
+      ]
+    };
+  }
+  if (low.includes('whatsapp') || low.includes('contact') || low.includes('call') || low.includes('human') || low.includes('support')) {
+    return {
+      reply: "Our dedicated customer care team is available on WhatsApp daily from 8:00 AM to 9:00 PM for custom bridal bookings, urgent questions, or personalized requests.",
+      actions: [{ label: 'Chat on WhatsApp ↗', url: conciergeWaUrl('Hello GlamGo! Connecting from AI chat for assistance.') }]
+    };
+  }
+  return {
+    reply: "I'm delighted to assist you with GlamGo! We offer certified at-home beauty treatments, local salon chair bookings, and clean beauty store products across " + (state.location || 'your area') + ". What service can I help you book today?",
+    actions: [
+      { label: 'The Signature Facial (₹1,499)', action: 'book-home', id: 's1' },
+      { label: 'Hair Blowout & Styling (₹899)', action: 'book-home', id: 's2' },
+      { label: 'Chat on WhatsApp', url: conciergeWaUrl('Hi GlamGo! I would like more information.') }
+    ]
+  };
+}
+
+async function handleAiUserMessage(query) {
+  const q = String(query || '').trim();
+  if (!q || state.aiChatBusy) return;
+  const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (!state.aiChatMessages) state.aiChatMessages = [...defaultAiWelcome];
+  state.aiChatMessages.push({
+    sender: 'user',
+    text: q,
+    time: now
+  });
+  state.aiChatBusy = true;
+  render();
+  setTimeout(() => {
+    const el = document.getElementById('ai-chat-body');
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 30);
+
+  let replyPayload;
+  try {
+    replyPayload = await apiConciergeChat({
+      message: q,
+      location: state.location || '',
+      audience: state.audience || 'women'
+    });
+  } catch {
+    replyPayload = buildLocalAiReply(q);
+  } finally {
+    state.aiChatBusy = false;
+  }
+
+  state.aiChatMessages.push({
+    sender: 'ai',
+    text: replyPayload?.reply || "I'm here to help you book beauty treatments or connect on WhatsApp.",
+    actions: Array.isArray(replyPayload?.actions) ? replyPayload.actions : [],
+    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+
+  render();
+  setTimeout(() => {
+    const el = document.getElementById('ai-chat-body');
+    if (el) el.scrollTop = el.scrollHeight;
+    document.getElementById('ai-chat-input')?.focus();
+  }, 50);
+}
+
 function render(){
   const customerTheme = ['landing','service-detail','salon-detail','product-detail','account','cart','checkout','order-success','tracking','booking-success'].includes(state.view);
   document.body.classList.toggle('theme-men', customerTheme && isMenExperience());
@@ -2980,7 +3206,7 @@ function render(){
     errorMsg: state.appShareError,
     esc
   });
-  app.innerHTML = appBannerHtml + (isDemoCatalogue ? '<div class="demo-catalogue-notice" role="status">Local demo catalogue · Sample listings and prices · Bookings and checkout are disabled</div>' : hasLocalDemo ? '<div class="demo-catalogue-notice" role="status">Local preview · DEMO listings and prices are samples and cannot be booked or purchased</div>' : '') + header() + page + footer() + mobileNav() + modal() + appModalHtml;
+  app.innerHTML = appBannerHtml + (isDemoCatalogue ? '<div class="demo-catalogue-notice" role="status">Local demo catalogue · Sample listings and prices · Bookings and checkout are disabled</div>' : hasLocalDemo ? '<div class="demo-catalogue-notice" role="status">Local preview · DEMO listings and prices are samples and cannot be booked or purchased</div>' : '') + header() + page + footer() + mobileNav() + modal() + appModalHtml + floatingConciergeDock() + aiChatDrawer();
   document.body.classList.toggle('modal-open', Boolean(state.modal || state.mobileMenu || state.filterDrawerOpen || state.appDownloadModal));
   if(state.modal === 'location'){
     void mountLocationPickerMap();
@@ -3013,8 +3239,28 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
+  if (el.closest('.ai-chat-drawer') && !['toggle-ai-chat', 'ai-prompt'].includes(a)) {
+    state.aiChatOpen = false;
+  }
   if ((a === 'buy-now' && isPreviewId(id)) || (a === 'checkout' && Object.keys(state.cart || {}).some(key => isPreviewId(parseCartKey(key).productId)))) { toast('Remove demo items before checking out with real products.'); return; }
   if(isDemoCatalogue && ['book-home','book-salon','book-pro','checkout','buy-now'].includes(a)){ toast('Demo listings are for preview only. Booking and checkout are unavailable.'); return; }
+  if(a==='toggle-ai-chat'){
+    state.aiChatOpen = !state.aiChatOpen;
+    render();
+    if(state.aiChatOpen){
+      setTimeout(()=>{
+        document.getElementById('ai-chat-input')?.focus();
+        const b = document.getElementById('ai-chat-body');
+        if(b) b.scrollTop = b.scrollHeight;
+      }, 50);
+    }
+    return;
+  }
+  if(a==='ai-prompt'){
+    const p = el.dataset.prompt;
+    if(p) handleAiUserMessage(p);
+    return;
+  }
   if(a==='public-home'){
     pendingAuthResume=null; state.publicMenu=false; state.experience='home'; state.view='landing'; state.activeNav='landing'; persist();
     if(window.location.protocol !== 'file:') window.history.replaceState(null, '', '/');
@@ -4399,6 +4645,15 @@ function applyPostAuthNavigation(role) {
 document.addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, d = new FormData(f);
+  if(f.id === 'ai-chat-form'){
+    const input = document.getElementById('ai-chat-input');
+    const msg = input ? input.value : '';
+    if(msg){
+      input.value = '';
+      handleAiUserMessage(msg);
+    }
+    return;
+  }
   if(f.id === 'partner-ship-form'){
     const carrier = String(d.get('carrier') || '').trim();
     const tracking = String(d.get('tracking') || '').trim();
