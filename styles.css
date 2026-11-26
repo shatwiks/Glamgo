@@ -7695,6 +7695,23 @@ body.modal-open .floating-concierge-dock {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.ai-chat-reset-btn {
+  border: 1px solid rgba(197, 160, 89, 0.45);
+  background: transparent;
+  color: rgba(247, 244, 239, 0.85);
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.ai-chat-reset-btn:hover {
+  background: rgba(197, 160, 89, 0.22);
+  color: var(--champagne);
+}
+
 .ai-chat-body {
   flex: 1;
   overflow-y: auto;

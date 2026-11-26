@@ -715,9 +715,9 @@ export async function apiGetSellerMultiVendorFinancials() {
   return await apiRequest('/partners/seller/financials');
 }
 
-export async function apiConciergeChat({ message, location = '', audience = 'women' }) {
+export async function apiConciergeChat({ message, location = '', city = '', audience = 'women', experience = 'home', history = [] }) {
   return await apiRequest('/concierge/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, location, audience }),
+    body: JSON.stringify({ message, location, city, audience, experience, history }),
   });
 }

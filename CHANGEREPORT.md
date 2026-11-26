@@ -4,6 +4,60 @@
 
 ---
 
+## Prompt Entry — `2026-11-26`: Restrict Free-Tier Failover to 500-RPD Flash Lite Models (`3.1` → `3.5`)
+
+**Objective & Timestamp:** Restrict the automatic Gemini model failover list (`2026-11-26T09:40+05:30`) exclusively to the two high-quota free-tier Flash Lite models (`gemini-3.1-flash-lite` → `gemini-3.5-flash-lite`, 500 RPD each), removing the 20-RPD `gemini-3-flash-preview` and `gemini-3.8-flash` models. Keep changes local until explicit push approval.
+
+### Modified Files
+- `branch-release-54ba3db/backend/app/services/ai_concierge_service.py`: Updated `FALLBACK_GEMINI_MODELS` to `("gemini-3.1-flash-lite", "gemini-3.5-flash-lite")`.
+- `branch-release-54ba3db/backend/tests/test_concierge.py`: Updated 503 failover assertion to verify failover from `gemini-3.1-flash-lite` to `gemini-3.5-flash-lite`.
+
+### Verification Results
+- `pytest backend/tests/test_concierge.py -v`: **4 passed** (`11.71s`).
+- Restarted local FastAPI backend on `127.0.0.1:8000` with the updated failover list.
+
+---
+
+## Prompt Entry — `2026-11-26`: Enable Free-Tier Gemini `AQ.` Key on `generativelanguage.googleapis.com` with Model Failover
+
+**Objective & Timestamp:** Route Google AI Studio's `AQ.` keys directly to the free-tier `generativelanguage.googleapis.com` Gemini API endpoint (`2026-11-26T09:28+05:30`), switch the default model to `gemini-3.1-flash-lite` (`maxOutputTokens: 1024`), and add automatic failover across `("gemini-3.1-flash-lite", "gemini-3-flash-preview", "gemini-3.8-flash")` on transient HTTP errors (`404`, `429`, `500`, `502`, `503`, `504`) so live AI responses work free without GCP billing.
+
+### Modified Files
+- `branch-release-54ba3db/backend/app/core/config.py`: Changed default `GEMINI_MODEL` to `"gemini-3.1-flash-lite"`.
+- `branch-release-54ba3db/render.yaml`: Updated `GEMINI_MODEL` value to `"gemini-3.1-flash-lite"`.
+- `branch-release-54ba3db/backend/app/services/ai_concierge_service.py`: Updated `resolve_gemini_endpoint()` to route both `AQ.` and `AIza` keys to `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`, bumped `maxOutputTokens` to `1024`, and added `FALLBACK_GEMINI_MODELS` / `RETRYABLE_GEMINI_HTTP_CODES` automatic failover in `generate_gemini_concierge_reply()`.
+- `branch-release-54ba3db/backend/tests/test_concierge.py`: Updated endpoint assertions for `gemini-3.1-flash-lite` and verified 503 failover from `gemini-3.1-flash-lite` to `gemini-3-flash-preview`.
+
+### Verification Results
+- `pytest backend/tests/test_concierge.py -v`: **4 passed** (`17.87s`).
+- Live local smoke check (`POST http://127.0.0.1:8000/api/v1/concierge/chat` for `"Recommend a brightening facial under Rs 2000"` in Bengaluru): Returned **`200 OK`** with `"source": "gemini"`, recommending **Botanical De-Tan & Glass Skin** (`s9`, ₹1699) with zero warnings in Uvicorn logs.
+
+---
+
+## Prompt Entry — `2026-11-26`: Grounded AI Beauty Concierge v2 (Gemini API + Catalog & Account Context)
+
+**Objective & Timestamp:** Upgrade GlamGo's AI Beauty Concierge (`2026-11-26T08:54+05:30`) to call Gemini (`gemini-2.5-flash`) with Vertex AI Express (`AQ.`) and Google AI Studio (`AIza`) auto-routing, grounded on live PostgreSQL/SQLite catalog data (`Service`, `Salon` + `SalonMenuService`, Beauty Store `Product`, and optional signed-in `Booking`/`Order` records), server-side ID/URL validation, multi-turn conversation history, dynamic tab/audience welcome & quick-prompt pills, `New` chat reset, and `book-salon` `data-service-id` wiring. Keep all changes local until explicit push approval.
+
+### Modified & Created Files
+- `branch-release-54ba3db/backend/app/core/config.py`: Added `GEMINI_API_KEY` and `GEMINI_MODEL` (`"gemini-2.5-flash"`) settings.
+- `branch-release-54ba3db/render.yaml`: Added `GEMINI_MODEL` and secret placeholder `GEMINI_API_KEY` (`sync: false`).
+- `branch-release-54ba3db/.env` (gitignored, local-only): Configured `GEMINI_API_KEY` via environment variable.
+- `branch-release-54ba3db/backend/app/schemas/concierge.py`: Added `ConciergeHistoryTurn`, extended `ConciergeChatRequest` (`city`, `experience`, `history`), added `service_id` on `ConciergeAction`, and added `source` (`"gemini"` | `"fallback"`) on `ConciergeChatResponse`.
+- `branch-release-54ba3db/backend/app/services/ai_concierge_service.py` (new): Implemented `resolve_gemini_endpoint()`, `build_catalog_context()`, `validate_concierge_actions()`, and `generate_gemini_concierge_reply()` with structured JSON schema output and strict server-side ID/URL sanitization.
+- `branch-release-54ba3db/backend/app/api/v1/concierge.py`: Updated `POST /api/v1/concierge/chat` with per-client rate limiting (`20 / 300s`), optional auth (`get_optional_current_user`), Gemini-first execution with graceful deterministic fallback (`_fallback_chat` supporting services, salons, Beauty Store products, and signed-in bookings/orders), and narrowed booking-status keyword matching so general how-it-works queries resolve cleanly.
+- `branch-release-54ba3db/src/api.js`: Updated `apiConciergeChat()` to forward `{ message, location, city, audience, experience, history }`.
+- `branch-release-54ba3db/src/app.js`: Added `getAiWelcomeMessage()`, `getAiQuickSuggestions()`, `conciergeContextWaUrl()`, dynamic `aiChatDrawer()` (`New` reset button, `data-service-id` on `.ai-action-btn`, city subtitle), multi-turn `history` payload in `handleAiUserMessage()`, and `ai-chat-reset` click handler.
+- `branch-release-54ba3db/styles.css`: Added `.ai-chat-reset-btn` styling for the chat header reset pill.
+- `branch-release-54ba3db/backend/tests/test_concierge.py`: Expanded test suite covering config, fallback branches (facial/hair/products/bookings), `AQ.` vs `AIza` endpoint routing, schema & hallucinated-ID/URL filtering, timeout fallback, and empty-message validation.
+
+### Verification Results
+- `pytest backend/tests/test_concierge.py -v`: **4 passed** (`test_concierge_config`, `test_concierge_fallback_facial_hair_products_and_bookings`, `test_concierge_gemini_endpoint_routing_and_hallucination_guard`, `test_concierge_graceful_fallback_on_gemini_failure_and_validation`).
+- `npm run build`: **Succeeded** (`vite build` compiled `dist/` cleanly in 5.13s).
+- `node --test tests/*.test.mjs`: **7 passed, 0 failed**.
+- Live local smoke check (`POST http://127.0.0.1:8000/api/v1/concierge/chat` for `"Recommend a brightening facial under Rs 2000"` in Bengaluru): Returned `200 OK` with catalog-grounded `The Signature Facial` (`s1`) recommendation and `"source": "fallback"`; Uvicorn log showed upstream Vertex AI Express HTTP 403 (`This API method requires billing to be enabled` on GCP project `#869259547008`), confirming both `AQ.` header/endpoint auth reachability and automatic fail-safe fallback.
+
+---
+
 ## Prompt Entry — `2026-11-26`: Show Bengaluru-Only Availability Notice & One-Click Switch in Services
 
 **Objective:** When a user's active location is outside Bengaluru, clearly inform them in Services that at-home services are currently available in Bengaluru and provide a one-click `Switch to Bengaluru` button (plus in empty-city states across Professionals and Salons).

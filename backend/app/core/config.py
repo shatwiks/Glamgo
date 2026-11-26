@@ -57,6 +57,8 @@ class Settings(BaseSettings):
 
     # AI Concierge & WhatsApp Desk
     WHATSAPP_CONCIERGE_NUMBER: str = "916360849512"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-3.1-flash-lite"
 
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [

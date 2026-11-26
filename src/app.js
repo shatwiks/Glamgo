@@ -3103,19 +3103,86 @@ function bookingSuccess(){
 const CONCIERGE_WHATSAPP_NUMBER = '916360849512';
 const conciergeWaUrl = text => 'https://wa.me/' + CONCIERGE_WHATSAPP_NUMBER + '?text=' + encodeURIComponent(text);
 
-const defaultAiWelcome = [
-  {
+function getAiWelcomeMessage() {
+  const city = currentLocationCity();
+  const isMen = isMenExperience();
+  const exp = state.experience || 'home';
+  if (exp === 'shop') {
+    return {
+      sender: 'ai',
+      text: `Welcome to GlamGo Beauty Store! Ask me for ${isMen ? 'men’s grooming, beard care, or skincare' : 'serums, clean makeup, or skincare'} tailored to your routine and budget.`,
+      time: 'Just now',
+      actions: [
+        { label: isMen ? 'Beard & matte stylers' : 'Best serums under ₹1,500', prompt: isMen ? 'Recommend beard care and matte hair products' : 'Recommend a serum under ₹1500' },
+        { label: 'Daily skincare routine', prompt: 'Build me a daily skincare routine from the Beauty Store' },
+        { label: 'Chat on WhatsApp', url: conciergeWaUrl(`Hello GlamGo! I need skincare product advice from Beauty Store (${city}).`) }
+      ]
+    };
+  }
+  if (isMen) {
+    return {
+      sender: 'ai',
+      text: `Welcome to GlamGo! I'm your AI Grooming Concierge for ${city}. Ask about at-home haircuts, beard sculpting, detox facials, or nearby grooming salons.`,
+      time: 'Just now',
+      actions: [
+        { label: 'Beard sculpt & haircut', prompt: 'Recommend a haircut and beard sculpt at home' },
+        { label: 'Men’s detox facial', prompt: 'Recommend a detox facial for men' },
+        { label: `Salons in ${city}`, prompt: `Recommend top salons in ${city}` },
+        { label: 'Chat on WhatsApp', url: conciergeWaUrl(`Hello GlamGo (${city})! I would like to inquire about men’s grooming services.`) }
+      ]
+    };
+  }
+  return {
     sender: 'ai',
-    text: "Welcome to GlamGo! I'm your AI Beauty Concierge. Whether you need a recommendation for radiant skin, want details on our hospital-grade hygiene protocol, or want to connect with our team on WhatsApp, I'm here to guide you.",
+    text: `Welcome to GlamGo! I'm your AI Beauty Concierge for ${city}. Ask for personalized skin, hair, bridal, or Beauty Store recommendations — or check your bookings.`,
     time: 'Just now',
     actions: [
       { label: 'Recommend a facial', prompt: 'Recommend a facial for glowing skin' },
       { label: 'Hair blowout at home', prompt: 'Tell me about at-home hair styling' },
-      { label: 'Complete Glow package', prompt: 'What is the Complete Glow package?' },
-      { label: 'Chat on WhatsApp', url: conciergeWaUrl('Hello GlamGo! I would like to inquire about booking a treatment.') }
+      { label: `Salons in ${city}`, prompt: `Show me the best salons in ${city}` },
+      { label: 'Chat on WhatsApp', url: conciergeWaUrl(`Hello GlamGo (${city})! I would like to inquire about booking a treatment.`) }
     ]
+  };
+}
+
+function getAiQuickSuggestions() {
+  const city = currentLocationCity();
+  const isMen = isMenExperience();
+  const exp = state.experience || 'home';
+  const base = exp === 'shop'
+    ? [
+        [isMen ? 'Beard care' : 'Under ₹1,500 serums', isMen ? 'Recommend beard care products' : 'Best serums under ₹1500', 'spark'],
+        ['Skincare routine', 'Build a skincare routine for glowing skin', 'sparkle'],
+        ['Haircare picks', 'Best haircare products in the store', 'star']
+      ]
+    : isMen
+      ? [
+          ['Beard sculpt', 'Recommend a beard trim and haircut at home', 'spark'],
+          ['Detox facial', 'Recommend a facial for men', 'sparkle'],
+          [`Salons in ${city}`, `Top salons in ${city}`, 'salon'],
+          ['Swedish massage', 'Tell me about massage packages', 'check']
+        ]
+      : [
+          ['Glowing facial', 'Recommend a facial for glowing skin', 'spark'],
+          ['Hair blowout', 'Tell me about at-home hair styling', 'sparkle'],
+          ['Bridal makeup', 'Tell me about bridal and occasion makeup', 'star'],
+          [`Salons in ${city}`, `Top salons in ${city}`, 'salon'],
+          ['Beauty products', 'Recommend skincare products in the store', 'bag']
+        ];
+  if (state.signedIn) {
+    base.push(['My bookings', 'Check my latest booking and Arrival PIN or orders', 'calendar']);
   }
-];
+  return base;
+}
+
+function conciergeContextWaUrl() {
+  const city = currentLocationCity();
+  const lastUser = [...(state.aiChatMessages || [])].reverse().find(m => m.sender === 'user');
+  const note = lastUser
+    ? `Hello GlamGo (${city})! Connecting from AI Concierge about: ${lastUser.text.slice(0, 120)}`
+    : `Hello GlamGo (${city})! Connecting from AI chat for assistance.`;
+  return conciergeWaUrl(note);
+}
 
 function floatingConciergeDock() {
   if (state.view === 'admin') return '';
@@ -3137,15 +3204,18 @@ function floatingConciergeDock() {
 
 function aiChatDrawer() {
   if (state.view === 'admin') return '';
-  const messages = (state.aiChatMessages && state.aiChatMessages.length) ? state.aiChatMessages : defaultAiWelcome;
+  const messages = (state.aiChatMessages && state.aiChatMessages.length) ? state.aiChatMessages : [getAiWelcomeMessage()];
+  const hasConversation = Boolean(state.aiChatMessages && state.aiChatMessages.some(m => m.sender === 'user'));
+  const suggestions = getAiQuickSuggestions();
   return '<div class="ai-chat-drawer ' + (state.aiChatOpen ? 'open' : '') + '" role="dialog" aria-modal="true" aria-label="GlamGo AI Concierge">' +
     '<div class="ai-chat-header">' +
       '<div class="ai-chat-profile">' +
         '<div class="ai-chat-avatar"><span>✦</span><i class="ai-online-dot"></i></div>' +
-        '<div><h4>GlamGo AI Concierge</h4><p>Online · Instant Beauty Advisor</p></div>' +
+        '<div><h4>GlamGo AI Concierge</h4><p>Online · ' + esc(currentLocationCity()) + ' · Beauty Advisor</p></div>' +
       '</div>' +
       '<div class="ai-chat-actions">' +
-        '<a href="' + esc(conciergeWaUrl('Hello GlamGo! Connecting from AI chat for assistance.')) + '" target="_blank" rel="noopener noreferrer" class="ai-wa-link" title="Open WhatsApp">' + icon('whatsapp', 14) + ' WhatsApp</a>' +
+        (hasConversation ? '<button type="button" class="ai-chat-reset-btn" data-action="ai-chat-reset" title="Start new chat">New</button>' : '') +
+        '<a href="' + esc(conciergeContextWaUrl()) + '" target="_blank" rel="noopener noreferrer" class="ai-wa-link" title="Open WhatsApp">' + icon('whatsapp', 14) + ' WhatsApp</a>' +
         '<button type="button" class="ai-chat-close-btn" data-action="toggle-ai-chat" aria-label="Close chat">' + icon('close', 18) + '</button>' +
       '</div>' +
     '</div>' +
@@ -3162,6 +3232,7 @@ function aiChatDrawer() {
                 }
                 return '<button type="button" class="ai-action-btn" data-action="' + esc(act.action || 'ai-prompt') + '"' +
                   (act.id ? ' data-id="' + esc(act.id) + '"' : '') +
+                  (act.service_id ? ' data-service-id="' + esc(act.service_id) + '"' : '') +
                   (act.target ? ' data-target="' + esc(act.target) + '"' : '') +
                   (act.prompt ? ' data-prompt="' + esc(act.prompt) + '"' : '') +
                   '>' + esc(act.label) + ' →</button>';
@@ -3170,17 +3241,15 @@ function aiChatDrawer() {
           '<span class="ai-time">' + esc(m.time || 'Just now') + '</span>' +
         '</div>'
       ).join('') +
-      (state.aiChatBusy ? '<div class="ai-msg msg-ai"><div class="ai-bubble ai-typing-bubble">Finding the best match for you…</div></div>' : '') +
+      (state.aiChatBusy ? '<div class="ai-msg msg-ai"><div class="ai-bubble ai-typing-bubble">Curating the best match for you…</div></div>' : '') +
     '</div>' +
     '<div class="ai-chat-suggestions">' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Recommend a facial for glowing skin">' + icon('spark', 13) + ' Glowing facial</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about at-home hair styling">' + icon('sparkle', 13) + ' Hair blowout</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="Tell me about bridal and occasion makeup">' + icon('star', 13) + ' Bridal makeup</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="What is the Complete Glow package?">' + icon('check', 13) + ' Complete Glow</button>' +
-      '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="How do at-home appointments work?">' + icon('shield', 13) + ' How it works</button>' +
+      suggestions.map(([label, prompt, ic]) =>
+        '<button type="button" class="ai-sugg-pill" data-action="ai-prompt" data-prompt="' + esc(prompt) + '">' + icon(ic, 13) + ' ' + esc(label) + '</button>'
+      ).join('') +
     '</div>' +
     '<form class="ai-chat-input-bar" id="ai-chat-form">' +
-      '<input type="text" id="ai-chat-input" placeholder="Ask about facials, makeup, pricing, hair…" autocomplete="off" />' +
+      '<input type="text" id="ai-chat-input" placeholder="Ask about treatments, salons, products, budget…" autocomplete="off" />' +
       '<button type="submit" class="ai-send-btn" aria-label="Send message"' + (state.aiChatBusy ? ' disabled' : '') + '>' + icon('arrow', 18) + '</button>' +
     '</form>' +
   '</div>';
@@ -3277,7 +3346,11 @@ async function handleAiUserMessage(query) {
   const q = String(query || '').trim();
   if (!q || state.aiChatBusy) return;
   const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (!state.aiChatMessages) state.aiChatMessages = [...defaultAiWelcome];
+  if (!state.aiChatMessages) state.aiChatMessages = [getAiWelcomeMessage()];
+  const history = state.aiChatMessages
+    .slice(-8)
+    .map(m => ({ role: m.sender === 'user' ? 'user' : 'ai', text: String(m.text || '').slice(0, 600) }))
+    .filter(m => m.text);
   state.aiChatMessages.push({
     sender: 'user',
     text: q,
@@ -3295,7 +3368,10 @@ async function handleAiUserMessage(query) {
     replyPayload = await apiConciergeChat({
       message: q,
       location: state.location || '',
-      audience: state.audience || 'women'
+      city: currentLocationCity(),
+      audience: state.audience || 'women',
+      experience: state.experience || 'home',
+      history
     });
   } catch {
     replyPayload = buildLocalAiReply(q);
@@ -3396,11 +3472,17 @@ let scrollLockUntil = 0;
 const addedCartTimers = {};
 async function action(el){
   const a = el.dataset.action, id = el.dataset.id;
-  if (el.closest('.ai-chat-drawer') && !['toggle-ai-chat', 'ai-prompt'].includes(a)) {
+  if (el.closest('.ai-chat-drawer') && !['toggle-ai-chat', 'ai-prompt', 'ai-chat-reset'].includes(a)) {
     state.aiChatOpen = false;
   }
   if ((a === 'buy-now' && isPreviewId(id)) || (a === 'checkout' && Object.keys(state.cart || {}).some(key => isPreviewId(parseCartKey(key).productId)))) { toast('Remove demo items before checking out with real products.'); return; }
   if(isDemoCatalogue && ['book-home','book-salon','book-pro','checkout','buy-now'].includes(a)){ toast('Demo listings are for preview only. Booking and checkout are unavailable.'); return; }
+  if(a==='ai-chat-reset'){
+    state.aiChatMessages = null;
+    render();
+    document.getElementById('ai-chat-input')?.focus();
+    return;
+  }
   if(a==='toggle-ai-chat'){
     state.aiChatOpen = !state.aiChatOpen;
     render();

@@ -2,18 +2,25 @@ from typing import List, Optional
 from urllib.parse import quote
 from fastapi import APIRouter, Depends
 from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
+from backend.app.api.deps import get_optional_current_user
 from backend.app.core.config import settings
 from backend.app.core.database import get_db
-from backend.app.models.catalog import Salon, Service
+from backend.app.core.rate_limit import RateLimiter
+from backend.app.models.booking import Booking
+from backend.app.models.catalog import Product, Salon, Service
+from backend.app.models.order import Order
+from backend.app.models.user import User
 from backend.app.schemas.concierge import (
     ConciergeAction,
     ConciergeChatRequest,
     ConciergeChatResponse,
 )
+from backend.app.services.ai_concierge_service import generate_gemini_concierge_reply
 
 router = APIRouter()
+concierge_limiter = RateLimiter(requests=20, window_seconds=300, prefix="concierge_ai")
 
 
 def _wa_url(text: str) -> str:
@@ -58,7 +65,7 @@ def _query_services(db: Session, keywords: List[str], audience: Optional[str], l
 
 
 def _query_salons(db: Session, location: Optional[str], audience: Optional[str], limit: int = 2) -> List[Salon]:
-    q = db.query(Salon)
+    q = db.query(Salon).options(selectinload(Salon.menu_services))
     aud_cond = _audience_filter(Salon, audience)
     if aud_cond is not None:
         q = q.filter(aud_cond)
@@ -76,6 +83,25 @@ def _query_salons(db: Session, location: Optional[str], audience: Optional[str],
     return q.order_by(Salon.rating.desc()).limit(limit).all()
 
 
+def _query_products(db: Session, keywords: List[str], audience: Optional[str], limit: int = 2) -> List[Product]:
+    q = db.query(Product).filter(Product.is_active == True, Product.stock > 0)
+    aud_cond = _audience_filter(Product, audience)
+    if aud_cond is not None:
+        q = q.filter(aud_cond)
+    if keywords:
+        clauses = []
+        for kw in keywords:
+            like = f"%{kw}%"
+            clauses.extend([
+                Product.category.ilike(like),
+                Product.name.ilike(like),
+                Product.brand.ilike(like),
+                Product.description.ilike(like),
+            ])
+        q = q.filter(or_(*clauses))
+    return q.order_by(Product.rating.desc(), Product.price.asc()).limit(limit).all()
+
+
 def _format_price(price: float) -> str:
     return f"₹{int(round(price)):,}"
 
@@ -88,21 +114,65 @@ def _book_action(svc: Service) -> ConciergeAction:
     )
 
 
-@router.get("/config")
-def get_concierge_config():
-    return {
-        "whatsapp_number": settings.WHATSAPP_CONCIERGE_NUMBER,
-        "whatsapp_url": _wa_url("Hello GlamGo! I would like to inquire about beauty services and salon appointments."),
-    }
-
-
-@router.post("/chat", response_model=ConciergeChatResponse)
-def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db)):
-    q = payload.message.strip()
+def _fallback_chat(
+    db: Session,
+    q: str,
+    city: str,
+    location: str,
+    audience: Optional[str],
+    user: Optional[User],
+    context_wa: str,
+) -> ConciergeChatResponse:
     low = q.lower()
-    audience = _normalize_audience(payload.audience)
-    location = (payload.location or "").strip()
-    default_wa = _wa_url("Hello GlamGo! Connecting from AI chat for assistance.")
+
+    if any(k in low for k in ("my booking", "my order", "my appointment", "booking status", "order status", "arrival pin", "track my", "track order")):
+        if user is None:
+            return ConciergeChatResponse(
+                reply="Sign in to your GlamGo account so I can check your live appointments, Arrival PINs, and recent orders.",
+                actions=[ConciergeAction(label="Chat on WhatsApp ↗", url=context_wa)],
+                whatsapp_url=context_wa,
+                source="fallback",
+            )
+        latest_b = (
+            db.query(Booking)
+            .filter(Booking.customer_id == user.id)
+            .order_by(Booking.created_at.desc())
+            .first()
+        )
+        latest_o = (
+            db.query(Order)
+            .filter(Order.customer_id == user.id)
+            .order_by(Order.created_at.desc())
+            .first()
+        )
+        parts = []
+        actions: List[ConciergeAction] = []
+        if latest_b:
+            st = latest_b.status.value if hasattr(latest_b.status, "value") else str(latest_b.status)
+            pin_note = f" (Arrival PIN: **{latest_b.arrival_otp}**)" if (st == "confirmed" and latest_b.arrival_otp) else ""
+            parts.append(f"Latest appointment: **{latest_b.title}** on {latest_b.date} at {latest_b.time} ({st.upper()}){pin_note}.")
+            actions.append(ConciergeAction(label="View my bookings", action="account-bookings"))
+        if latest_o:
+            ost = latest_o.status.value if hasattr(latest_o.status, "value") else str(latest_o.status)
+            parts.append(f"Latest order **#{latest_o.id}** is {ost.upper()} ({_format_price(latest_o.total)}).")
+            actions.append(ConciergeAction(label="Track my orders", action="orders"))
+        if not parts:
+            parts.append("You have no bookings or product orders yet. Would you like a personalized recommendation?")
+            actions.append(ConciergeAction(label="Recommend a treatment", prompt="Recommend a treatment for me"))
+        return ConciergeChatResponse(reply=" ".join(parts), actions=actions, whatsapp_url=context_wa, source="fallback")
+
+    if any(k in low for k in ("serum", "product", "cleanser", "moistur", "oil", "buy", "store", "shop")):
+        kw = [w for w in ("serum", "cleanser", "beard", "hair", "body", "skin", "lip", "fragrance") if w in low]
+        prods = _query_products(db, kw, audience, limit=2) or _query_products(db, [], audience, limit=2)
+        if prods:
+            names = ", ".join(f"**{p.name}** ({_format_price(p.price)})" for p in prods)
+            actions = [ConciergeAction(label=f"View {p.name}", action="product-detail", id=str(p.id)) for p in prods]
+            return ConciergeChatResponse(
+                reply=f"From our Beauty Store, I recommend {names}. Tap below to check ingredients, variants, and add to bag.",
+                actions=actions,
+                whatsapp_url=context_wa,
+                source="fallback",
+            )
 
     if any(k in low for k in ("facial", "skin", "glow", "detan", "cleanup")):
         matches = _query_services(db, ["skin", "facial", "glow", "detan", "cleanup"], audience)
@@ -124,7 +194,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 ConciergeAction(label="Book The Signature Facial (₹1,499)", action="book-home", id="s1"),
                 ConciergeAction(label="View Skin Category", action="home-category", id="Skin"),
             ]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("hair", "blowout", "styling", "haircut", "beard", "trim")):
         kw = ["hair", "beard", "haircut", "trim", "styling"] if audience == "men" else ["hair", "blowout", "styling"]
@@ -145,7 +215,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 ConciergeAction(label="Book Hair Styling (₹899)", action="book-home", id="s2"),
                 ConciergeAction(label="View Hair Category", action="home-category", id="Hair"),
             ]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("nail", "manicure", "pedicure")):
         matches = _query_services(db, ["nail", "manicure", "pedicure"], audience)
@@ -162,7 +232,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 ConciergeAction(label="Book Classic Manicure (₹699)", action="book-home", id="s3"),
                 ConciergeAction(label="View Nails Category", action="home-category", id="Nails"),
             ]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("makeup", "bridal", "wedding", "party")):
         matches = _query_services(db, ["makeup", "bridal", "wedding"], audience)
@@ -182,7 +252,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 ConciergeAction(label="Book Occasion Makeup (₹2,499)", action="book-home", id="s4"),
                 ConciergeAction(label="Explore Complete Glow Ritual", action="book-home", id="s8"),
             ]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("massage", "spa", "relax")):
         matches = _query_services(db, ["spa", "massage", "relax"], audience)
@@ -196,7 +266,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 "A soothing, rhythmic full-body ritual using warm aromatic botanical oils."
             )
             actions = [ConciergeAction(label="Book Relax Massage (₹1,799)", action="book-home", id="s5")]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("wax", "waxing")):
         matches = _query_services(db, ["wax"], audience)
@@ -207,7 +277,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
         else:
             reply = "Our **Smooth Botanical Waxing** (40 min, ₹599) uses gentle, low-heat strip-less peel wax and soothing aloe post-treatment care."
             actions = [ConciergeAction(label="Book Botanical Waxing (₹599)", action="book-home", id="s6")]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("thread", "brow")):
         matches = _query_services(db, ["thread", "brow"], audience)
@@ -218,7 +288,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
         else:
             reply = "Define your arches with the **Brow & Threading Precision Edit** (25 min, ₹299). Clean mapping and threading for a crisp, natural frame."
             actions = [ConciergeAction(label="Book Brow Threading (₹299)", action="book-home", id="s7")]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("package", "complete glow", "combo")):
         matches = _query_services(db, ["package", "complete glow", "combo"], audience)
@@ -232,14 +302,14 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 "combines a botanical facial, classic manicure, and polished salon blowout in a single visit."
             )
             actions = [ConciergeAction(label="Book Complete Glow (₹3,299)", action="book-home", id="s8")]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("salon", "parlour", "parlor", "near")):
-        salons = _query_salons(db, location, audience)
-        area_label = location or "your area"
+        salons = _query_salons(db, city or location, audience)
+        area_label = location or city or "your area"
         if salons:
             salon_names = ", ".join(f"**{s.name}** ({s.area})" for s in salons)
-            reply = f"Here are top-rated partner salons near {area_label}: {salon_names}. Pick one below to inspect stylists and open chairs."
+            reply = f"Here are top-rated partner salons in {area_label}: {salon_names}. Pick one below to inspect stylists and menus."
             actions = [
                 ConciergeAction(label=f"View {s.name}", action="salon-detail", id=str(s.id))
                 for s in salons
@@ -247,7 +317,7 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
         else:
             reply = f"You can explore verified partner salons and chair appointments near {area_label} directly in our Salons portal."
             actions = [ConciergeAction(label="Browse Partner Salons", action="experience", id="salon")]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("how", "safe", "sterile", "hygiene", "work")):
         reply = (
@@ -262,22 +332,22 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
                 url=_wa_url("Hi GlamGo! I have a question about at-home treatments."),
             ),
         ]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
     if any(k in low for k in ("whatsapp", "contact", "call", "human", "support")):
         reply = (
             "Our dedicated customer care team is available on WhatsApp daily from 8:00 AM to 9:00 PM "
             "for custom bridal bookings, urgent questions, or personalized requests."
         )
-        actions = [ConciergeAction(label="Chat on WhatsApp ↗", url=default_wa)]
-        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+        actions = [ConciergeAction(label="Chat on WhatsApp ↗", url=context_wa)]
+        return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
 
-    area_label = location or "your area"
+    area_label = location or city or "your area"
     top_services = _query_services(db, [], audience, limit=2)
     reply = (
         f"I'm delighted to assist you with GlamGo! We offer certified at-home beauty treatments, "
         f"local salon chair bookings, and clean beauty store products across {area_label}. "
-        "What service can I help you book today?"
+        "What service or product can I help you find today?"
     )
     if top_services:
         actions = [_book_action(s) for s in top_services]
@@ -286,10 +356,49 @@ def concierge_chat(payload: ConciergeChatRequest, db: Session = Depends(get_db))
             ConciergeAction(label="The Signature Facial (₹1,499)", action="book-home", id="s1"),
             ConciergeAction(label="Hair Blowout & Styling (₹899)", action="book-home", id="s2"),
         ]
-    actions.append(
-        ConciergeAction(
-            label="Chat on WhatsApp",
-            url=_wa_url("Hi GlamGo! I would like more information."),
-        )
+    actions.append(ConciergeAction(label="Chat on WhatsApp", url=context_wa))
+    return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=context_wa, source="fallback")
+
+
+@router.get("/config")
+def get_concierge_config():
+    return {
+        "whatsapp_number": settings.WHATSAPP_CONCIERGE_NUMBER,
+        "whatsapp_url": _wa_url("Hello GlamGo! I would like to inquire about beauty services and salon appointments."),
+    }
+
+
+@router.post("/chat", response_model=ConciergeChatResponse, dependencies=[Depends(concierge_limiter)])
+def concierge_chat(
+    payload: ConciergeChatRequest,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_current_user),
+):
+    q = payload.message.strip()
+    audience = _normalize_audience(payload.audience)
+    location = (payload.location or "").strip()
+    city = (payload.city or (location.split(",")[-1].strip() if location else "") or "Mumbai").strip()
+
+    wa_note = f"Hi GlamGo ({city})! Connecting from AI Concierge about: {q[:120]}"
+    context_wa = _wa_url(wa_note)
+
+    llm_result = generate_gemini_concierge_reply(
+        db=db,
+        message=q,
+        city=city,
+        audience=audience,
+        experience=payload.experience,
+        history=payload.history,
+        user=current_user,
+        default_wa_url=context_wa,
     )
-    return ConciergeChatResponse(reply=reply, actions=actions, whatsapp_url=default_wa)
+    if llm_result:
+        actions = [ConciergeAction(**a) for a in llm_result.get("actions", [])]
+        return ConciergeChatResponse(
+            reply=llm_result["reply"],
+            actions=actions,
+            whatsapp_url=context_wa,
+            source="gemini",
+        )
+
+    return _fallback_chat(db, q, city, location, audience, current_user, context_wa)
