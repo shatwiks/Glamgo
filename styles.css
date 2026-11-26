@@ -3177,6 +3177,31 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.city-availability-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 18px;
+  margin-bottom: 18px;
+  padding: 14px 18px;
+  background: var(--card);
+  border: 1px solid var(--champagne);
+}
+
+.city-availability-banner strong {
+  display: block;
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.city-availability-banner span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .service-line button {
   border: 1px solid var(--ink);
   background: none;

@@ -1592,18 +1592,28 @@ function homePage(){
   const homeFilters = getFiltersForExp('home');
   const filtered = getFilteredHomeServices(cityServices, homeFilters);
   const activeFilters = buildActiveFiltersForExp('home', homeFilters);
-  const citySwitchBtns = '<div class="filter-row empty-city-switch">' +
-    ['Bandra West, Mumbai','Indiranagar, Bengaluru','Hauz Khas, South Delhi'].map(loc => '<button type="button" class="filter-chip" data-action="location-set" data-id="'+loc+'">Switch to '+normalizeCity(loc)+'</button>').join('') +
-    '</div>';
+  const isBengaluru = userCity.toLowerCase() === 'bengaluru';
+  const switchBengaluruBtn = button('Switch to Bengaluru ' + icon('arrow', 16), 'location-set', 'btn-primary', 'data-id="Indiranagar, Bengaluru"');
+  const bengaluruNoticeHtml = !isBengaluru
+    ? '<div class="city-availability-banner" role="status">' +
+        '<div><strong>At-home services are currently available in Bengaluru only.</strong><span>You are browsing '+esc(userCity)+'. Switch to Bengaluru to book verified at-home treatments.</span></div>' +
+        switchBengaluruBtn +
+      '</div>'
+    : '';
   const servicesResultsHtml = !services.length && state.catalogFeedsLoading.services
     ? catalogLoadingState('home treatments')
     : !services.length && state.catalogErrors.services
       ? catalogUnavailableState('Home treatments catalog')
       : filtered.length
         ? '<div class="card-grid">'+filtered.map(homeCard).join('')+'</div>'
-        : empty('spark','No home services match in '+esc(userCity),'Switch cities or clear your active filters to see more treatments.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="home"') : citySwitchBtns);
+        : empty(
+            'spark',
+            isBengaluru ? 'No home services match in Bengaluru' : 'At-home services are only available in Bengaluru',
+            isBengaluru ? 'Clear your active filters to see all Bengaluru treatments.' : 'Currently our at-home beauty services operate in Bengaluru. Switch your location in one click to explore.',
+            activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="home"') : switchBengaluruBtn
+          );
   const countText = cityServices.length ? 'Showing <strong>'+filtered.length+'</strong> of '+cityServices.length+(cityServices.length===1?' service':' services') : '';
-  const servicesSection = renderFilterShelfSection('home', homeFilters, activeFilters, {
+  const servicesSection = bengaluruNoticeHtml + renderFilterShelfSection('home', homeFilters, activeFilters, {
     categories: homeCategories,
     countDraftMatches: draft => getFilteredHomeServices(cityServices, draft).length
   }, countText, servicesResultsHtml);
@@ -1614,7 +1624,7 @@ function homePage(){
       ? catalogUnavailableState('Professionals directory')
       : cityPros.length
         ? '<div class="pro-grid">'+cityPros.map(professionalCard).join('')+'</div>'
-        : empty('user','No specialists listed in '+esc(userCity)+' yet','Try another city or check back later.');
+        : empty('user','Specialists are available in Bengaluru','No specialists are listed in '+esc(userCity)+' yet. Switch to Bengaluru in one click.', !isBengaluru ? switchBengaluruBtn : '');
   const homeCategoryImages = {
     Hair: './assets/cat-hair.webp',
     Skin: photo('photo-1570172619644-dfd03ed5d881', 640),
@@ -1689,7 +1699,7 @@ function salonPage(){
     ? catalogLoadingState('salons near you')
     : !salons.length && state.catalogErrors.salons
       ? catalogUnavailableState('Salons directory')
-      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No matching salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try clearing a filter to see more salons.':'Try another city or check back later.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="salon"') : ''));
+      : '<div class="salon-grid">'+list.map(salonCard).join('')+'</div>'+(list.length?'':empty('search',citySalons.length?'No salons match these filters':'No matching salons are listed in '+esc(userCity)+' yet',citySalons.length?'Try clearing a filter to see more salons.':'Switch to Bengaluru in one click or choose another city.', activeFilters.length ? button('Clear all filters','exp-reset-all','btn-outline','data-exp="salon"') : (userCity.toLowerCase()!=='bengaluru'?button('Switch to Bengaluru '+icon('arrow',16),'location-set','btn-primary','data-id="Indiranagar, Bengaluru"'):'')));
   const countText = citySalons.length
     ? 'Showing <strong>'+list.length+'</strong> of '+citySalons.length+(citySalons.length===1?' salon':' salons')+' in '+esc(userCity)+(hasDistances?' · '+nearbyCount+' within 8 km':'')
     : '';

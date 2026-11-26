@@ -4,6 +4,20 @@
 
 ---
 
+## Prompt Entry — `2026-11-26`: Show Bengaluru-Only Availability Notice & One-Click Switch in Services
+
+**Objective:** When a user's active location is outside Bengaluru, clearly inform them in Services that at-home services are currently available in Bengaluru and provide a one-click `Switch to Bengaluru` button (plus in empty-city states across Professionals and Salons).
+
+**Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`: Added `.city-availability-banner` with `Switch to Bengaluru` (`data-action="location-set" data-id="Indiranagar, Bengaluru"`) when `userCity` is not Bengaluru in `homePage()`, and updated empty states in `homePage()` (`servicesResultsHtml`, `prosSection`) and `salonPage()` to offer one-click `Switch to Bengaluru`.
+- `styles.css`: Added `.city-availability-banner` styling.
+
+**Verification Results:**
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`, `3.68s`).
+- `node --test tests/*.test.mjs`: `7/7` tests passed (`0` failed).
+
+---
+
 ## Prompt Entry — `2026-11-26`: Live Location Prompt, Strict City Filtering, Salon Distance (km) & Near-to-Far Filter Inside Filters
 
 **Objective:** Immediately request live browser geolocation on startup so services/salons/professionals load for the user's location only; ensure all dynamic city headings (`Discover salons in {City}.`, `Services in {City}.`, `Professionals in {City}.`, `Salons in {City}.`) always reflect the exact selected/live city; keep salon location & distance (`km`) filtering strictly inside `Show filters` (no outside bar) with `Distance: Near to far` only (no `Far to near`); restrict At-Home professionals strictly to the active city with no distance shown.
