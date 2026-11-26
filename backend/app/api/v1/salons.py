@@ -41,6 +41,28 @@ def format_salon(
         {"id": st.id, "name": st.name, "specialty": st.specialty, "img": st.img}
         for st in s.staff
     ]
+    menu_services = [
+        {
+            "id": svc.id,
+            "name": svc.name,
+            "category": svc.category,
+            "price": svc.price,
+            "duration": svc.duration,
+            "rating": svc.rating,
+            "reviews": svc.reviews,
+            "img": svc.img,
+            "desc": svc.desc,
+            "audience": svc.audience,
+            "cities": svc.cities,
+            "salon_id": svc.salon_id,
+            "professional_id": svc.professional_id,
+            "professional_name": svc.professional_name,
+        }
+        for svc in sorted(
+            [m for m in (getattr(s, "menu_services", None) or []) if getattr(m, "is_active", True)],
+            key=lambda m: (m.category or "", float(m.price or 0), m.name or ""),
+        )
+    ]
     city_val = getattr(s, "city", None) or "Mumbai"
     lat_val = getattr(s, "lat", None)
     lng_val = getattr(s, "lng", None)
@@ -73,7 +95,8 @@ def format_salon(
         "services": services,
         "hours": s.hours,
         "about": s.about,
-        "staff": staff
+        "staff": staff,
+        "menu_services": menu_services,
     }
 
 
@@ -89,13 +112,13 @@ def get_salons(
     max_distance_km: Optional[float] = Query(None, gt=0, le=200),
     db: Session = Depends(get_db)
 ):
-    cache_key = f"glamgo:catalog:salons:v3:{category}:{sort}:{query}:{city}:{audience}:{lat}:{lng}:{max_distance_km}"
+    cache_key = f"glamgo:catalog:salons:v4:{category}:{sort}:{query}:{city}:{audience}:{lat}:{lng}:{max_distance_km}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
 
     has_coords = lat is not None and lng is not None
-    salons = db.query(Salon).options(selectinload(Salon.staff)).all()
+    salons = db.query(Salon).options(selectinload(Salon.staff), selectinload(Salon.menu_services)).all()
     res = []
     for s in salons:
         data = format_salon(s, user_lat=lat if has_coords else None, user_lng=lng if has_coords else None)
@@ -145,7 +168,7 @@ def get_salons(
 
 @router.get("/{salon_id}", response_model=SalonResponse)
 def get_salon(salon_id: str, db: Session = Depends(get_db)):
-    salon = db.query(Salon).filter(Salon.id == salon_id).first()
+    salon = db.query(Salon).options(selectinload(Salon.staff), selectinload(Salon.menu_services)).filter(Salon.id == salon_id).first()
     if not salon:
         raise HTTPException(status_code=404, detail="Salon not found")
     return format_salon(salon)

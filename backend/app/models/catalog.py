@@ -28,16 +28,24 @@ class Service(Base):
     img = Column(String(500), nullable=False)
     desc = Column(Text, nullable=False)
     service_cities = Column(String(255), nullable=False, default="Mumbai,Bengaluru,Delhi")
+    salon_id = Column(String(50), ForeignKey("salons.id", ondelete="CASCADE"), nullable=True, index=True)
+    professional_id = Column(Integer, ForeignKey("professional_profiles.id", ondelete="CASCADE"), nullable=True, index=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     professionals = relationship("ProfessionalProfile", secondary=service_professionals, back_populates="services")
+    owner_professional = relationship("ProfessionalProfile", back_populates="custom_services", foreign_keys=[professional_id])
+    salon = relationship("Salon", back_populates="menu_services", foreign_keys=[salon_id])
     bookings = relationship("Booking", back_populates="service")
 
     @property
     def cities(self) -> list[str]:
         raw = self.service_cities or "Mumbai,Bengaluru,Delhi"
         return [c.strip() for c in raw.split(",") if c.strip()]
+
+    @property
+    def professional_name(self) -> str | None:
+        return self.owner_professional.name if self.owner_professional else None
 
 
 class ProfessionalProfile(Base):
@@ -62,6 +70,7 @@ class ProfessionalProfile(Base):
 
     user = relationship("User", back_populates="professional_profile")
     services = relationship("Service", secondary=service_professionals, back_populates="professionals")
+    custom_services = relationship("Service", back_populates="owner_professional", foreign_keys="Service.professional_id", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="professional_rel")
 
 
@@ -89,6 +98,7 @@ class Salon(Base):
 
     owner = relationship("User", back_populates="salons")
     staff = relationship("SalonStaff", back_populates="salon", cascade="all, delete-orphan")
+    menu_services = relationship("Service", back_populates="salon", foreign_keys="Service.salon_id", cascade="all, delete-orphan")
     bookings = relationship("Booking", back_populates="salon")
 
 

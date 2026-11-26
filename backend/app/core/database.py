@@ -50,6 +50,8 @@ def ensure_phase13_schema_columns(bind_engine=None) -> List[str]:
         "services": [
             ("audience", "VARCHAR(20) NOT NULL DEFAULT 'unisex'"),
             ("service_cities", "VARCHAR(255) NOT NULL DEFAULT 'Mumbai,Bengaluru,Delhi'"),
+            ("salon_id", "VARCHAR(50)"),
+            ("professional_id", "INTEGER"),
         ],
         "bookings": [
             ("arrival_otp", "VARCHAR(16)"),

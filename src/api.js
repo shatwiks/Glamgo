@@ -368,6 +368,44 @@ export async function apiUnlinkProfessionalService(serviceId) {
   });
 }
 
+export async function apiCreateProfessionalCustomService(payload) {
+  return await apiRequest('/partners/professional/services/custom', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateProfessionalCustomService(serviceId, payload) {
+  return await apiRequest(`/partners/professional/services/custom/${encodeURIComponent(serviceId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiGetSalonServices() {
+  return await apiRequest('/partners/salon/services');
+}
+
+export async function apiCreateSalonService(payload) {
+  return await apiRequest('/partners/salon/services', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiUpdateSalonService(serviceId, payload) {
+  return await apiRequest(`/partners/salon/services/${encodeURIComponent(serviceId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDeleteSalonService(serviceId) {
+  return await apiRequest(`/partners/salon/services/${encodeURIComponent(serviceId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function apiGetProfessionalBookings() {
   return await apiRequest('/partners/professional/bookings');
 }

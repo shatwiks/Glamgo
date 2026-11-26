@@ -45,10 +45,16 @@ import {
   apiGetProfessionalServices,
   apiAssignProfessionalService,
   apiUnlinkProfessionalService,
+  apiCreateProfessionalCustomService,
+  apiUpdateProfessionalCustomService,
   apiGetProfessionalBookings,
   apiUpdateProfessionalBookingStatus,
   apiGetSalonProfile,
   apiUpdateSalonProfile,
+  apiGetSalonServices,
+  apiCreateSalonService,
+  apiUpdateSalonService,
+  apiDeleteSalonService,
   apiGetSalonStaff,
   apiAddSalonStaff,
   apiDeleteSalonStaff,
@@ -241,13 +247,22 @@ const AREA_COORDS = {
   'south delhi': [28.5494, 77.2001],
   'delhi': [28.6139, 77.2090]
 };
+const INDIAN_STATES_OR_COUNTRY = new Set([
+  'india', 'maharashtra', 'karnataka', 'tamil nadu', 'telangana', 'kerala',
+  'gujarat', 'rajasthan', 'uttar pradesh', 'west bengal', 'punjab', 'haryana',
+  'madhya pradesh', 'bihar', 'odisha', 'goa', 'assam', 'jharkhand', 'uttarakhand',
+  'himachal pradesh', 'chhattisgarh', 'andhra pradesh', 'jammu and kashmir'
+]);
 function normalizeCity(loc = '') {
   const raw = String(loc || '').trim().toLowerCase();
   if (!raw) return 'Mumbai';
   if (raw.includes('bangalore') || raw.includes('bengaluru') || raw.includes('indiranagar') || raw.includes('koramangala') || raw.includes('whitefield') || raw.includes('hsr') || raw.includes('yelahanka')) return 'Bengaluru';
   if (raw.includes('delhi') || raw.includes('hauz khas') || raw.includes('gurgaon') || raw.includes('gurugram') || raw.includes('noida')) return 'Delhi';
   if (raw.includes('mumbai') || raw.includes('bandra') || raw.includes('juhu') || raw.includes('khar') || raw.includes('andheri') || raw.includes('powai')) return 'Mumbai';
-  const parts = String(loc).split(',').map(s => s.trim()).filter(Boolean);
+  const parts = String(loc)
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s && !/^\d{5,6}$/.test(s) && !INDIAN_STATES_OR_COUNTRY.has(s.toLowerCase()));
   return parts.length ? parts[parts.length - 1] : 'Mumbai';
 }
 const currentLocationCity = () => state.locationCity || normalizeCity(state.location);
@@ -259,7 +274,7 @@ function resolveUserCoords() {
   const keys = Object.keys(AREA_COORDS).sort((a, b) => b.length - a.length);
   const direct = keys.find(k => text.includes(k));
   if (direct) return AREA_COORDS[direct];
-  return AREA_COORDS[currentLocationCity().toLowerCase()] || AREA_COORDS.mumbai;
+  return AREA_COORDS[currentLocationCity().toLowerCase()] || null;
 }
 function haversineKm(lat1, lng1, lat2, lng2) {
   const toRad = d => (Number(d) * Math.PI) / 180;
@@ -274,27 +289,42 @@ function resolveSalonCoords(s) {
   const hay = `${s?.area || ''} ${s?.city || ''}`.toLowerCase();
   const keys = Object.keys(AREA_COORDS).sort((a, b) => b.length - a.length);
   const k = keys.find(x => hay.includes(x));
-  return AREA_COORDS[k || 'mumbai'];
+  return k ? AREA_COORDS[k] : null;
 }
 function enrichSalonWithDistance(s) {
-  const coords = Array.isArray(state.userCoords) ? state.userCoords : null;
-  const hasPosition = coords && s.lat != null && s.lng != null && Number.isFinite(Number(s.lat)) && Number.isFinite(Number(s.lng));
-  const km = hasPosition ? Math.round(haversineKm(coords[0], coords[1], Number(s.lat), Number(s.lng)) * 10) / 10 : null;
+  const userCoords = resolveUserCoords();
+  const salonCoords = resolveSalonCoords(s);
+  const km = userCoords && salonCoords
+    ? Math.round(haversineKm(userCoords[0], userCoords[1], salonCoords[0], salonCoords[1]) * 10) / 10
+    : (s?.distance_km != null && Number.isFinite(Number(s.distance_km)) ? Math.round(Number(s.distance_km) * 10) / 10 : null);
   return { ...s, distanceKm: km, isFar: km == null ? null : km > NEAR_SALON_RADIUS_KM, distanceLabel: km == null ? '' : `${km.toFixed(1)} km away` };
 }
 function isServiceAvailableInCity(s, city) {
   const c = String(city || '').trim().toLowerCase();
   if (!c) return true;
-  if (Array.isArray(s?.cities) && s.cities.length) return s.cities.some(x => String(x).toLowerCase() === c);
-  if (s?.city) return String(s.city).toLowerCase() === c;
-  return true;
+  if (Array.isArray(s?.cities) && s.cities.length) return s.cities.some(x => normalizeCity(x).toLowerCase() === c);
+  if (s?.city) return normalizeCity(s.city).toLowerCase() === c;
+  return false;
 }
 function isProAvailableInCity(p, city) {
   const c = String(city || '').trim().toLowerCase();
   if (!c) return true;
-  if (p?.city) return String(p.city).toLowerCase() === c;
+  if (p?.city) return normalizeCity(p.city).toLowerCase() === c;
   if (p?.area) return normalizeCity(p.area).toLowerCase() === c;
-  return true;
+  return false;
+}
+function nearestKnownCityForCoords(lat, lng) {
+  const hubs = [
+    { city: 'Mumbai', label: 'Mumbai', coords: AREA_COORDS.mumbai },
+    { city: 'Bengaluru', label: 'Bengaluru', coords: AREA_COORDS.bengaluru },
+    { city: 'Delhi', label: 'Delhi', coords: AREA_COORDS.delhi }
+  ];
+  let best = null;
+  for (const h of hubs) {
+    const d = haversineKm(lat, lng, h.coords[0], h.coords[1]);
+    if (d <= 60 && (!best || d < best.dist)) best = { ...h, dist: d };
+  }
+  return best ? { label: best.label, city: best.city } : null;
 }
 async function reverseGeocodeCoords(lat, lng) {
   try {
@@ -303,12 +333,55 @@ async function reverseGeocodeCoords(lat, lng) {
       const data = await res.json();
       const addr = data?.address || {};
       const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.road || '';
-      const city = addr.city || addr.town || addr.state_district || '';
-      const formatted = [area, city].filter(Boolean).join(', ');
-      if (formatted && city) return { label: formatted, city: normalizeCity(city) };
+      const rawCity = addr.city || addr.town || addr.municipality || addr.village || addr.state_district || addr.county || '';
+      const city = rawCity ? normalizeCity(rawCity) : '';
+      const formatted = [area, city].filter(Boolean).filter((v, i, a) => a.findIndex(x => x.toLowerCase() === v.toLowerCase()) === i).join(', ');
+      if (city) return { label: formatted || city, city };
     }
   } catch {}
-  return null;
+  return nearestKnownCityForCoords(lat, lng);
+}
+function requestLiveLocation({ silent = false } = {}) {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    if (!silent) toast('Live location is not supported in this browser.');
+    return;
+  }
+  if (silent) {
+    try {
+      if (sessionStorage.getItem('glamgo-geo-asked') === '1') return;
+      sessionStorage.setItem('glamgo-geo-asked', '1');
+    } catch {}
+  } else {
+    toast('Detecting your live location…');
+  }
+  navigator.geolocation.getCurrentPosition(
+    async pos => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const prevCity = currentLocationCity();
+      state.userCoords = [lat, lng];
+      const resolved = await reverseGeocodeCoords(lat, lng);
+      if (resolved && resolved.city) {
+        state.location = resolved.label;
+        state.locationCity = resolved.city;
+      }
+      state.salonDistanceFilter = 'all';
+      persist();
+      if (!silent || (resolved && resolved.city.toLowerCase() !== prevCity.toLowerCase())) {
+        toast('Showing listings for ' + (resolved?.label || state.location));
+      }
+      void loadCatalogFeeds();
+      if (canSafelyBackgroundRender()) render();
+    },
+    err => {
+      if (!silent) {
+        toast(err?.code === 1
+          ? 'Live location blocked in browser settings — choose your city in Location.'
+          : 'Unable to detect live GPS right now — choose your city in Location.');
+      }
+    },
+    { enableHighAccuracy: !silent, timeout: 10000, maximumAge: 300000 }
+  );
 }
 
 let locationDraft = null;
@@ -387,7 +460,8 @@ async function selectLocationCoords(lat, lng) {
   if (save) save.disabled = false;
   if (!result) {
     toast('Could not identify that location. Search for an area or try again.');
-    if (activeLocationMarker) activeLocationMarker.setLatLng(draft.coords || resolveSalonCoords({ area: draft.label }));
+    const fallbackCoords = draft.coords || resolveSalonCoords({ area: draft.label });
+    if (activeLocationMarker && fallbackCoords) activeLocationMarker.setLatLng(fallbackCoords);
     return;
   }
   Object.assign(draft, { label: result.label, city: result.city, coords: [lat, lng] });
@@ -405,7 +479,7 @@ async function mountLocationPickerMap() {
   if (currentLocEl && !currentLocEl._leaflet_id) {
     const center = Array.isArray(locationDraft?.coords)
       ? locationDraft.coords
-      : resolveSalonCoords({ area: locationDraft?.label || state.location });
+      : (resolveSalonCoords({ area: locationDraft?.label || state.location }) || AREA_COORDS.mumbai);
     const map = L.map(currentLocEl, {
       scrollWheelZoom: false,
       zoomAnimation: false,
@@ -471,8 +545,10 @@ const defaults = {
   partnerProServices: [],
   partnerProBookings: [],
   partnerSalonProfile: null,
+  partnerSalonServices: [],
   partnerSalonStaff: [],
   partnerSalonBookings: [],
+  editingPartnerService: null,
   partnerSellerProducts: [],
   partnerSellerOrders: [],
   partnerSellerListings: [],
@@ -517,7 +593,7 @@ const state = {
   homeMinPrice: '',
   homeMaxPrice: '',
   salonCategory: 'All',
-  salonSort: 'featured',
+  salonSort: 'distance-asc',
   salonMinPrice: '',
   salonMaxPrice: '',
   salonDate: null,
@@ -552,8 +628,10 @@ const state = {
   partnerProServices: [],
   partnerProBookings: [],
   partnerSalonProfile: null,
+  partnerSalonServices: [],
   partnerSalonStaff: [],
   partnerSalonBookings: [],
+  editingPartnerService: null,
   partnerSellerProducts: [],
   partnerSellerOrders: [],
   partnerSellerListings: [],
@@ -679,7 +757,11 @@ const SORT_OPTIONS = [
   ['price-asc', 'Price, low to high'],
   ['price-desc', 'Price, high to low']
 ];
-const SORT_LABELS = Object.fromEntries(SORT_OPTIONS);
+const SALON_SORT_OPTIONS = [
+  ['distance-asc', 'Distance: Near to far'],
+  ...SORT_OPTIONS
+];
+const SORT_LABELS = Object.fromEntries(SALON_SORT_OPTIONS);
 const isProductInStock = p => {
   if (!p || p.in_stock === false || p.soldOut === true) return false;
   const vs = Array.isArray(p.variants) && p.variants.length ? p.variants : null;
@@ -698,7 +780,8 @@ const matchesPriceRange = (rawPrice, minVal, maxVal) => {
 };
 const sortFilteredItems = (list, sortKey, priceGetter, fallbackCompare = null) => {
   const out = [...list];
-  if (sortKey === 'alpha-asc') out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+  if (sortKey === 'distance-asc') out.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+  else if (sortKey === 'alpha-asc') out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
   else if (sortKey === 'alpha-desc') out.sort((a, b) => String(b.name || '').localeCompare(String(a.name || '')));
   else if (sortKey === 'price' || sortKey === 'price-asc') out.sort((a, b) => (priceGetter(a) ?? Infinity) - (priceGetter(b) ?? Infinity));
   else if (sortKey === 'price-desc') out.sort((a, b) => (priceGetter(b) ?? -1) - (priceGetter(a) ?? -1));
@@ -734,7 +817,7 @@ const applyFiltersToExp = (exp, f) => {
 };
 const defaultFiltersForExp = exp => {
   if (exp === 'home') return { exp: 'home', category: 'All', sort: 'featured', minPrice: '', maxPrice: '' };
-  if (exp === 'salon') return { exp: 'salon', category: 'All', distance: 'all', sort: 'featured', minPrice: '', maxPrice: '' };
+  if (exp === 'salon') return { exp: 'salon', category: 'All', distance: 'all', sort: 'distance-asc', minPrice: '', maxPrice: '' };
   return { exp: 'shop', category: 'All', collection: 'All', brand: 'All', availability: 'all', sort: 'featured', minPrice: '', maxPrice: '' };
 };
 const getHomeServicePrice = s => (s?.starting_price != null && Number(s.starting_price) > 0) ? Number(s.starting_price) : (s?.price != null ? Number(s.price) : null);
@@ -749,7 +832,7 @@ const getFilteredHomeServices = (items = [], filters = null) => {
 };
 const getFilteredSalons = (items = [], filters = null) => {
   const f = filters || getFiltersForExp('salon');
-  const maxKm = !Array.isArray(state.userCoords) || !f.distance || f.distance === 'all'
+  const maxKm = !f.distance || f.distance === 'all'
     ? Infinity
     : f.distance === 'nearest'
       ? NEAR_SALON_RADIUS_KM
@@ -1281,7 +1364,7 @@ function mobileNav(){
 }
 
 function homeCard(s){
-  const proName = s.professional || s.pro_name || '';
+  const proName = s.professional_name || s.professional || s.pro_name || '';
   const priceLabel = s.starting_price != null && Number(s.starting_price) > 0
     ? 'From ' + money(s.starting_price)
     : money(s.price);
@@ -1299,7 +1382,7 @@ function homeCard(s){
 function serviceDetail(){
   const s = services.find(x => String(x.id) === String(state.selectedService));
   if (!s) return '<main class="detail-page">'+backButton('landing','Back to services')+(state.catalogFeedsLoading.services?catalogLoadingState('service details'):state.catalogErrors.services?catalogUnavailableState('Service details'):empty('spark','Service unavailable','This service is no longer listed.'))+'</main>';
-  const proName = s.professional || s.pro_name || '';
+  const proName = s.professional_name || s.professional || s.pro_name || '';
   return '<main class="detail-page">'+backButton('landing','Back to services') +
     '<div class="service-detail">' +
       '<div class="service-detail-image">'+image(s.img,s.name)+'</div>' +
@@ -1350,15 +1433,16 @@ const buildActiveFiltersForExp = (exp, f, visibleCollections = []) => {
     list.push({ key: 'availability', label: f.availability === 'in_stock' ? 'In stock' : 'Out of stock', extra: 'data-exp="shop" data-key="availability"' });
   }
   if (exp === 'salon' && f.distance && f.distance !== 'all') {
-    const distMap = { nearest: 'Near you (≤8 km)', '5': 'Within 5 km', '10': 'Within 10 km' };
-    list.push({ key: 'distance', label: distMap[f.distance] || (f.distance + ' km'), extra: 'data-exp="salon" data-key="distance"' });
+    const distMap = { '3': 'Within 3 km', '5': 'Within 5 km', nearest: 'Within 8 km', '10': 'Within 10 km', '15': 'Within 15 km' };
+    list.push({ key: 'distance', label: distMap[f.distance] || ('Within ' + f.distance + ' km'), extra: 'data-exp="salon" data-key="distance"' });
   }
   if ((f.minPrice !== '' && f.minPrice != null) || (f.maxPrice !== '' && f.maxPrice != null)) {
     const minStr = f.minPrice !== '' && f.minPrice != null ? '₹' + esc(f.minPrice) : '₹0';
     const maxStr = f.maxPrice !== '' && f.maxPrice != null ? '₹' + esc(f.maxPrice) : 'Any';
     list.push({ key: 'price', label: minStr + ' – ' + maxStr, extra: 'data-exp="' + exp + '" data-key="price"' });
   }
-  if (f.sort && f.sort !== 'featured') {
+  const defaultSort = exp === 'salon' ? 'distance-asc' : 'featured';
+  if (f.sort && f.sort !== defaultSort) {
     list.push({ key: 'sort', label: SORT_LABELS[f.sort] || 'Sorted', extra: 'data-exp="' + exp + '" data-key="sort"' });
   }
   return list;
@@ -1368,8 +1452,9 @@ const renderFilterFieldsHtml = (exp, f, opts = {}, isDraft = false) => {
   const mode = isDraft ? 'draft' : 'live';
   const categories = opts.categories || [];
   const prefix = isDraft ? 'drawer-' + exp : 'panel-' + exp;
+  const sortList = exp === 'salon' ? SALON_SORT_OPTIONS : SORT_OPTIONS;
   const sortHtml = '<details class="filter-group" open><summary>Sort by ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
-    SORT_OPTIONS.map(([val, lbl]) => {
+    sortList.map(([val, lbl]) => {
       const checked = f.sort === val || (val === 'price-asc' && f.sort === 'price');
       return '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-sort" value="' + val + '" data-filter-exp="' + exp + '" data-filter-mode="' + mode + '" data-filter-field="sort"' + (checked ? ' checked' : '') + '><span>' + lbl + '</span></label>';
     }).join('') +
@@ -1400,11 +1485,20 @@ const renderFilterFieldsHtml = (exp, f, opts = {}, isDraft = false) => {
     brands.map(b => '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-brand" value="' + esc(b) + '" data-filter-exp="shop" data-filter-mode="' + mode + '" data-filter-field="brand"' + (f.brand === b ? ' checked' : '') + '><span>' + esc(b === 'All' ? 'All brands' : b) + '</span></label>').join('') +
   '</div></details>' : '';
 
-  const distanceHtml = exp === 'salon' && opts.hasDistances ? '<details class="filter-group" open><summary>Distance ' + icon('chevron', 14) + '</summary><div class="filter-list">' +
-    [['all', 'All distances'], ['nearest', 'Near you (≤8 km)'], ['5', 'Within 5 km'], ['10', 'Within 10 km']].map(([val, lbl]) =>
-      '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-distance" value="' + val + '" data-filter-exp="salon" data-filter-mode="' + mode + '" data-filter-field="distance"' + ((f.distance || 'all') === val ? ' checked' : '') + '><span>' + lbl + '</span></label>'
-    ).join('') +
-  '</div></details>' : '';
+  const distanceHtml = exp === 'salon' ? '<details class="filter-group" open><summary>Location &amp; distance ' + icon('chevron', 14) + '</summary>' +
+    '<div class="filter-location-box">' +
+      '<span class="filter-location-current">' + icon('pin', 13) + ' ' + esc(state.location) + '</span>' +
+      '<div class="filter-location-actions">' +
+        '<button type="button" class="btn btn-outline btn-sm" data-action="live-location">Use live location</button>' +
+        '<button type="button" class="btn btn-outline btn-sm" data-action="location">Change city</button>' +
+      '</div>' +
+    '</div>' +
+    (opts.hasDistances ? '<div class="filter-list">' +
+      [['all', 'All in ' + currentLocationCity()], ['3', 'Within 3 km'], ['5', 'Within 5 km'], ['nearest', 'Within 8 km'], ['15', 'Within 15 km']].map(([val, lbl]) =>
+        '<label class="filter-radio-row"><input type="radio" name="' + prefix + '-distance" value="' + val + '" data-filter-exp="salon" data-filter-mode="' + mode + '" data-filter-field="distance"' + ((f.distance || 'all') === val ? ' checked' : '') + '><span>' + esc(lbl) + '</span></label>'
+      ).join('') +
+    '</div>' : '') +
+  '</details>' : '';
 
   const priceHtml = '<details class="filter-group" open><summary>Price ' + icon('chevron', 14) + '</summary>' +
     '<div class="price-range-inputs">' +
@@ -1413,7 +1507,7 @@ const renderFilterFieldsHtml = (exp, f, opts = {}, isDraft = false) => {
     '</div>' +
   '</details>';
 
-  return sortHtml + availabilityHtml + priceHtml + categoryHtml + collectionHtml + brandHtml + distanceHtml;
+  return sortHtml + distanceHtml + availabilityHtml + priceHtml + categoryHtml + collectionHtml + brandHtml;
 };
 
 const renderFilterShelfSection = (exp, liveFilters, activeFilters, opts, countText, resultsHtml) => {
@@ -1574,7 +1668,7 @@ function salonCard(s){
     '<button type="button" class="listing-image-button salon-image" data-action="salon-detail" data-id="'+esc(s.id)+'" aria-label="View '+esc(s.name)+'">'+image(s.img,s.name+' salon','card-img')+'</button>' +
     '<div class="salon-body">' +
       '<div class="salon-title"><h3>'+esc(s.name)+'</h3></div>' + audienceBadge(s) +
-      '<p class="salon-location">'+icon('pin',15)+'<span>'+esc(s.area)+(distText?' · '+esc(distText):'')+'</span></p>' +
+      '<p class="salon-location">'+icon('pin',15)+'<span>'+esc(s.area)+'</span>'+(distText?'<strong class="salon-km-pill">'+esc(distText)+'</strong>':'')+'</p>' +
       (serviceTags.length ? '<div class="salon-services">'+serviceTags.map(x=>'<span>'+esc(x)+'</span>').join('')+(extraCount?'<span>+'+extraCount+'</span>':'')+'</div>' : '') +
       '<div class="card-bottom">'+(hasPrice?'<strong>From '+money(s.price)+'</strong>':'<span></span>')+'<button type="button" data-action="salon-detail" data-id="'+esc(s.id)+'">View salon '+icon('arrow',16)+'</button></div>' +
     '</div></article>';
@@ -1609,7 +1703,7 @@ function salonPage(){
       '<div class="salon-hero-image">'+image(isMen ? MEN_SALON_IMG : SALON_IMG, isMen ? 'A contemporary grooming studio' : 'Contemporary salon interior')+'</div>' +
       '<div class="salon-hero-copy">' +
         '<p class="eyebrow line-eyebrow">SALONS &amp; PARLOURS</p>' +
-        '<h1>'+(isMen?'Find a salon that <em>suits you.</em>':'Discover salons in <em>'+esc(userCity)+'.</em>')+'</h1>' +
+        '<h1>'+(isMen?'Find a salon in <em>'+esc(userCity)+'.</em>':'Discover salons in <em>'+esc(userCity)+'.</em>')+'</h1>' +
         '<p>'+(isMen?'Explore independent salons and grooming studios in '+esc(userCity)+', compare services and book a visit.':'Browse independent salons by category and location, then request an appointment.')+'</p>' +
         button('Explore salons '+icon('arrow',18),'scroll','btn-primary','data-target="salons"') +
       '</div>' +
@@ -1637,15 +1731,19 @@ function salonDetail(){
   const s = enrichSalonWithDistance(rawSalon);
   const staff = Array.isArray(s.staff) ? s.staff : [];
   const categories = Array.isArray(s.services) ? s.services : [];
+  const menuServices = Array.isArray(s.menu_services) ? s.menu_services.filter(matchesAudience) : [];
   const hasPrice = s.price != null && Number(s.price) > 0;
   const hasHours = Boolean(s.hours && String(s.hours).trim());
-  const bookable = categories.length > 0;
+  const bookable = menuServices.length > 0 || categories.length > 0;
+  const servicesSectionHtml = menuServices.length
+    ? menuServices.map(svc => '<div class="service-line"><div><strong>'+esc(svc.name)+'</strong><span>'+esc(svc.duration)+' · '+esc(svc.category)+(svc.audience && svc.audience !== 'unisex' ? ' · '+esc(svc.audience==='men'?'Men':'Women') : ' · Unisex')+(svc.desc ? ' — '+esc(svc.desc) : '')+'</span></div><b>'+money(svc.price)+'</b><button type="button" data-action="book-salon" data-id="'+esc(s.id)+'" data-service-id="'+esc(svc.id)+'">Book</button></div>').join('')
+    : (categories.length ? '<div class="salon-detail-tags">'+categories.map(c=>'<div class="service-line"><div><strong>'+esc(c)+'</strong></div></div>').join('')+'</div>' : '<p>No services listed yet.</p>');
   return '<main class="detail-page">'+backButton('landing','Back to salons') +
     '<div class="salon-profile-image">'+image(s.img,s.name+' salon')+'</div>' +
     '<div class="detail-header"><div><p class="eyebrow">SALON &amp; PARLOUR</p><h1>'+esc(s.name)+'</h1><p>'+icon('pin',17)+esc(s.area)+(s.distanceLabel?' · '+esc(s.distanceLabel):'')+'</p></div></div>' +
     '<div class="detail-columns"><div>' +
       (s.about ? '<section class="detail-block"><h2>About</h2><p>'+esc(s.about)+'</p></section>' : '') +
-      '<section class="detail-block"><h2>Service categories</h2>'+(categories.length?'<div class="salon-detail-tags">'+categories.map(c=>'<div class="service-line"><div><strong>'+esc(c)+'</strong></div></div>').join('')+'</div>':'<p>No service categories listed yet.</p>')+'</section>' +
+      '<section class="detail-block"><h2>'+(menuServices.length ? 'Salon menu &amp; pricing' : 'Service categories')+'</h2>'+servicesSectionHtml+'</section>' +
       (staff.length ? '<section class="detail-block"><h2>Team</h2><div class="staff-row">'+staff.map(p=>'<div>'+(p.img?image(p.img,p.name):'')+'<strong>'+esc(p.name)+'</strong><span>'+esc(p.specialty||'Specialist')+'</span></div>').join('')+'</div></section>' : '') +
       listingReviewSection('salon',s.id) +
     '</div>' +
@@ -2063,16 +2161,18 @@ async function loadPartnerData(){
       if(catalogRes.status === 'fulfilled') state.partnerServiceCatalog = catalogRes.value;
       failures.push(...[proRes, srvRes, bRes, catalogRes].filter(r => r.status === 'rejected'));
     } else if(role === 'Salon Owner'){
-      const [salRes, staffRes, bRes] = await Promise.allSettled([
+      const [salRes, salSrvRes, staffRes, bRes] = await Promise.allSettled([
         apiGetSalonProfile(),
+        apiGetSalonServices(),
         apiGetSalonStaff(),
         apiGetSalonBookings()
       ]);
       if(!isCurrent()) return;
       if(salRes.status === 'fulfilled') state.partnerSalonProfile = salRes.value;
+      if(salSrvRes.status === 'fulfilled') state.partnerSalonServices = salSrvRes.value;
       if(staffRes.status === 'fulfilled') state.partnerSalonStaff = staffRes.value;
       if(bRes.status === 'fulfilled') state.partnerSalonBookings = bRes.value;
-      failures.push(...[salRes, staffRes, bRes].filter(r => r.status === 'rejected'));
+      failures.push(...[salRes, salSrvRes, staffRes, bRes].filter(r => r.status === 'rejected'));
     } else if(role === 'Product Seller'){
       const [prodRes, ordRes, listRes, subRes, retRes, mvFinRes, catalogRes] = await Promise.allSettled([
         apiGetSellerProducts(),
@@ -2108,6 +2208,28 @@ async function loadPartnerData(){
     render();
   }
 }
+
+const PARTNER_SERVICE_CATEGORIES = ['Hair','Skin','Nails','Makeup','Spa','Beard','Threading','Waxing','Packages'];
+const partnerCustomServiceForm = ({ formId, editing = null, showCities = false, defaultCity = 'Mumbai' }) => {
+  const catOptions = PARTNER_SERVICE_CATEGORIES.map(c =>
+    '<option value="'+esc(c)+'"'+((editing?.category || 'Hair')===c?' selected':'')+'>'+esc(c)+'</option>'
+  ).join('');
+  return '<form id="'+formId+'" class="form-grid partner-service-form">' +
+    (editing ? '<input type="hidden" name="service_id" value="'+esc(editing.id)+'">' : '') +
+    '<label>Service name<input name="name" required minlength="2" placeholder="e.g. Signature Keratin Ritual" value="'+esc(editing?.name || '')+'"></label>' +
+    '<label>Category<select name="category">'+catOptions+'</select></label>' +
+    '<label>Price (₹)<input name="price" type="number" min="1" step="1" required placeholder="999" value="'+(editing?.price ?? '')+'"></label>' +
+    '<label>Duration<input name="duration" required placeholder="e.g. 60 min" value="'+esc(editing?.duration || '45 min')+'"></label>' +
+    audienceField(editing?.audience) +
+    (showCities ? '<label>Cities (comma-separated)<input name="cities" placeholder="Mumbai, Bengaluru" value="'+esc((Array.isArray(editing?.cities) ? editing.cities.join(', ') : editing?.service_cities) || defaultCity)+'"></label>' : '') +
+    '<label style="grid-column:1/-1">Service image URL (optional)<input name="img" placeholder="https://images.unsplash.com/..." value="'+esc(editing?.img || '')+'"></label>' +
+    '<label style="grid-column:1/-1">Description<textarea name="desc" rows="2" placeholder="Describe what is included in this service…">'+esc(editing?.desc || '')+'</textarea></label>' +
+    '<div class="partner-service-form-actions" style="grid-column:1/-1">' +
+      '<button class="btn btn-primary" type="submit">'+(editing ? 'Save Service Changes ' : '+ Add Custom Service ')+icon('arrow',17)+'</button>' +
+      (editing ? '<button class="btn btn-outline" type="button" data-action="partner-service-edit-cancel">Cancel edit</button>' : '') +
+    '</div>' +
+  '</form>';
+};
 
 const audienceOptions = value => ['unisex','women','men'].map(v => '<option value="'+v+'"'+((!value || value === 'unspecified' ? 'unisex' : value)===v?' selected':'')+'>'+({unisex:'Unisex',women:'Women',men:'Men'})[v]+'</option>').join('');
 const audienceField = value => '<label>Suitable for<select name="audience">'+audienceOptions(value)+'</select></label>';
@@ -2293,24 +2415,40 @@ function partnerPage(){
       (staff.length ? staff.map(st => '<div class="dash-row"><div><strong>'+esc(st.name)+'</strong><small>'+esc(st.specialty)+'</small></div><button class="btn btn-danger btn-sm" data-action="partner-staff-delete" data-id="'+st.id+'">Remove</button></div>').join('') : empty('user','No staff assigned yet','Add your stylists and specialists to allow customers to choose their expert.')) +
     '</div>';
   } else if(tab === 'Service catalogue'){
-    const salonServices = state.partnerSalonProfile?.services || [];
-    body = '<div class="dashboard-panel"><h3>Salon services</h3><p>Services currently shown on your salon profile.</p>'+(salonServices.length ? salonServices.map(s => '<div class="dash-row"><strong>'+esc(s)+'</strong></div>').join('') : '<div class="dash-empty"><strong>No services listed</strong><p>Your listed services will appear here.</p></div>')+'<p class="dashboard-note">Detailed service pricing and editing are not yet available here.</p></div>';
-  } else if(tab.toLowerCase().includes('service')){
-    const myServices = state.partnerProServices || [];
+    const salonServices = state.partnerSalonServices || [];
+    const legacyCats = state.partnerSalonProfile?.services || [];
+    const editingSalonSvc = state.editingPartnerService?.role === 'Salon Owner' ? state.editingPartnerService.service : null;
     body = '<div class="dashboard-panel">' +
       '<div class="account-heading">' +
         '<div>' +
-          '<h3>Offered Services & Treatment Menu</h3>' +
-          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Services linked to your professional booking profile.</p>' +
+          '<h3>Salon Service Menu &amp; Pricing</h3>' +
+          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Add, price, and update the exact treatments customers can book at your salon.</p>' +
         '</div>' +
       '</div>' +
+      partnerCustomServiceForm({ formId: 'partner-salon-service-form', editing: editingSalonSvc, showCities: false }) +
+      (salonServices.length
+        ? salonServices.map(s => '<div class="dash-row"><div><strong>'+esc(s.name)+' <span class="badge badge-info">'+esc(s.category)+'</span> <span class="badge badge-approved">'+esc((s.audience||'unisex').toUpperCase())+'</span></strong><small>'+esc(s.duration)+' · '+money(s.price)+(s.desc?' · '+esc(s.desc):'')+'</small></div><div class="partner-row-actions"><button class="btn btn-outline btn-sm" type="button" data-action="partner-salon-service-edit" data-id="'+esc(s.id)+'">Edit</button><button class="btn btn-danger btn-sm" type="button" data-action="partner-salon-service-delete" data-id="'+esc(s.id)+'">Remove</button></div></div>').join('')
+        : '<div class="dash-empty"><strong>No custom menu services yet</strong><p>'+(legacyCats.length ? 'Customers currently see GlamGo category defaults ('+esc(legacyCats.join(', '))+'). Add your own salon services above to show custom pricing.' : 'Add your first salon service above so customers can book with your exact pricing.')+'</p></div>') +
+    '</div>';
+  } else if(tab.toLowerCase().includes('service')){
+    const myServices = state.partnerProServices || [];
+    const editingProSvc = state.editingPartnerService?.role === 'Professional' ? state.editingPartnerService.service : null;
+    const proCity = state.partnerProProfile?.city || 'Mumbai';
+    body = '<div class="dashboard-panel">' +
+      '<div class="account-heading">' +
+        '<div>' +
+          '<h3>Offered Services &amp; Custom Menu</h3>' +
+          '<p style="color:var(--muted);font-size:12px;margin:4px 0 0">Assign standard GlamGo treatments or publish your own custom at-home services with your pricing.</p>' +
+        '</div>' +
+      '</div>' +
+      partnerCustomServiceForm({ formId: 'partner-pro-custom-service-form', editing: editingProSvc, showCities: true, defaultCity: proCity }) +
       '<div class="dash-service-picker" style="margin:20px 0;padding:15px;background:var(--ivory);border:1px solid var(--border);display:flex;gap:12px;align-items:center">' +
         '<select id="partner-service-select" aria-label="Choose a service" class="admin-role-select" style="flex:1;height:42px">' +
           (state.partnerServiceCatalog || []).map(s => '<option value="'+esc(s.id)+'">'+esc(s.name)+' ('+esc(s.category)+') — '+money(s.price)+'</option>').join('') +
         '</select>' +
-        '<button class="btn btn-primary btn-sm" data-action="partner-pro-assign-service">Assign Service</button>' +
+        '<button class="btn btn-outline btn-sm" type="button" data-action="partner-pro-assign-service">Assign Master Service</button>' +
       '</div>' +
-      (myServices.length ? myServices.map(s => '<div class="dash-row"><div><strong>'+esc(s.name)+' ('+s.category+')</strong><small>'+s.duration+' · '+money(s.price)+'</small></div><button class="btn btn-danger btn-sm" data-action="partner-pro-unlink-service" data-id="'+s.id+'">Unlink</button></div>').join('') : '<p style="color:var(--muted);padding:15px 0">No services assigned yet. Select from the master catalog above.</p>') +
+      (myServices.length ? myServices.map(s => '<div class="dash-row"><div><strong>'+esc(s.name)+' ('+esc(s.category)+') <span class="badge '+(s.is_custom?'badge-approved':'badge-info')+'">'+(s.is_custom?'Custom':'Catalog')+'</span></strong><small>'+esc(s.duration)+' · '+money(s.price)+(s.is_custom && s.audience?' · '+esc(s.audience.toUpperCase()):'')+'</small></div><div class="partner-row-actions">'+(s.is_custom?'<button class="btn btn-outline btn-sm" type="button" data-action="partner-pro-service-edit" data-id="'+esc(s.id)+'">Edit</button>':'')+'<button class="btn btn-danger btn-sm" type="button" data-action="partner-pro-unlink-service" data-id="'+esc(s.id)+'">'+(s.is_custom?'Remove':'Unlink')+'</button></div></div>').join('') : '<p style="color:var(--muted);padding:15px 0">No services added yet. Create a custom service above or assign one from the master catalog.</p>') +
     '</div>';
   } else if(tab === 'Availability calendar' || tab === 'Availability'){
     body = '<div class="dashboard-panel">' +
@@ -2891,7 +3029,9 @@ function modal(){
 }
 
 function bookingModal(){
-  const b = state.booking, salon = b.type==='salon'?salons.find(x=>x.id===b.itemId):null, service = services.find(x=>x.id===b.serviceId);
+  const b = state.booking, salon = b.type==='salon'?salons.find(x=>String(x.id)===String(b.itemId)):null;
+  const salonMenu = Array.isArray(salon?.menu_services) ? salon.menu_services : [];
+  const service = salonMenu.find(x => String(x.id) === String(b.serviceId)) || services.find(x => String(x.id) === String(b.serviceId));
   const selectedAddons = Array.isArray(b.addons) ? b.addons : [];
   const addonObjects = BOOKING_ADDONS.filter(a => selectedAddons.includes(a.id));
   const addonsSum = addonObjects.reduce((acc, a) => acc + Number(a.price || 0), 0);
@@ -2909,12 +3049,19 @@ function bookingModal(){
   let body = '';
   if(b.step===0){
     const cityHomeServices = services.filter(s => !isPreviewId(s.id) && isServiceAvailableInCity(s, userCity) && matchesAudience(s));
-    const list0 = b.type==='home' ? cityHomeServices : cityHomeServices.filter(s=>salon&&salon.services.includes(s.category));
-    body='<h3>Choose a service</h3>'+(salon?'<p class="booking-hint">Select a service in one of '+esc(salon.name)+'’s categories.</p>':'<p class="booking-hint">Select the treatment you would like to book.</p>')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button type="button" class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>'+esc(s.duration)+' · '+esc(s.category)+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>';
+    const list0 = b.type==='home'
+      ? cityHomeServices
+      : (salonMenu.length ? salonMenu.filter(matchesAudience) : cityHomeServices.filter(s=>salon&&salon.services.includes(s.category)));
+    body='<h3>Choose a service</h3>'+(salon?'<p class="booking-hint">'+(salonMenu.length?'Select a service from '+esc(salon.name)+'’s menu.':'Select a service in one of '+esc(salon.name)+'’s categories.')+'</p>':'<p class="booking-hint">Select the treatment you would like to book.</p>')+'<div class="booking-options">'+(list0.length?list0.map(s=>'<button type="button" class="'+(b.serviceId===s.id?'selected':'')+'" data-action="booking-service" data-id="'+esc(s.id)+'"><span><strong>'+esc(s.name)+'</strong><small>'+esc(s.duration)+' · '+esc(s.category)+(s.professional_name?' · By '+esc(s.professional_name):'')+'</small></span><b>'+money(s.price)+'</b></button>').join(''):'<p>No services are available for this selection right now.</p>')+'</div>';
   }
   if(b.step===1){
     const cityPros = professionals.filter(p => isProAvailableInCity(p, userCity) && matchesAudience(p));
-    const list1 = b.type==='home' ? cityPros : (Array.isArray(salon?.staff) ? salon.staff : []);
+    const ownerPro = (b.type === 'home' && service?.professional_id)
+      ? professionals.find(p => Number(p.id) === Number(service.professional_id) && isProAvailableInCity(p, userCity))
+      : null;
+    const list1 = b.type==='home'
+      ? (ownerPro ? [ownerPro, ...cityPros.filter(p => Number(p.id) !== Number(ownerPro.id))] : cityPros)
+      : (Array.isArray(salon?.staff) ? salon.staff : []);
     body='<h3>'+(b.type==='home'?'Choose a specialist':'Choose a staff member')+'</h3><p class="booking-hint">Select a listed specialist or choose any available expert.</p><div class="booking-options"><button type="button" class="'+(b.professional==='Any available expert'?'selected':'')+'" data-action="booking-pro" data-id="Any available expert"><span><strong>Any available expert</strong><small>Match with an available specialist.</small></span></button>'+list1.map(p=>'<button type="button" class="'+(b.professional===p.name?'selected':'')+'" data-action="booking-pro" data-id="'+esc(p.name)+'">'+(p.img?image(p.img,p.name,'booking-avatar'):'')+'<span><strong>'+esc(p.name)+'</strong><small>'+esc(p.specialty || 'Beauty professional')+'</small></span></button>').join('')+'</div>';
   }
   if(b.step===2){
@@ -3408,7 +3555,7 @@ async function action(el){
     const key = el.dataset.key;
     const cur = getFiltersForExp(exp);
     if(key === 'price'){ cur.minPrice = ''; cur.maxPrice = ''; }
-    else if(key === 'sort') cur.sort = 'featured';
+    else if(key === 'sort') cur.sort = exp === 'salon' ? 'distance-asc' : 'featured';
     else if(key === 'availability') cur.availability = 'all';
     else if(key === 'distance') cur.distance = 'all';
     else if(key === 'category') cur.category = 'All';
@@ -3471,12 +3618,13 @@ async function action(el){
       if(input) input.value = id;
       const save = document.querySelector('#location-form button[type="submit"]');
       if(save) save.disabled = false;
-      if(activeLocationMap) activeLocationMap.setView(resolveSalonCoords({ area: id }), 13);
-      if(activeLocationMarker) activeLocationMarker.setLatLng(resolveSalonCoords({ area: id }));
+      const pinCoords = resolveSalonCoords({ area: id }) || AREA_COORDS.mumbai;
+      if(activeLocationMap) activeLocationMap.setView(pinCoords, 13);
+      if(activeLocationMarker) activeLocationMarker.setLatLng(pinCoords);
       return;
     }
     state.location=id;
-    state.locationCity='';
+    state.locationCity=normalizeCity(id);
     state.userCoords=null;
     state.salonDistanceFilter='all';
     state.modal=null;
@@ -3529,6 +3677,8 @@ async function action(el){
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
+  else if(a==='live-location'){ requestLiveLocation({ silent: false }); }
+  else if(a==='salon-sort'){ state.salonSort=id||'distance-asc'; render(); }
   else if(a==='salon-distance'){ state.salonDistanceFilter=id||'all'; render(); }
   else if(a==='checkout-toggle-credit'){ state.applyWalletCredit=!state.applyWalletCredit; invalidateCheckoutState(false); render(); }
   else if(a==='search-open'){ state.mobileMenu=false; state.menu=false; state.modal='search'; state.query=''; render(); setTimeout(()=>document.getElementById('global-search')?.focus(),20); }
@@ -3639,7 +3789,14 @@ async function action(el){
   else if(a==='book-pro') openBooking('home',null,null,professionals.find(p=>String(p.id)===String(id))?.name);
   else if(a==='service-detail'){ state.selectedService=id; navigate('service-detail'); ensureListingReviews('service',id); }
   else if(a==='salon-detail'){ state.selectedSalon=id; navigate('salon-detail'); ensureListingReviews('salon',id); }
-  else if(a==='book-salon') openBooking('salon',id,el.dataset.service?services.find(s=>s.category===el.dataset.service)?.id:null);
+  else if(a==='book-salon'){
+    const salonObj = salons.find(x => String(x.id) === String(id));
+    const explicitId = el.dataset.serviceId || null;
+    const catSvcId = el.dataset.service
+      ? ((salonObj?.menu_services || []).find(s => s.category === el.dataset.service)?.id || services.find(s => s.category === el.dataset.service)?.id)
+      : null;
+    openBooking('salon', id, explicitId || catSvcId);
+  }
   else if(a==='salon-date'){ state.mobileMenu=false; state.menu=false; state.modal='date'; render(); }
   else if(a==='date-set'){ state.salonDate=id; state.modal=null; render(); toast('Visit date selected'); }
   else if(a==='product-detail'){
@@ -4179,12 +4336,45 @@ async function action(el){
     try {
       await apiUnlinkProfessionalService(id);
       state.partnerProServices = (state.partnerProServices || []).filter(s => String(s.id) !== String(id));
+      if(state.editingPartnerService?.service?.id === id) state.editingPartnerService = null;
       persist();
       render();
-      toast('Service unlinked');
-      await loadPartnerData();
+      toast('Service removed');
+      await Promise.allSettled([loadPartnerData(), loadCatalogFeeds()]);
     } catch(err) {
-      toast(err.message || 'Failed to unlink service');
+      toast(err.message || 'Failed to remove service');
+    }
+  }
+  else if(a==='partner-pro-service-edit'){
+    const svc = (state.partnerProServices || []).find(s => String(s.id) === String(id));
+    if(svc){
+      state.editingPartnerService = { role: 'Professional', service: svc };
+      render();
+      document.getElementById('partner-pro-custom-service-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+  else if(a==='partner-salon-service-edit'){
+    const svc = (state.partnerSalonServices || []).find(s => String(s.id) === String(id));
+    if(svc){
+      state.editingPartnerService = { role: 'Salon Owner', service: svc };
+      render();
+      document.getElementById('partner-salon-service-form')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+  else if(a==='partner-service-edit-cancel'){
+    state.editingPartnerService = null;
+    render();
+  }
+  else if(a==='partner-salon-service-delete'){
+    if(!confirm('Remove this service from your salon menu?')) return;
+    try {
+      await apiDeleteSalonService(id);
+      state.partnerSalonServices = (state.partnerSalonServices || []).filter(s => String(s.id) !== String(id));
+      if(state.editingPartnerService?.service?.id === id) state.editingPartnerService = null;
+      toast('Salon service removed');
+      await Promise.allSettled([loadPartnerData(), loadCatalogFeeds()]);
+    } catch(err) {
+      toast(err.message || 'Failed to remove salon service');
     }
   }
   else if(a==='partner-pro-complete'){
@@ -4460,8 +4650,8 @@ async function action(el){
     if(state.bookingBusy) return;
     if(!requireAuth({ view: state.experience ? 'landing' : 'onboarding' }, 'Sign in to confirm your booking')) return;
     const b = state.booking;
-    const s = services.find(x => x.id === b.serviceId);
-    const salon = salons.find(x => x.id === b.itemId);
+    const salon = salons.find(x => String(x.id) === String(b.itemId));
+    const s = (salon?.menu_services || []).find(x => String(x.id) === String(b.serviceId)) || services.find(x => String(x.id) === String(b.serviceId));
     const payload = {
       type: b.type,
       service_id: b.serviceId,
@@ -5016,6 +5206,57 @@ document.addEventListener('submit', async e => {
       toast(err.message || 'Failed to update profile');
     }
   }
+  else if(f.id === 'partner-salon-service-form'){
+    try {
+      const editId = String(d.get('service_id') || '').trim();
+      const payload = {
+        name: String(d.get('name') || '').trim(),
+        category: String(d.get('category') || 'Hair').trim(),
+        price: parseFloat(String(d.get('price') || '0')),
+        duration: String(d.get('duration') || '45 min').trim(),
+        audience: String(d.get('audience') || 'unisex'),
+        img: String(d.get('img') || '').trim() || null,
+        desc: String(d.get('desc') || '').trim()
+      };
+      if(editId){
+        await apiUpdateSalonService(editId, payload);
+        toast('Salon service updated!');
+      } else {
+        await apiCreateSalonService(payload);
+        toast('Salon service added to your menu!');
+      }
+      state.editingPartnerService = null;
+      await Promise.allSettled([loadPartnerData(), loadCatalogFeeds()]);
+    } catch(err) {
+      toast(err.message || 'Failed to save salon service');
+    }
+  }
+  else if(f.id === 'partner-pro-custom-service-form'){
+    try {
+      const editId = String(d.get('service_id') || '').trim();
+      const payload = {
+        name: String(d.get('name') || '').trim(),
+        category: String(d.get('category') || 'Skin').trim(),
+        price: parseFloat(String(d.get('price') || '0')),
+        duration: String(d.get('duration') || '45 min').trim(),
+        audience: String(d.get('audience') || 'unisex'),
+        cities: String(d.get('cities') || '').trim() || null,
+        img: String(d.get('img') || '').trim() || null,
+        desc: String(d.get('desc') || '').trim()
+      };
+      if(editId){
+        await apiUpdateProfessionalCustomService(editId, payload);
+        toast('Custom service updated!');
+      } else {
+        await apiCreateProfessionalCustomService(payload);
+        toast('Custom service published to your profile!');
+      }
+      state.editingPartnerService = null;
+      await Promise.allSettled([loadPartnerData(), loadCatalogFeeds()]);
+    } catch(err) {
+      toast(err.message || 'Failed to save custom service');
+    }
+  }
   else if(f.id === 'partner-salon-profile-form'){
     try {
       const res = await apiUpdateSalonProfile({
@@ -5442,6 +5683,7 @@ async function init() {
     loadPartnerData();
   }
   render();
+  requestLiveLocation({ silent: true });
   try {
     const hydrateSession = async () => {
       if (!tokenStorage.get()) return;

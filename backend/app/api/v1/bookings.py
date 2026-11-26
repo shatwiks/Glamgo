@@ -70,7 +70,7 @@ def create_booking(
                 raise HTTPException(status_code=409, detail="This booking is no longer active. Please start a new booking.")
             return existing_booking
 
-    service = db.query(Service).filter(Service.id == b_in.service_id).first()
+    service = db.query(Service).filter(Service.id == b_in.service_id, Service.is_active == True).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found.")
 
@@ -79,6 +79,8 @@ def create_booking(
         salon = db.query(Salon).filter(Salon.id == b_in.salon_id).first()
         if not salon:
             raise HTTPException(status_code=404, detail="Salon not found.")
+        if service.salon_id and service.salon_id != salon.id:
+            raise HTTPException(status_code=400, detail="Selected service does not belong to this salon.")
 
     # Concurrency / double-booking conflict check with row-locking
     pro_name = b_in.professional or "Any available expert"

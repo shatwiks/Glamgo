@@ -4,6 +4,51 @@
 
 ---
 
+## Prompt Entry — `2026-11-26`: Live Location Prompt, Strict City Filtering, Salon Distance (km) & Near-to-Far Filter Inside Filters
+
+**Objective:** Immediately request live browser geolocation on startup so services/salons/professionals load for the user's location only; ensure all dynamic city headings (`Discover salons in {City}.`, `Services in {City}.`, `Professionals in {City}.`, `Salons in {City}.`) always reflect the exact selected/live city; keep salon location & distance (`km`) filtering strictly inside `Show filters` (no outside bar) with `Distance: Near to far` only (no `Far to near`); restrict At-Home professionals strictly to the active city with no distance shown.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `src/app.js`:
+  - Added `requestLiveLocation()` called on initial boot in `init()` (once per browser session via `sessionStorage`) and wired `live-location` action inside the salon filter panel.
+  - Updated `normalizeCity()` to strip Indian state/country/PIN tokens (`INDIAN_STATES_OR_COUNTRY`) so non-metro cities (e.g. `Pune, Maharashtra, India` → `Pune`, `Manipal, Karnataka, India` → `Manipal`) update all dynamic city headings accurately; explicitly synced `state.locationCity` on `location-set` and updated Men's salon hero heading to display `userCity` too.
+  - Updated `resolveUserCoords()`, `resolveSalonCoords()`, and `enrichSalonWithDistance()` to compute accurate `km` from live GPS or selected area/city coordinates without falsely falling back to Mumbai for unknown cities, displaying `.salon-km-pill` (`X.X km away`) on salon cards.
+  - Kept `SALON_SORT_OPTIONS` to `Distance: Near to far` (`distance-asc`, default) alongside standard sort options (removed `Far to near`), removed outside `.salon-location-bar`, and placed `Location & distance` (`Use live location`, `Change city`, `All in <City>`, `Within 3/5/8/15 km`) cleanly inside the `Show filters` panel/drawer.
+  - Tightened `isProAvailableInCity()` and `isServiceAvailableInCity()` to enforce strict normalized city matching (returning `false` when missing/mismatched), keeping At-Home professional cards free of distance labels.
+- `styles.css`: Styled `.filter-location-box`, `.filter-location-current`, `.filter-location-actions`, and `.salon-km-pill`.
+- `tests/location-filtering.test.mjs`: Added unit tests for salon km computation, near-to-far sorting, radius filtering, non-metro city normalization, and strict city-only At-Home professional matching.
+
+**Verification Results:**
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`, `3.31s`).
+- `node --test tests/*.test.mjs`: `7/7` tests passed (`0` failed).
+
+---
+
+## Prompt Entry — `2026-11-25`: Custom Service Creation & Pricing for Salon Owners & Professionals
+
+**Objective:** Allow both **Salon Owners** (`Service catalogue`) and **Professionals** (`Services & pricing`) to create, edit, price, and remove their own custom services, and expose those custom services cleanly in public Salon Detail menus, At-Home catalogs, and the Customer Booking flow.
+
+**Created & Modified Files (`branch-release-54ba3db`):**
+- `backend/app/models/catalog.py`: Added nullable `salon_id` and `professional_id` foreign keys on `Service`, `Salon.menu_services`, `ProfessionalProfile.custom_services`, and `Service.professional_name`.
+- `backend/app/core/database.py`: Added idempotent `services.salon_id` and `services.professional_id` column migrations in `ensure_phase13_schema_columns()`.
+- `backend/app/schemas/catalog.py`: Extended `ServiceResponse` (`salon_id`, `professional_id`, `professional_name`) and `SalonResponse` (`menu_services`).
+- `backend/app/schemas/partner.py`: Added `PartnerCustomServiceCreate` and `PartnerCustomServiceUpdate`.
+- `backend/app/api/v1/services.py`, `backend/app/api/v1/api.py`, `backend/app/api/v1/concierge.py`: Filtered `Service.salon_id.is_(None)` on public At-Home queries so salon-only menu items stay scoped to their salon while custom Professional services appear in At-Home discovery.
+- `backend/app/api/v1/salons.py`: Preloaded `Salon.menu_services` and serialized active `menu_services` in `format_salon()`.
+- `backend/app/api/v1/bookings.py`: Verified selected `Service` is active and validated cross-salon `service.salon_id` ownership during booking creation.
+- `backend/app/api/v1/partners.py`: Added `GET/POST/PUT/DELETE /partners/salon/services*` with automatic category sync (`_sync_salon_categories`), and added `POST/PUT /partners/professional/services/custom*` alongside catalog assignment/unlinking.
+- `src/api.js`: Added partner custom-service API helpers (`apiCreateProfessionalCustomService`, `apiUpdateProfessionalCustomService`, `apiGetSalonServices`, `apiCreateSalonService`, `apiUpdateSalonService`, `apiDeleteSalonService`).
+- `src/app.js`: Added shared `partnerCustomServiceForm()` in both `Salon Owner -> Service catalogue` and `Professional -> Services & pricing`, rendered custom salon menus with direct `Book` buttons in `salonDetail()`, displayed `professional_name` in `serviceDetail()`, and resolved custom services & owning specialists in `bookingModal()` / `booking-confirm`.
+- `styles.css`: Styled `.service-line b`, `.partner-service-form`, and `.partner-row-actions`; wrapped `.dash-row` to prevent narrower-viewport action clipping and hid `.floating-concierge-dock` under `body.modal-open` so drawers and modals are never overlapped.
+- `backend/tests/test_partner_custom_services.py`: Added CRUD, authorization (`403`/`400`), catalog isolation, and customer booking tests.
+
+**Verification Results:**
+- `pytest backend/tests/test_partner_custom_services.py backend/tests/test_audience_catalog.py backend/tests/test_concierge.py -v`: `10 passed in 8.59s`.
+- `npm run build`: Built cleanly (`vite v7.3.7`, `15 modules transformed`, `3.10s`).
+- `node --test tests/*.test.mjs`: `5/5` tests passed.
+
+---
+
 ## Prompt Entry — `2026-11-25`: Rename Experience Switcher Pill Label from `Home` to `At Home`
 
 **Objective:** Replace the `Home` tab label with `At Home` in the header experience switcher (`expTabs`).

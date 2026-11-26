@@ -40,7 +40,7 @@ def _audience_filter(model, audience: Optional[str]):
 
 
 def _query_services(db: Session, keywords: List[str], audience: Optional[str], limit: int = 3) -> List[Service]:
-    q = db.query(Service).filter(Service.is_active == True)
+    q = db.query(Service).filter(Service.is_active == True, Service.salon_id.is_(None))
     aud_cond = _audience_filter(Service, audience)
     if aud_cond is not None:
         q = q.filter(aud_cond)

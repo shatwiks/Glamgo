@@ -3111,6 +3111,72 @@ summary:focus-visible {
   margin-top: 4px;
 }
 
+.service-line b {
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.partner-service-form {
+  margin: 18px 0 22px;
+  padding: 20px;
+  background: var(--ivory);
+  border: 1px solid var(--border);
+}
+
+.partner-service-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.partner-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-location-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  background: var(--ivory);
+  border: 1px solid var(--border);
+}
+
+.filter-location-current {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.filter-location-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.salon-km-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cream);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .service-line button {
   border: 1px solid var(--ink);
   background: none;
@@ -4793,10 +4859,17 @@ summary:focus-visible {
 
 .dash-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 16px 0;
   border-top: 1px solid var(--border);
+}
+
+.dash-row > div:first-child {
+  min-width: 0;
+  flex: 1 1 240px;
 }
 
 .dash-row strong,
@@ -7385,9 +7458,15 @@ body.theme-men {
   position: fixed;
   bottom: 24px;
   right: 28px;
-  z-index: 95;
+  z-index: 80;
   display: flex;
   align-items: center;
+  transition: opacity 0.18s ease;
+}
+
+body.modal-open .floating-concierge-dock {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .concierge-capsule-island {

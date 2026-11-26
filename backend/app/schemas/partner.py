@@ -1,7 +1,7 @@
 from typing import Literal
 from typing import List, Optional, Any, Dict
 from datetime import datetime
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PartnerProfileUpdate(BaseModel):
@@ -60,6 +60,28 @@ class ProfessionalProfileUpdate(BaseModel):
 
 class ProfessionalServiceAssign(BaseModel):
     service_id: str
+
+
+class PartnerCustomServiceCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=160)
+    category: str = Field(..., min_length=2, max_length=80)
+    price: float = Field(..., gt=0)
+    duration: str = Field(..., min_length=2, max_length=40)
+    audience: Literal["women", "men", "unisex"] = "unisex"
+    desc: str = Field("", max_length=800)
+    img: Optional[str] = None
+    cities: Optional[str] = None
+
+
+class PartnerCustomServiceUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=2, max_length=160)
+    category: Optional[str] = Field(None, min_length=2, max_length=80)
+    price: Optional[float] = Field(None, gt=0)
+    duration: Optional[str] = Field(None, min_length=2, max_length=40)
+    audience: Optional[Literal["women", "men", "unisex"]] = None
+    desc: Optional[str] = Field(None, max_length=800)
+    img: Optional[str] = None
+    cities: Optional[str] = None
 
 
 class SalonProfileUpdate(BaseModel):

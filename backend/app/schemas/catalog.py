@@ -23,6 +23,9 @@ class ServiceResponse(BaseModel):
     img: str
     desc: str
     cities: List[str] = ["Mumbai", "Bengaluru", "Delhi"]
+    salon_id: Optional[str] = None
+    professional_id: Optional[int] = None
+    professional_name: Optional[str] = None
 
     @field_validator("audience", mode="before")
     @classmethod
@@ -97,6 +100,7 @@ class SalonResponse(BaseModel):
     hours: str
     about: str
     staff: Optional[List[SalonStaffResponse]] = []
+    menu_services: Optional[List[ServiceResponse]] = []
 
     @field_validator("audience", mode="before")
     @classmethod

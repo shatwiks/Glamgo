@@ -63,14 +63,18 @@ def catalog_services(
     db: Session = Depends(get_db),
 ):
     from backend.app.models.catalog import Service
+    from sqlalchemy.orm import selectinload
     from backend.app.services.cache_service import cache_service
 
-    cache_key = f"glamgo:catalog:services:v3:{category}:{query}:{city}:{audience}"
+    cache_key = f"glamgo:catalog:services:v4:{category}:{query}:{city}:{audience}"
     cached = cache_service.get(cache_key)
     if cached is not None:
         return cached
 
-    q = db.query(Service).filter(Service.is_active == True)
+    q = db.query(Service).options(selectinload(Service.owner_professional)).filter(
+        Service.is_active == True,
+        Service.salon_id.is_(None),
+    )
     if category and category.lower() != "all":
         q = q.filter(Service.category.ilike(category))
     if query:

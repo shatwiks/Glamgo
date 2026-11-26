@@ -1,6 +1,6 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from backend.app.core.database import get_db
 from backend.app.models.catalog import Service
 from backend.app.schemas.catalog import ServiceResponse, ServiceCreate
@@ -23,7 +23,10 @@ def get_services(
     if cached is not None:
         return cached
 
-    q = db.query(Service).filter(Service.is_active == True)
+    q = db.query(Service).options(selectinload(Service.owner_professional)).filter(
+        Service.is_active == True,
+        Service.salon_id.is_(None),
+    )
     if category and category.lower() != "all":
         q = q.filter(Service.category.ilike(category))
     if query:
@@ -48,7 +51,7 @@ def get_services(
 
 @router.get("/categories", response_model=List[str])
 def get_service_categories(db: Session = Depends(get_db)):
-    categories = db.query(Service.category).distinct().all()
+    categories = db.query(Service.category).filter(Service.is_active == True, Service.salon_id.is_(None)).distinct().all()
     res = ["All"] + [c[0] for c in categories if c[0]]
     return res
 

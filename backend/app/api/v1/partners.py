@@ -1,9 +1,10 @@
 import time
 import json
+import secrets
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from sqlalchemy import or_
 
 from backend.app.core.database import get_db
@@ -42,6 +43,8 @@ from backend.app.schemas.partner import (
     AvailabilityResponse,
     ProfessionalProfileUpdate,
     ProfessionalServiceAssign,
+    PartnerCustomServiceCreate,
+    PartnerCustomServiceUpdate,
     SalonProfileUpdate,
     SalonStaffCreate,
     SalonStaffResponse,
@@ -62,17 +65,64 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _serialize_partner_service(s: Service, pro_id: Optional[int] = None) -> dict:
+    return {
+        "id": s.id,
+        "name": s.name,
+        "category": s.category,
+        "price": s.price,
+        "duration": s.duration,
+        "audience": s.audience or "unisex",
+        "desc": s.desc,
+        "img": s.img,
+        "cities": s.cities,
+        "service_cities": s.service_cities,
+        "salon_id": s.salon_id,
+        "professional_id": s.professional_id,
+        "is_custom": bool(
+            (s.salon_id is not None)
+            or (pro_id is not None and s.professional_id == pro_id)
+        ),
+    }
+
+
+def _sync_salon_categories(salon: Salon, db: Session) -> None:
+    active_services = db.query(Service).filter(
+        Service.salon_id == salon.id,
+        Service.is_active == True,
+    ).all()
+    if not active_services:
+        return
+    ordered = []
+    seen = set()
+    for svc in active_services:
+        cat = (svc.category or "").strip()
+        if cat and cat.lower() not in seen:
+            seen.add(cat.lower())
+            ordered.append(cat)
+    if ordered:
+        salon.services_list = ",".join(ordered)
+
+
 def _format_salon(s: Salon) -> dict:
     services = [x.strip() for x in s.services_list.split(",") if x.strip()] if s.services_list else []
     staff = [
         {"id": st.id, "name": st.name, "specialty": st.specialty, "img": st.img}
         for st in s.staff
     ]
+    menu_services = [
+        _serialize_partner_service(svc)
+        for svc in sorted(
+            [m for m in (getattr(s, "menu_services", None) or []) if getattr(m, "is_active", True)],
+            key=lambda m: (m.category or "", float(m.price or 0), m.name or ""),
+        )
+    ]
     return {
         "id": s.id,
         "audience": s.audience,
         "owner_id": s.owner_id,
         "name": s.name,
+        "city": getattr(s, "city", None) or "Mumbai",
         "area": s.area,
         "distance": s.distance,
         "rating": s.rating,
@@ -83,7 +133,8 @@ def _format_salon(s: Salon) -> dict:
         "services": services,
         "hours": s.hours,
         "about": s.about,
-        "staff": staff
+        "staff": staff,
+        "menu_services": menu_services,
     }
 
 
@@ -483,18 +534,14 @@ def get_professional_services(
     ).first()
     if not pro:
         return []
-    return [
-        {
-            "id": s.id,
-            "name": s.name,
-            "category": s.category,
-            "price": s.price,
-            "duration": s.duration,
-            "desc": s.desc,
-            "img": s.img
-        }
-        for s in pro.services
-    ]
+    combined = {}
+    for s in (pro.services or []):
+        if getattr(s, "is_active", True):
+            combined[s.id] = _serialize_partner_service(s, pro_id=pro.id)
+    for s in (pro.custom_services or []):
+        if getattr(s, "is_active", True):
+            combined[s.id] = _serialize_partner_service(s, pro_id=pro.id)
+    return list(combined.values())
 
 
 @router.post("/professional/services")
@@ -509,7 +556,7 @@ def assign_professional_service(
     if not pro:
         raise HTTPException(status_code=404, detail="Professional profile not found.")
 
-    service = db.query(Service).filter(Service.id == payload.service_id).first()
+    service = db.query(Service).filter(Service.id == payload.service_id, Service.is_active == True).first()
     if not service:
         raise HTTPException(status_code=404, detail="Service not found.")
 
@@ -518,6 +565,84 @@ def assign_professional_service(
         db.commit()
 
     return {"message": "Service successfully assigned", "service_id": service.id}
+
+
+@router.post("/professional/services/custom")
+def create_professional_custom_service(
+    payload: PartnerCustomServiceCreate,
+    user: User = Depends(require_professional),
+    db: Session = Depends(get_db),
+):
+    pro = db.query(ProfessionalProfile).filter(
+        ProfessionalProfile.user_id == user.id
+    ).first()
+    if not pro:
+        raise HTTPException(status_code=404, detail="Professional profile not found.")
+
+    svc_id = f"ps-{pro.id}-{secrets.token_hex(4)}"
+    cities_str = (payload.cities or pro.city or "Mumbai").strip() or "Mumbai"
+    svc = Service(
+        id=svc_id,
+        name=payload.name.strip(),
+        category=payload.category.strip(),
+        price=float(payload.price),
+        duration=payload.duration.strip(),
+        audience=payload.audience,
+        img=(payload.img or "").strip() or pro.img or "./assets/home-editorial.webp",
+        desc=(payload.desc or "").strip() or f"{payload.name.strip()} ({payload.duration.strip()}) by {pro.name}.",
+        service_cities=cities_str,
+        professional_id=pro.id,
+        salon_id=None,
+        is_active=True,
+    )
+    db.add(svc)
+    pro.services.append(svc)
+    db.commit()
+    db.refresh(svc)
+    cache_service.invalidate_catalog()
+    return _serialize_partner_service(svc, pro_id=pro.id)
+
+
+@router.put("/professional/services/custom/{service_id}")
+def update_professional_custom_service(
+    service_id: str,
+    payload: PartnerCustomServiceUpdate,
+    user: User = Depends(require_professional),
+    db: Session = Depends(get_db),
+):
+    pro = db.query(ProfessionalProfile).filter(
+        ProfessionalProfile.user_id == user.id
+    ).first()
+    if not pro:
+        raise HTTPException(status_code=404, detail="Professional profile not found.")
+
+    svc = db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
+    if not svc or svc.professional_id is None:
+        raise HTTPException(status_code=404, detail="Custom service not found.")
+    if svc.professional_id != pro.id and user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Forbidden: Service belongs to another professional.")
+
+    if payload.name is not None:
+        svc.name = payload.name.strip()
+    if payload.category is not None:
+        svc.category = payload.category.strip()
+    if payload.price is not None:
+        svc.price = float(payload.price)
+    if payload.duration is not None:
+        svc.duration = payload.duration.strip()
+    if payload.audience is not None:
+        svc.audience = payload.audience
+    if payload.desc is not None:
+        svc.desc = payload.desc.strip()
+    if payload.img is not None and payload.img.strip():
+        svc.img = payload.img.strip()
+    if payload.cities is not None and payload.cities.strip():
+        svc.service_cities = payload.cities.strip()
+
+    db.commit()
+    db.refresh(svc)
+    cache_service.invalidate_catalog()
+    return _serialize_partner_service(svc, pro_id=pro.id)
 
 
 @router.delete("/professional/services/{service_id}")
@@ -533,11 +658,16 @@ def unlink_professional_service(
         raise HTTPException(status_code=404, detail="Professional profile not found.")
 
     service = db.query(Service).filter(Service.id == service_id).first()
-    if service and service in pro.services:
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found.")
+    if service in pro.services:
         pro.services.remove(service)
-        db.commit()
+    if service.professional_id == pro.id:
+        service.is_active = False
+        cache_service.invalidate_catalog()
+    db.commit()
 
-    return {"message": "Service successfully unlinked"}
+    return {"message": "Service successfully removed"}
 
 
 @router.get("/professional/bookings")
@@ -645,7 +775,10 @@ def get_salon_profile(
     user: User = Depends(require_salon_owner),
     db: Session = Depends(get_db)
 ):
-    salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
+    salon = db.query(Salon).options(
+        selectinload(Salon.staff),
+        selectinload(Salon.menu_services),
+    ).filter(Salon.owner_id == user.id).first()
     if not salon:
         raise HTTPException(status_code=404, detail="Salon profile not found.")
     return _format_salon(salon)
@@ -682,6 +815,119 @@ def update_salon_profile(
     db.refresh(salon)
     cache_service.invalidate_catalog()
     return _format_salon(salon)
+
+
+@router.get("/salon/services")
+def get_salon_services(
+    user: User = Depends(require_salon_owner),
+    db: Session = Depends(get_db),
+):
+    salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
+    if not salon:
+        return []
+    items = db.query(Service).filter(
+        Service.salon_id == salon.id,
+        Service.is_active == True,
+    ).order_by(Service.category.asc(), Service.price.asc()).all()
+    return [_serialize_partner_service(s) for s in items]
+
+
+@router.post("/salon/services")
+def create_salon_service(
+    payload: PartnerCustomServiceCreate,
+    user: User = Depends(require_salon_owner),
+    db: Session = Depends(get_db),
+):
+    salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found.")
+
+    svc_id = f"sl-{salon.id}-{secrets.token_hex(4)}"
+    svc = Service(
+        id=svc_id,
+        name=payload.name.strip(),
+        category=payload.category.strip(),
+        price=float(payload.price),
+        duration=payload.duration.strip(),
+        audience=payload.audience,
+        img=(payload.img or "").strip() or salon.img or "./assets/salon-editorial.webp",
+        desc=(payload.desc or "").strip() or f"{payload.name.strip()} ({payload.duration.strip()}) at {salon.name}.",
+        service_cities=(salon.city or "Mumbai").strip(),
+        salon_id=salon.id,
+        professional_id=None,
+        is_active=True,
+    )
+    db.add(svc)
+    db.flush()
+    _sync_salon_categories(salon, db)
+    db.commit()
+    db.refresh(svc)
+    cache_service.invalidate_catalog()
+    return _serialize_partner_service(svc)
+
+
+@router.put("/salon/services/{service_id}")
+def update_salon_service(
+    service_id: str,
+    payload: PartnerCustomServiceUpdate,
+    user: User = Depends(require_salon_owner),
+    db: Session = Depends(get_db),
+):
+    salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found.")
+
+    svc = db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
+    if not svc or svc.salon_id is None:
+        raise HTTPException(status_code=404, detail="Salon service not found.")
+    if svc.salon_id != salon.id and user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Forbidden: Service belongs to another salon.")
+
+    if payload.name is not None:
+        svc.name = payload.name.strip()
+    if payload.category is not None:
+        svc.category = payload.category.strip()
+    if payload.price is not None:
+        svc.price = float(payload.price)
+    if payload.duration is not None:
+        svc.duration = payload.duration.strip()
+    if payload.audience is not None:
+        svc.audience = payload.audience
+    if payload.desc is not None:
+        svc.desc = payload.desc.strip()
+    if payload.img is not None and payload.img.strip():
+        svc.img = payload.img.strip()
+
+    db.flush()
+    _sync_salon_categories(salon, db)
+    db.commit()
+    db.refresh(svc)
+    cache_service.invalidate_catalog()
+    return _serialize_partner_service(svc)
+
+
+@router.delete("/salon/services/{service_id}")
+def delete_salon_service(
+    service_id: str,
+    user: User = Depends(require_salon_owner),
+    db: Session = Depends(get_db),
+):
+    salon = db.query(Salon).filter(Salon.owner_id == user.id).first()
+    if not salon:
+        raise HTTPException(status_code=404, detail="Salon not found.")
+
+    svc = db.query(Service).filter(Service.id == service_id, Service.is_active == True).first()
+    if not svc or svc.salon_id is None:
+        raise HTTPException(status_code=404, detail="Salon service not found.")
+    if svc.salon_id != salon.id and user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Forbidden: Service belongs to another salon.")
+
+    svc.is_active = False
+    db.flush()
+    _sync_salon_categories(salon, db)
+    db.commit()
+    cache_service.invalidate_catalog()
+    return {"message": "Salon service removed successfully"}
 
 
 @router.get("/salon/staff", response_model=List[SalonStaffResponse])
